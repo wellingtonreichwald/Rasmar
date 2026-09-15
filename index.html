@@ -1292,21 +1292,73 @@ function atualizarStatusSync(msg, tipo){
   el.style.color = tipo === 'erro' ? 'var(--text-danger)' : tipo === 'aviso' ? 'var(--fill-warning)' : 'var(--text-secondary)';
 }
 
-async function buscarEstadoServidor(){
-  const resp = await fetch(syncUrl, { method: 'GET' });
-  if (!resp.ok) throw new Error('resposta ' + resp.status);
-  return await resp.json();
+// o Google Apps Script não manda os cabeçalhos de CORS que fetch()/XHR
+// exigem — por isso lemos via JSONP (uma tag <script> com callback, que não
+// esbarra nessa regra do navegador) em vez de fetch() comum.
+function buscarEstadoServidor(){
+  return new Promise((resolve, reject) => {
+    const nomeCallback = 'rasmarCb_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    const script = document.createElement('script');
+    let finalizado = false;
+    const limpar = () => { delete window[nomeCallback]; script.remove(); clearTimeout(timeout); };
+    const timeout = setTimeout(() => {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      reject(new Error('tempo esgotado buscando dados do servidor'));
+    }, 15000);
+    window[nomeCallback] = (dados) => {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      resolve(dados);
+    };
+    script.onerror = () => {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      reject(new Error('não consegui carregar os dados do servidor'));
+    };
+    const separador = syncUrl.includes('?') ? '&' : '?';
+    script.src = syncUrl + separador + 'callback=' + nomeCallback + '&_=' + Date.now();
+    document.body.appendChild(script);
+  });
 }
 
-async function enviarEstadoServidor(){
-  const corpo = { projetos, proximoNumeroPedido, usuarios, logs };
-  const resp = await fetch(syncUrl, {
-    method: 'POST',
-    headers: {'Content-Type': 'text/plain;charset=utf-8'}, // evita pré-checagem CORS complicada com Apps Script
-    body: JSON.stringify(corpo)
+// escreve via um formulário comum enviado pra um iframe oculto — formulários
+// não esbarram na regra de CORS que bloqueia o fetch() aqui. Como não dá
+// pra ler a resposta desse envio (é de outro domínio), confirmamos lendo o
+// estado de volta via buscarEstadoServidor() logo em seguida.
+function enviarEstadoServidor(){
+  return new Promise((resolve, reject) => {
+    const corpo = { projetos, proximoNumeroPedido, usuarios, logs };
+    let iframe = document.getElementById('rasmarSyncFrame');
+    if (!iframe){
+      iframe = document.createElement('iframe');
+      iframe.id = 'rasmarSyncFrame';
+      iframe.name = 'rasmarSyncFrame';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = syncUrl;
+    form.target = 'rasmarSyncFrame';
+    form.style.display = 'none';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = JSON.stringify(corpo);
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    setTimeout(() => {
+      buscarEstadoServidor()
+        .then(dados => resolve({ ok: true, salvoEm: dados.salvoEm }))
+        .catch(reject);
+    }, 1200);
   });
-  if (!resp.ok) throw new Error('resposta ' + resp.status);
-  return await resp.json();
 }
 
 async function carregarDoServidorAgora(){
