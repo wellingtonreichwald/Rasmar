@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Rasmar V1 — Dashboard</title>
+<style>
+  :root{
+    --bg:#f6f5f2; --surface-1:#eeece7; --surface-2:#ffffff;
+    --border:#e2dfd8; --border-strong:#cdc8bc;
+    --text-primary:#20221f; --text-secondary:#5b5a52; --text-muted:#928f83;
+    --text-success:#0e6b53; --text-danger:#ab2b23; --text-accent:#7a5a2e;
+    --fill-primary:#1f2a28; --on-primary:#fff;
+    --brand:#0f5c4c; --brand-dark:#0b4a3d; --on-brand:#fff;
+    --radius:10px; --radius-lg:16px;
+    --shadow-sm:0 1px 2px rgba(20,20,15,0.06);
+    --shadow-md:0 4px 14px rgba(20,20,15,0.08);
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--text-primary); margin:0; padding:24px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.4;
+  }
+  .wrap{max-width:1080px; margin:0 auto;}
+  button, select, input{
+    font-family:inherit; cursor:pointer; background:var(--surface-2);
+    border:1px solid var(--border-strong); border-radius:var(--radius); color:var(--text-primary);
+    padding:8px 12px; font-size:13px;
+  }
+  button:hover{ filter:brightness(0.97); }
+  .cabecalho{
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    padding:16px 24px; margin:-24px -24px 24px; background:var(--surface-2);
+    border-bottom:3px solid var(--brand); box-shadow:var(--shadow-sm);
+  }
+  h1{font-size:18px; font-weight:700; margin:0;}
+  .sub{font-size:11px; color:var(--text-muted); margin:2px 0 0;}
+  .cartoes{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:24px;}
+  .cartao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm);}
+  .cartao .numero{font-size:26px; font-weight:700; color:var(--brand);}
+  .cartao .rotulo{font-size:12px; color:var(--text-secondary); margin-top:4px;}
+  .secao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; margin-bottom:20px; box-shadow:var(--shadow-sm);}
+  .secao h2{font-size:15px; margin:0 0 12px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th, td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  th{color:var(--text-secondary); font-weight:600; font-size:12px;}
+  tbody tr:hover{background:var(--surface-1);}
+  .tabela-wrap{overflow-x:auto;}
+  #telaBloqueada{position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px;}
+  #telaBloqueada .caixa{background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-md); padding:32px; max-width:380px; text-align:center;}
+  a.voltar{color:var(--text-accent); font-size:13px;}
+  .filtros{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+</style>
+</head>
+<body>
+
+<div id="telaBloqueada" style="display:none;">
+  <div class="caixa">
+    <h1 style="margin-bottom:8px;">Acesso ao Dashboard</h1>
+    <p id="mensagemBloqueio" style="font-size:14px; color:var(--text-secondary);"></p>
+    <a class="voltar" href="index.html">← voltar pro Rasmar</a>
+  </div>
+</div>
+
+<div id="conteudo" style="display:none;">
+  <div class="wrap">
+    <div class="cabecalho">
+      <div>
+        <h1>Dashboard <span style="font-size:11px; background:var(--brand); color:var(--on-brand); border-radius:5px; padding:1px 6px; margin-left:6px;">V1</span></h1>
+        <p class="sub">Rasmar — análise de produção</p>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span id="usuarioTexto" style="font-size:12px; color:var(--text-secondary);"></span>
+        <a class="voltar" href="index.html">← voltar pro Rasmar</a>
+      </div>
+    </div>
+
+    <div class="filtros">
+      <label style="font-size:12px; color:var(--text-muted);">de</label>
+      <input id="filtroDe" type="date" />
+      <label style="font-size:12px; color:var(--text-muted);">até</label>
+      <input id="filtroAte" type="date" />
+      <button id="btnAtualizar" style="background:var(--brand); color:var(--on-brand); border:none; font-weight:500;">Atualizar</button>
+      <span id="statusCarregando" style="font-size:12px; color:var(--text-muted);"></span>
+    </div>
+
+    <div class="cartoes" id="cartoes"></div>
+
+    <div class="secao">
+      <h2>Eventos por tipo</h2>
+      <div id="porTipo" class="tabela-wrap"></div>
+    </div>
+
+    <div class="secao">
+      <h2>Peças por cliente/projeto</h2>
+      <div id="porProjeto" class="tabela-wrap"></div>
+    </div>
+
+    <div class="secao">
+      <h2>Tempo entre etapas, por peça</h2>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 12px;">Calculado a partir das bipagens de cada peça em CNC, Coladeira e Limpeza e Separação.</p>
+      <div id="tempoEtapas" class="tabela-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const syncUrl = localStorage.getItem('rasmar_sync_url') || '';
+const usuarioLogadoNome = sessionStorage.getItem('rasmar_usuario') || '';
+
+function bloquear(msg){
+  document.getElementById('mensagemBloqueio').textContent = msg;
+  document.getElementById('telaBloqueada').style.display = 'flex';
+}
+
+function buscarNoServidor(params){
+  return new Promise((resolve, reject) => {
+    const nomeCallback = 'rasmarDashCb_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    const script = document.createElement('script');
+    let finalizado = false;
+    const limpar = () => { delete window[nomeCallback]; script.remove(); clearTimeout(timeout); };
+    const timeout = setTimeout(() => {
+      if (finalizado) return; finalizado = true; limpar();
+      reject(new Error('tempo esgotado buscando no servidor'));
+    }, 20000);
+    window[nomeCallback] = (dados) => { if (finalizado) return; finalizado = true; limpar(); resolve(dados); };
+    script.onerror = () => { if (finalizado) return; finalizado = true; limpar(); reject(new Error('não consegui buscar no servidor')); };
+    const query = new URLSearchParams(Object.assign({ callback: nomeCallback, _: Date.now() }, params)).toString();
+    script.src = syncUrl + (syncUrl.includes('?') ? '&' : '?') + query;
+    document.body.appendChild(script);
+  });
+}
+
+function diffLegivel(de, ate){
+  if (!de || !ate) return '—';
+  const ms = new Date(ate) - new Date(de);
+  if (isNaN(ms) || ms < 0) return '—';
+  const totalMin = Math.round(ms/60000);
+  const dias = Math.floor(totalMin/1440);
+  const horas = Math.floor((totalMin%1440)/60);
+  const min = totalMin%60;
+  let partes = [];
+  if (dias) partes.push(dias+'d');
+  if (horas) partes.push(horas+'h');
+  if (min || partes.length===0) partes.push(min+'min');
+  return partes.join(' ');
+}
+
+function montarCartoes(movimentos){
+  const pecasUnicas = new Set(movimentos.filter(m=>m.pecaCodigo).map(m=>m.pecaCodigo));
+  const modulosUnicos = new Set(movimentos.filter(m=>m.moduloId).map(m=>m.clienteCodigo+'#'+m.moduloId));
+  const projetosUnicos = new Set(movimentos.filter(m=>m.clienteCodigo).map(m=>m.clienteCodigo));
+  const cartoes = [
+    { numero: movimentos.length, rotulo: 'eventos no período' },
+    { numero: pecasUnicas.size, rotulo: 'peças com movimento' },
+    { numero: modulosUnicos.size, rotulo: 'módulos com movimento' },
+    { numero: projetosUnicos.size, rotulo: 'pedidos com movimento' }
+  ];
+  document.getElementById('cartoes').innerHTML = cartoes.map(c =>
+    '<div class="cartao"><div class="numero">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
+  ).join('');
+}
+
+function montarPorTipo(movimentos){
+  const contagem = {};
+  movimentos.forEach(m => { contagem[m.tipo] = (contagem[m.tipo]||0) + 1; });
+  const linhas = Object.entries(contagem).sort((a,b) => b[1]-a[1]);
+  const el = document.getElementById('porTipo');
+  if (!linhas.length){ el.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">nenhum evento no período</p>'; return; }
+  el.innerHTML = '<table><thead><tr><th>tipo</th><th>quantidade</th></tr></thead><tbody>' +
+    linhas.map(([tipo,qtd]) => '<tr><td>' + tipo + '</td><td>' + qtd + '</td></tr>').join('') +
+    '</tbody></table>';
+}
+
+function montarPorProjeto(movimentos){
+  const contagem = {};
+  movimentos.forEach(m => {
+    if (!m.clienteCodigo) return;
+    const chave = m.clienteCodigo + '|' + m.cliente + '|' + m.projeto;
+    contagem[chave] = (contagem[chave]||0) + 1;
+  });
+  const linhas = Object.entries(contagem).sort((a,b) => b[1]-a[1]);
+  const el = document.getElementById('porProjeto');
+  if (!linhas.length){ el.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">nenhum evento no período</p>'; return; }
+  el.innerHTML = '<table><thead><tr><th>pedido</th><th>cliente</th><th>projeto</th><th>eventos</th></tr></thead><tbody>' +
+    linhas.map(([chave,qtd]) => {
+      const [codigo, cliente, projeto] = chave.split('|');
+      return '<tr><td>' + codigo + '</td><td>' + cliente + '</td><td>' + projeto + '</td><td>' + qtd + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+function montarTempoEtapas(movimentos){
+  const porPeca = {};
+  movimentos.forEach(m => {
+    if (m.tipo !== 'bipagem' || !m.pecaCodigo) return;
+    if (!porPeca[m.pecaCodigo]){
+      porPeca[m.pecaCodigo] = {
+        pecaCodigo: m.pecaCodigo, pecaDescricao: m.pecaDescricao,
+        moduloId: m.moduloId, moduloNome: m.moduloNome,
+        cliente: m.cliente, projeto: m.projeto, etapas: {}
+      };
+    }
+    porPeca[m.pecaCodigo].etapas[m.detalhe] = m.em;
+  });
+  const linhas = Object.values(porPeca);
+  const el = document.getElementById('tempoEtapas');
+  if (!linhas.length){ el.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">nenhuma bipagem no período</p>'; return; }
+  el.innerHTML = '<table><thead><tr><th>peça</th><th>módulo</th><th>cliente/projeto</th><th>CNC</th><th>Coladeira</th><th>Limpeza</th><th>CNC→Coladeira</th><th>Coladeira→Limpeza</th></tr></thead><tbody>' +
+    linhas.map(l => {
+      const cnc = l.etapas['CNC'], col = l.etapas['Coladeira'], lim = l.etapas['Limpeza e Separação'];
+      return '<tr>' +
+        '<td>' + l.pecaCodigo + ' <span style="color:var(--text-muted);">(' + (l.pecaDescricao||'') + ')</span></td>' +
+        '<td>#' + (l.moduloId||'—') + ' ' + (l.moduloNome||'') + '</td>' +
+        '<td>' + (l.cliente||'—') + ' · ' + (l.projeto||'') + '</td>' +
+        '<td>' + (cnc || '—') + '</td><td>' + (col || '—') + '</td><td>' + (lim || '—') + '</td>' +
+        '<td>' + diffLegivel(cnc, col) + '</td><td>' + diffLegivel(col, lim) + '</td>' +
+      '</tr>';
+    }).join('') + '</tbody></table>';
+}
+
+async function carregar(){
+  const de = document.getElementById('filtroDe').value;
+  const ate = document.getElementById('filtroAte').value;
+  document.getElementById('statusCarregando').textContent = 'carregando...';
+  try {
+    const dados = await buscarNoServidor({ acao: 'movimentos', de, ate });
+    const movimentos = Array.isArray(dados.movimentos) ? dados.movimentos : [];
+    montarCartoes(movimentos);
+    montarPorTipo(movimentos);
+    montarPorProjeto(movimentos);
+    montarTempoEtapas(movimentos);
+    document.getElementById('statusCarregando').textContent = movimentos.length + ' evento(s) carregado(s)';
+  } catch (err) {
+    document.getElementById('statusCarregando').textContent = 'erro: ' + err.message;
+  }
+}
+document.getElementById('btnAtualizar').onclick = carregar;
+
+async function iniciar(){
+  if (!syncUrl){
+    bloquear('A sincronização ainda não foi configurada. Volte pro Rasmar principal, faça login como admin e configure a sincronização primeiro.');
+    return;
+  }
+  if (!usuarioLogadoNome){
+    bloquear('Você precisa estar logado no Rasmar principal pra ver o dashboard. Volte e faça login primeiro.');
+    return;
+  }
+  try {
+    const dados = await buscarNoServidor({});
+    const usuarios = Array.isArray(dados.usuarios) ? dados.usuarios : [];
+    const u = usuarios.find(x => x.usuario === usuarioLogadoNome);
+    if (!u){
+      bloquear('Sua sessão não é mais válida. Volte pro Rasmar principal e faça login de novo.');
+      return;
+    }
+    document.getElementById('usuarioTexto').textContent = u.usuario + (u.admin ? ' · admin' : '');
+    document.getElementById('conteudo').style.display = 'block';
+    carregar();
+  } catch (err) {
+    bloquear('Não consegui conectar com a planilha: ' + err.message);
+  }
+}
+iniciar();
+</script>
+</body>
+</html>
