@@ -1759,6 +1759,8 @@ async function carregarDoServidorAgora(){
 }
 
 let assinaturaAoEntrarEmConflito = null;
+let ultimaVerificacaoSaude = 0;
+const INTERVALO_MINIMO_VERIFICACAO_SAUDE = 60000; // não verifica de novo antes de passar 1 minuto, pra não sobrecarregar o Apps Script
 
 async function salvarNoServidorComSeguranca(silencioso){
   if (!syncUrl || syncEmAndamento) return;
@@ -1775,12 +1777,18 @@ async function salvarNoServidorComSeguranca(silencioso){
   }
 
   // nada mudou desde a última sincronização por aqui — não precisa escrever
-  // de novo (evita "falso conflito" pros outros computadores só por reenviar
-  // o mesmo conteúdo). Mesmo assim, confirma que o servidor continua com o
-  // mesmo "salvoEm" que a gente espera — se não estiver (por exemplo, um
-  // envio anterior reportou sucesso mas na verdade não gravou), reenvia.
+  // de novo. De vez em quando (não a cada 5s — isso sobrecarregava o Apps
+  // Script) confirma que o servidor continua com o "salvoEm" esperado; se um
+  // clique manual pedir (silencioso=false), verifica sempre, na hora.
   if (ultimoConteudoSincronizado && assinaturaEstadoAtual() === ultimoConteudoSincronizado){
+    const agora = Date.now();
+    const deveVerificar = !silencioso || (agora - ultimaVerificacaoSaude > INTERVALO_MINIMO_VERIFICACAO_SAUDE);
+    if (!deveVerificar){
+      if (!silencioso) atualizarStatusSync('já sincronizado — última atualização: ' + formatarCarimbo(ultimoSalvoConhecido), null);
+      return;
+    }
     try {
+      ultimaVerificacaoSaude = agora;
       const verificacao = await buscarEstadoServidor();
       if (verificacao.salvoEm === ultimoSalvoConhecido){
         if (!silencioso) atualizarStatusSync('já sincronizado — última atualização: ' + formatarCarimbo(ultimoSalvoConhecido), null);
