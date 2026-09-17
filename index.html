@@ -214,7 +214,7 @@
     </div>
 
     <div class="barraAcoes">
-      <button id="btnToggleSync" title="Sincronização" style="font-size:14px; padding:5px 8px; display:none; line-height:1; position:relative;">🔄<span id="pontoStatusSync" style="display:none; position:absolute; top:2px; right:2px; width:8px; height:8px; border-radius:50%; background:var(--text-muted); border:1px solid var(--surface-2);"></span></button>
+      <button id="btnToggleSync" title="Sincronização" style="font-size:15px; padding:5px 8px; display:none; line-height:1;">🔄</button>
       <button id="btnTrocarSenha" style="font-size:12px; padding:5px 10px; display:none;">Trocar senha</button>
       <button id="btnAbrirAdmin" style="font-size:12px; padding:5px 10px; display:none;">Administração</button>
       <button id="btnAbrirHistorico" style="font-size:12px; padding:5px 10px; display:none;">Histórico</button>
@@ -1643,11 +1643,9 @@ function atualizarStatusSync(msg, tipo){
   const el = document.getElementById('statusSync');
   el.textContent = msg;
   el.style.color = tipo === 'erro' ? 'var(--text-danger)' : tipo === 'aviso' ? 'var(--fill-warning)' : 'var(--text-secondary)';
-  // ponto sempre visível no ícone do cabeçalho, sem precisar clicar pra ver
-  // se está tudo bem — vermelho (erro), amarelo (conflito/aviso), verde (ok).
-  const ponto = document.getElementById('pontoStatusSync');
-  ponto.style.display = 'block';
-  ponto.style.background = tipo === 'erro' ? 'var(--text-danger)' : tipo === 'aviso' ? '#c99a2e' : 'var(--text-success)';
+  // o próprio ícone muda de símbolo/cor — bem visível, sem precisar clicar
+  // pra saber se está tudo bem: 🔴 erro, 🟡 conflito/aviso, 🟢 sincronizado ok.
+  document.getElementById('btnToggleSync').textContent = tipo === 'erro' ? '🔴' : tipo === 'aviso' ? '🟡' : '🟢';
 }
 
 // o Google Apps Script não manda os cabeçalhos de CORS que fetch()/XHR
@@ -1762,8 +1760,16 @@ let assinaturaAoEntrarEmConflito = null;
 let ultimaVerificacaoSaude = 0;
 const INTERVALO_MINIMO_VERIFICACAO_SAUDE = 60000; // não verifica de novo antes de passar 1 minuto, pra não sobrecarregar o Apps Script
 
-async function salvarNoServidorComSeguranca(silencioso){
-  if (!syncUrl || syncEmAndamento) return;
+async function salvarNoServidorComSeguranca(silencioso, tentativa){
+  tentativa = tentativa || 0;
+  if (!syncUrl) return;
+  // se já tem uma sincronização acontecendo agora, não desiste — tenta de
+  // novo em pouco tempo (em vez de só esperar o próximo ciclo de 5s inteiro,
+  // o que atrasava demais quando várias ações aconteciam em sequência rápida).
+  if (syncEmAndamento){
+    if (tentativa < 12) setTimeout(() => salvarNoServidorComSeguranca(silencioso, tentativa + 1), 400);
+    return;
+  }
 
   // já em conflito de uma vez anterior — se nada mudou por aqui desde então,
   // é seguro recarregar sozinho (não tem trabalho local pra perder). Se a
