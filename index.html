@@ -214,7 +214,7 @@
     </div>
 
     <div class="barraAcoes">
-      <button id="btnToggleSync" title="Sincronização" style="font-size:14px; padding:5px 8px; display:none; line-height:1;">🔄</button>
+      <button id="btnToggleSync" title="Sincronização" style="font-size:14px; padding:5px 8px; display:none; line-height:1; position:relative;">🔄<span id="pontoStatusSync" style="display:none; position:absolute; top:2px; right:2px; width:8px; height:8px; border-radius:50%; background:var(--text-muted); border:1px solid var(--surface-2);"></span></button>
       <button id="btnTrocarSenha" style="font-size:12px; padding:5px 10px; display:none;">Trocar senha</button>
       <button id="btnAbrirAdmin" style="font-size:12px; padding:5px 10px; display:none;">Administração</button>
       <button id="btnAbrirHistorico" style="font-size:12px; padding:5px 10px; display:none;">Histórico</button>
@@ -1623,7 +1623,7 @@ function agendarSincronizacaoRapida(){
   if (!syncUrl) return;
   clearTimeout(sincronizacaoRapidaAgendada);
   sincronizacaoRapidaAgendada = setTimeout(() => {
-    if (!modoConflitoSync) salvarNoServidorComSeguranca(true);
+    salvarNoServidorComSeguranca(true); // a própria função decide o que fazer se estiver em conflito
   }, 150);
 }
 
@@ -1643,6 +1643,11 @@ function atualizarStatusSync(msg, tipo){
   const el = document.getElementById('statusSync');
   el.textContent = msg;
   el.style.color = tipo === 'erro' ? 'var(--text-danger)' : tipo === 'aviso' ? 'var(--fill-warning)' : 'var(--text-secondary)';
+  // ponto sempre visível no ícone do cabeçalho, sem precisar clicar pra ver
+  // se está tudo bem — vermelho (erro), amarelo (conflito/aviso), verde (ok).
+  const ponto = document.getElementById('pontoStatusSync');
+  ponto.style.display = 'block';
+  ponto.style.background = tipo === 'erro' ? 'var(--text-danger)' : tipo === 'aviso' ? '#c99a2e' : 'var(--text-success)';
 }
 
 // o Google Apps Script não manda os cabeçalhos de CORS que fetch()/XHR
@@ -1745,6 +1750,7 @@ async function carregarDoServidorAgora(){
     ultimoConteudoSincronizado = assinaturaEstadoAtual();
     renderSeletor(); renderProjetos();
     modoConflitoSync = false;
+    assinaturaAoEntrarEmConflito = null;
     document.getElementById('btnSincronizarAgora').textContent = 'Sincronizar agora';
     atualizarStatusSync('sincronizado — última atualização: ' + formatarCarimbo(ultimoSalvoConhecido), null);
   } catch (err) {
@@ -1752,23 +1758,51 @@ async function carregarDoServidorAgora(){
   }
 }
 
+let assinaturaAoEntrarEmConflito = null;
+
 async function salvarNoServidorComSeguranca(silencioso){
   if (!syncUrl || syncEmAndamento) return;
-  // nada mudou desde a última sincronização por aqui — não precisa escrever
-  // de novo (evita "falso conflito" pros outros computadores só por reenviar
-  // o mesmo conteúdo).
-  if (ultimoConteudoSincronizado && assinaturaEstadoAtual() === ultimoConteudoSincronizado){
-    if (!silencioso) atualizarStatusSync('já sincronizado — última atualização: ' + formatarCarimbo(ultimoSalvoConhecido), null);
+
+  // já em conflito de uma vez anterior — se nada mudou por aqui desde então,
+  // é seguro recarregar sozinho (não tem trabalho local pra perder). Se a
+  // pessoa continuou trabalhando depois do conflito, não arrisca: continua
+  // esperando o clique manual em "Carregar atualização".
+  if (modoConflitoSync){
+    if (assinaturaAoEntrarEmConflito && assinaturaEstadoAtual() === assinaturaAoEntrarEmConflito){
+      await carregarDoServidorAgora();
+    }
     return;
   }
+
+  // nada mudou desde a última sincronização por aqui — não precisa escrever
+  // de novo (evita "falso conflito" pros outros computadores só por reenviar
+  // o mesmo conteúdo). Mesmo assim, confirma que o servidor continua com o
+  // mesmo "salvoEm" que a gente espera — se não estiver (por exemplo, um
+  // envio anterior reportou sucesso mas na verdade não gravou), reenvia.
+  if (ultimoConteudoSincronizado && assinaturaEstadoAtual() === ultimoConteudoSincronizado){
+    try {
+      const verificacao = await buscarEstadoServidor();
+      if (verificacao.salvoEm === ultimoSalvoConhecido){
+        if (!silencioso) atualizarStatusSync('já sincronizado — última atualização: ' + formatarCarimbo(ultimoSalvoConhecido), null);
+        return;
+      }
+      // discrepância: o que a gente pensava ter salvo não está lá — força um novo envio
+      ultimoConteudoSincronizado = null;
+    } catch (err) {
+      atualizarStatusSync('sem conexão com o servidor agora (' + err.message + ') — suas alterações continuam aqui, tentando de novo em breve', 'erro');
+      return;
+    }
+  }
+
   syncEmAndamento = true;
   try {
     // confere se alguém salvou depois da última vez que sincronizamos por aqui
     const atual = await buscarEstadoServidor();
     if (ultimoSalvoConhecido && atual.salvoEm && atual.salvoEm !== ultimoSalvoConhecido){
       modoConflitoSync = true;
+      assinaturaAoEntrarEmConflito = assinaturaEstadoAtual();
       document.getElementById('btnSincronizarAgora').textContent = 'Carregar atualização';
-      atualizarStatusSync('outro computador salvou às ' + formatarCarimbo(atual.salvoEm) + ' — clique em "Carregar atualização" antes de continuar', 'aviso');
+      atualizarStatusSync('outro computador salvou às ' + formatarCarimbo(atual.salvoEm) + ' — clique em "Carregar atualização" antes de continuar (ou espere: recarrega sozinho se você não editar nada)', 'aviso');
       return;
     }
     const assinaturaAntesDeEnviar = assinaturaEstadoAtual();
@@ -1864,7 +1898,7 @@ let intervaloSyncIniciado = false;
 function iniciarSincronizacaoAutomatica(){
   if (intervaloSyncIniciado) return;
   intervaloSyncIniciado = true;
-  setInterval(() => { if (!modoConflitoSync) salvarNoServidorComSeguranca(true); }, 5000);
+  setInterval(() => { salvarNoServidorComSeguranca(true); }, 5000); // a própria função decide o que fazer se estiver em conflito
 }
 
 // ---------- inicialização (busca os usuários/dados reais antes de mostrar login) ----------
