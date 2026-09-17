@@ -115,11 +115,6 @@
 
     <div class="cartoes" id="cartoes"></div>
 
-    <div class="secao">
-      <h2>Eventos por tipo (visão geral)</h2>
-      <div id="porTipo" class="tabela-wrap"></div>
-    </div>
-
     <div class="abas">
       <button id="abaPecas" class="ativa">Por peça</button>
       <button id="abaModulos">Por módulo</button>
@@ -130,6 +125,8 @@
       <input id="buscaDetalhe" class="buscaLista" type="text" placeholder="buscar..." />
       <div id="listaDetalhe"></div>
     </div>
+
+    <div class="secao" id="detalheLinhaDoTempo" style="display:none;"></div>
   </div>
 </div>
 
@@ -196,34 +193,62 @@ function diffLegivel(de, ate){
   return partes.join(' ');
 }
 
-// ---------- visão geral ----------
+// ---------- visão geral: foco em TEMPO, não em contagem de eventos ----------
+function calcularEtapasPeca(eventos){
+  const etapas = {};
+  eventos.forEach(ev => { if (ev.tipo === 'bipagem' && ev.detalhe) etapas[ev.detalhe] = ev.em; });
+  return etapas;
+}
+
+function diffMinutos(de, ate){
+  if (!de || !ate) return null;
+  const ms = new Date(ate) - new Date(de);
+  if (isNaN(ms) || ms < 0) return null;
+  return ms / 60000;
+}
+
+function mediaLegivel(valores){
+  const validos = valores.filter(v => v !== null && !isNaN(v));
+  if (!validos.length) return '—';
+  const media = validos.reduce((a,b)=>a+b,0) / validos.length;
+  const totalMin = Math.round(media);
+  const dias = Math.floor(totalMin/1440), horas = Math.floor((totalMin%1440)/60), min = totalMin%60;
+  let partes = [];
+  if (dias) partes.push(dias+'d');
+  if (horas) partes.push(horas+'h');
+  if (min || partes.length===0) partes.push(min+'min');
+  return partes.join(' ');
+}
+
 function montarCartoes(movimentos){
-  const pecasUnicas = new Set(movimentos.filter(m=>m.pecaCodigo).map(m=>m.pecaCodigo));
-  const modulosUnicos = new Set(movimentos.filter(m=>m.moduloId).map(m=>(m.clienteCodigo||'')+'#'+m.moduloId));
-  const projetosUnicos = new Set(movimentos.filter(m=>m.clienteCodigo).map(m=>m.clienteCodigo));
+  const porPeca = agruparPorPeca(movimentos);
+  const temposCncCol = [], temposColLimp = [], temposTotal = [];
+  porPeca.forEach(g => {
+    const et = calcularEtapasPeca(g.eventos);
+    const cncCol = diffMinutos(et['CNC'], et['Coladeira']);
+    const colLimp = diffMinutos(et['Coladeira'], et['Limpeza e Separação']);
+    const total = diffMinutos(et['CNC'], et['Limpeza e Separação']);
+    if (cncCol !== null) temposCncCol.push(cncCol);
+    if (colLimp !== null) temposColLimp.push(colLimp);
+    if (total !== null) temposTotal.push(total);
+  });
+  const pecasUnicas = porPeca.length;
+  const modulosUnicos = agruparPorModulo(movimentos).length;
+  const projetosUnicos = agruparPorProjeto(movimentos).length;
   const cartoes = [
-    { numero: movimentos.length, rotulo: 'eventos no período' },
-    { numero: pecasUnicas.size, rotulo: 'peças com movimento' },
-    { numero: modulosUnicos.size, rotulo: 'módulos com movimento' },
-    { numero: projetosUnicos.size, rotulo: 'pedidos com movimento' }
+    { numero: mediaLegivel(temposCncCol), rotulo: 'tempo médio CNC → Coladeira' },
+    { numero: mediaLegivel(temposColLimp), rotulo: 'tempo médio Coladeira → Limpeza' },
+    { numero: mediaLegivel(temposTotal), rotulo: 'tempo médio total (CNC → Limpeza)' },
+    { numero: pecasUnicas, rotulo: 'peças com movimento' },
+    { numero: modulosUnicos, rotulo: 'módulos com movimento' },
+    { numero: projetosUnicos, rotulo: 'pedidos com movimento' }
   ];
   document.getElementById('cartoes').innerHTML = cartoes.map(c =>
-    '<div class="cartao"><div class="numero">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
+    '<div class="cartao"><div class="numero" style="font-size:20px;">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
   ).join('');
 }
 
-function montarPorTipo(movimentos){
-  const contagem = {};
-  movimentos.forEach(m => { contagem[m.tipo] = (contagem[m.tipo]||0) + 1; });
-  const linhas = Object.entries(contagem).sort((a,b) => b[1]-a[1]);
-  const el = document.getElementById('porTipo');
-  if (!linhas.length){ el.innerHTML = '<p class="tagMuted">nenhum evento no período</p>'; return; }
-  el.innerHTML = '<table><thead><tr><th>tipo</th><th>quantidade</th></tr></thead><tbody>' +
-    linhas.map(([tipo,qtd]) => '<tr><td>' + nomeTipo(tipo) + '</td><td>' + qtd + '</td></tr>').join('') +
-    '</tbody></table>';
-}
-
-// ---------- agrupamento genérico com linha do tempo (funciona pra qualquer nível) ----------
+// ---------- linha do tempo completa (detalhe opcional, sob demanda) ----------
 function ordenarPorData(eventos){
   return eventos.slice().sort((a,b) => (a.em < b.em ? -1 : a.em > b.em ? 1 : 0));
 }
@@ -238,6 +263,16 @@ function renderLinhaDoTempo(eventos){
   return '<table><thead><tr><th>data/hora</th><th>evento</th><th>detalhe</th><th>usuário</th><th>desde o evento anterior</th></tr></thead><tbody>' + linhas + '</tbody></table>';
 }
 
+function mostrarLinhaDoTempo(chave){
+  const grupo = (ultimosGrupos || []).find(g => g.chave === chave);
+  const el = document.getElementById('detalheLinhaDoTempo');
+  if (!grupo){ el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<h2 style="font-size:14px; margin:0 0 10px;">Linha do tempo completa</h2>' + renderLinhaDoTempo(grupo.eventos);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ---------- agrupamento por peça / módulo / projeto ----------
 function agruparPorPeca(movimentos){
   const grupos = {};
   movimentos.forEach(m => {
@@ -287,38 +322,97 @@ function agruparPorProjeto(movimentos){
   return Object.values(grupos).map(g => { g.totalModulos = g.modulosUnicos.size; g.totalPecas = g.pecasUnicas.size; return g; });
 }
 
+// ---------- tabela principal: tempos direto na tela, sem precisar expandir ----------
+let ultimosGrupos = [];
+
+function renderTabelaPecas(grupos){
+  const linhas = grupos.map(g => {
+    const et = calcularEtapasPeca(g.eventos);
+    const cnc = et['CNC'], col = et['Coladeira'], limp = et['Limpeza e Separação'];
+    return '<tr>' +
+      '<td>' + g.pecaCodigo + '<br><span class="tagMuted">' + (g.pecaDescricao||'') + '</span></td>' +
+      '<td>#' + (g.moduloId||'—') + ' ' + (g.moduloNome||'') + '</td>' +
+      '<td>' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + '<br><span class="tagMuted">' + (g.projeto||'') + '</span></td>' +
+      '<td>' + (cnc ? cnc.replace('T',' ') : '—') + '</td>' +
+      '<td>' + (col ? col.replace('T',' ') : '—') + '</td>' +
+      '<td>' + (limp ? limp.replace('T',' ') : '—') + '</td>' +
+      '<td class="delta">' + (diffLegivel(cnc, col)) + '</td>' +
+      '<td class="delta">' + (diffLegivel(col, limp)) + '</td>' +
+      '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
+    '</tr>';
+  }).join('');
+  return '<table><thead><tr><th>peça</th><th>módulo</th><th>cliente/projeto</th><th>CNC</th><th>Coladeira</th><th>Limpeza</th><th>CNC→Col</th><th>Col→Limp</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
+}
+
+function renderTabelaModulos(grupos){
+  const linhas = grupos.map(g => {
+    const ord = ordenarPorData(g.eventos);
+    const inicio = ord[0]?.em, fim = ord[ord.length-1]?.em;
+    return '<tr>' +
+      '<td>#' + g.moduloId + ' ' + (g.moduloNome||'') + '</td>' +
+      '<td>' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + '<br><span class="tagMuted">' + (g.projeto||'') + '</span></td>' +
+      '<td>' + g.totalPecas + '</td>' +
+      '<td>' + (inicio ? inicio.replace('T',' ') : '—') + '</td>' +
+      '<td>' + (fim ? fim.replace('T',' ') : '—') + '</td>' +
+      '<td class="delta">' + diffLegivel(inicio, fim) + '</td>' +
+      '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
+    '</tr>';
+  }).join('');
+  return '<table><thead><tr><th>módulo</th><th>cliente/projeto</th><th>peças</th><th>início</th><th>último evento</th><th>tempo total</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
+}
+
+function renderTabelaProjetos(grupos){
+  const linhas = grupos.map(g => {
+    const ord = ordenarPorData(g.eventos);
+    const inicio = ord[0]?.em;
+    const baixa = g.eventos.find(e => e.tipo === 'baixa_pedido');
+    const fim = baixa ? baixa.em : ord[ord.length-1]?.em;
+    return '<tr>' +
+      '<td>' + g.clienteCodigo + '<br><span class="tagMuted">' + (g.cliente||'') + '</span></td>' +
+      '<td>' + (g.projeto||'') + '</td>' +
+      '<td>' + g.totalModulos + '</td>' +
+      '<td>' + g.totalPecas + '</td>' +
+      '<td>' + (inicio ? inicio.replace('T',' ') : '—') + '</td>' +
+      '<td>' + (baixa ? 'baixado em ' + fim.replace('T',' ') : (fim ? fim.replace('T',' ') : '—')) + '</td>' +
+      '<td class="delta">' + diffLegivel(inicio, fim) + '</td>' +
+      '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
+    '</tr>';
+  }).join('');
+  return '<table><thead><tr><th>pedido</th><th>projeto</th><th>módulos</th><th>peças</th><th>início</th><th>fim / baixa</th><th>tempo total</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
+}
+
 function renderListaDetalhe(){
   const termo = document.getElementById('buscaDetalhe').value.trim().toLowerCase();
   const el = document.getElementById('listaDetalhe');
-  let grupos, tituloFn, subFn;
+  document.getElementById('detalheLinhaDoTempo').style.display = 'none';
+  let grupos, filtroFn, renderFn;
 
   if (abaAtiva === 'pecas'){
     grupos = agruparPorPeca(movimentosAtuais);
-    tituloFn = g => g.pecaCodigo + ' — ' + (g.pecaDescricao||'');
-    subFn = g => 'módulo #' + (g.moduloId||'—') + ' ' + (g.moduloNome||'') + ' · ' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + ' · ' + (g.projeto||'') + ' · ' + g.eventos.length + ' evento(s)';
-    if (termo) grupos = grupos.filter(g => (g.pecaCodigo+g.pecaDescricao+g.moduloNome+g.cliente+g.projeto).toLowerCase().includes(termo));
+    filtroFn = g => (g.pecaCodigo+g.pecaDescricao+g.moduloNome+g.cliente+g.projeto).toLowerCase().includes(termo);
+    renderFn = renderTabelaPecas;
   } else if (abaAtiva === 'modulos'){
     grupos = agruparPorModulo(movimentosAtuais);
-    tituloFn = g => '#' + g.moduloId + ' ' + (g.moduloNome||'');
-    subFn = g => (g.clienteCodigo||'') + ' ' + (g.cliente||'') + ' · ' + (g.projeto||'') + ' · ' + g.totalPecas + ' peça(s) · ' + g.eventos.length + ' evento(s)';
-    if (termo) grupos = grupos.filter(g => (g.moduloId+g.moduloNome+g.cliente+g.projeto).toLowerCase().includes(termo));
+    filtroFn = g => (g.moduloId+g.moduloNome+g.cliente+g.projeto).toLowerCase().includes(termo);
+    renderFn = renderTabelaModulos;
   } else {
     grupos = agruparPorProjeto(movimentosAtuais);
-    tituloFn = g => g.clienteCodigo + ' — ' + (g.cliente||'') + ' · ' + (g.projeto||'');
-    subFn = g => g.totalModulos + ' módulo(s) · ' + g.totalPecas + ' peça(s) · ' + g.eventos.length + ' evento(s)';
-    if (termo) grupos = grupos.filter(g => (g.clienteCodigo+g.cliente+g.projeto).toLowerCase().includes(termo));
+    filtroFn = g => (g.clienteCodigo+g.cliente+g.projeto).toLowerCase().includes(termo);
+    renderFn = renderTabelaProjetos;
   }
-
+  if (termo) grupos = grupos.filter(filtroFn);
   grupos = grupos.sort((a,b) => b.eventos.length - a.eventos.length);
+  ultimosGrupos = grupos;
 
   if (!grupos.length){ el.innerHTML = '<p class="tagMuted">nada encontrado</p>'; return; }
-  el.innerHTML = grupos.map(g =>
-    '<details class="linhaItem"><summary><strong>' + tituloFn(g) + '</strong><br><span class="tagMuted">' + subFn(g) + '</span></summary>' +
-    '<div class="corpo tabela-wrap">' + renderLinhaDoTempo(g.eventos) + '</div></details>'
-  ).join('');
+  el.innerHTML = '<div class="tabela-wrap">' + renderFn(grupos) + '</div>';
 }
 
 document.getElementById('buscaDetalhe').addEventListener('input', renderListaDetalhe);
+document.getElementById('listaDetalhe').addEventListener('click', (e) => {
+  const btn = e.target.closest('.btnVerTudo');
+  if (btn) mostrarLinhaDoTempo(btn.dataset.chave);
+});
 ['abaPecas','abaModulos','abaProjetos'].forEach((id, i) => {
   document.getElementById(id).onclick = () => {
     abaAtiva = ['pecas','modulos','projetos'][i];
@@ -337,7 +431,6 @@ async function carregar(){
     const dados = await buscarNoServidor({ acao: 'movimentos', de, ate });
     movimentosAtuais = Array.isArray(dados.movimentos) ? dados.movimentos : [];
     montarCartoes(movimentosAtuais);
-    montarPorTipo(movimentosAtuais);
     renderListaDetalhe();
     document.getElementById('statusCarregando').textContent = movimentosAtuais.length + ' evento(s) carregado(s)';
   } catch (err) {
