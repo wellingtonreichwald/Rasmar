@@ -4,70 +4,87 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Rasmar V1 — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f4f2ee; --surface-1:#ece9e2; --surface-2:#ffffff;
-    --border:#e0dcd3; --border-strong:#c9c2b3; --border-accent:#cfa863;
-    --text-primary:#1e2320; --text-secondary:#5a5951; --text-muted:#8f8b7f;
-    --text-success:#0e6b53; --text-danger:#ab2b23; --text-accent:#7a5a2e;
-    --fill-primary:#1c2624; --on-primary:#fff;
-    --brand:#0f5c4c; --brand-dark:#0b4a3d; --brand-soft:#e6f0ec; --on-brand:#fff;
-    --radius:10px; --radius-lg:18px;
-    --shadow-sm:0 1px 3px rgba(30,28,20,0.07);
-    --shadow-md:0 6px 20px rgba(30,28,20,0.10);
-    --shadow-lg:0 12px 32px rgba(30,28,20,0.14);
+    --bg:#eef1ee; --surface-1:#e9ede9; --surface-2:#ffffff;
+    --border:#dde3dc; --border-strong:#c3ccc2; --border-accent:#cfa863;
+    --text-primary:#161c19; --text-secondary:#535e58; --text-muted:#8b968f;
+    --text-success:#0e6b53; --text-danger:#c22f24; --text-accent:#8a6a1f;
+    --fill-primary:#132420; --on-primary:#fff;
+    --brand:#12695a; --brand2:#1c8a6d; --brand-dark:#0a4a3e; --brand-soft:#e3f2ec; --on-brand:#fff;
+    --radius:12px; --radius-lg:20px; --radius-xl:26px;
+    --shadow-sm:0 1px 3px rgba(15,30,25,0.08);
+    --shadow-md:0 8px 24px rgba(15,30,25,0.12);
+    --shadow-lg:0 18px 44px rgba(15,30,25,0.18);
+    --font-display:'Manrope','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --font-body:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   }
   *{box-sizing:border-box;}
   body{
     background:
-      radial-gradient(circle at 15% 0%, rgba(15,92,76,0.05), transparent 45%),
+      radial-gradient(circle at 8% -5%, rgba(18,105,90,0.14), transparent 42%),
+      radial-gradient(circle at 100% 0%, rgba(207,168,99,0.10), transparent 38%),
       var(--bg);
     color:var(--text-primary); margin:0; padding:24px;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased; line-height:1.4;
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased; line-height:1.45;
   }
   .wrap{max-width:1160px; margin:0 auto;}
   button, select, input{
-    font-family:inherit; cursor:pointer; background:var(--surface-2);
-    border:1px solid var(--border-strong); border-radius:var(--radius); color:var(--text-primary);
-    padding:8px 12px; font-size:13px; font-weight:500;
-    transition:filter 0.12s ease, transform 0.08s ease, box-shadow 0.15s ease;
+    font-family:var(--font-body); cursor:pointer; background:var(--surface-2);
+    border:1.5px solid var(--border-strong); border-radius:var(--radius); color:var(--text-primary);
+    padding:8px 12px; font-size:13px; font-weight:600;
+    transition:filter 0.14s ease, transform 0.1s ease, box-shadow 0.18s ease;
     box-shadow:var(--shadow-sm);
   }
   button:hover{ filter:brightness(0.98); box-shadow:var(--shadow-md); transform:translateY(-1px); }
-  button:active{ transform:translateY(0); filter:brightness(0.93); box-shadow:var(--shadow-sm); }
-  input[type=text], input[type=password], input[type=date]{ cursor:text; }
+  button:active{ transform:translateY(0); filter:brightness(0.94); box-shadow:var(--shadow-sm); }
+  input[type=text], input[type=password], input[type=date]{ cursor:text; font-weight:400; }
+  select:focus-visible, input:focus-visible{ outline:2px solid var(--brand2); border-color:var(--brand2); }
   .cabecalho{
     display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
-    padding:16px 24px; margin:-24px -24px 24px; background:var(--surface-2);
-    border-bottom:3px solid var(--brand); box-shadow:var(--shadow-sm);
+    padding:20px 28px; margin:-24px -24px 26px;
+    background:linear-gradient(120deg, var(--brand-dark) 0%, var(--brand) 55%, var(--brand2) 100%);
+    border-radius:0 0 var(--radius-xl) var(--radius-xl); box-shadow:var(--shadow-lg);
   }
-  h1{font-size:18px; font-weight:700; margin:0;}
-  .versao{font-size:11px; background:linear-gradient(135deg, var(--brand), var(--brand-dark)); color:var(--on-brand); border-radius:5px; padding:1px 6px; margin-left:6px; font-weight:700;}
-  .sub{font-size:11px; color:var(--text-muted); margin:2px 0 0;}
+  .cabecalho h1, .cabecalho .sub{ color:#fff; }
+  .cabecalho .sub{ color:rgba(255,255,255,0.75); }
+  .cabecalho button{ background:rgba(255,255,255,0.14); color:#fff; border-color:rgba(255,255,255,0.28); }
+  .cabecalho button:hover{ background:rgba(255,255,255,0.24); }
+  .cabecalho #usuarioTexto{ color:rgba(255,255,255,0.85) !important; }
+  .cabecalho a.voltar{ color:#fff; opacity:0.85; }
+  h1{font-family:var(--font-display); font-size:19px; font-weight:800; margin:0;}
+  .versao{font-size:11px; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border-radius:6px; padding:2px 7px; margin-left:6px; font-weight:800; box-shadow:0 2px 6px rgba(18,105,90,0.35);}
+  .sub{font-size:11px; color:var(--text-muted); margin:2px 0 0; text-transform:uppercase; letter-spacing:0.03em; font-weight:600;}
   .cartoes{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px;}
-  .cartao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm); transition:box-shadow 0.18s ease;}
-  .cartao:hover{ box-shadow:var(--shadow-md); }
-  .cartao .numero{font-size:26px; font-weight:700; color:var(--brand);}
+  .cartao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm); transition:box-shadow 0.2s ease, transform 0.2s ease;}
+  .cartao:hover{ box-shadow:var(--shadow-lg); transform:translateY(-2px); }
+  .cartao .numero{font-family:var(--font-display); font-size:26px; font-weight:800; color:var(--brand2);}
   .cartao .rotulo{font-size:12px; color:var(--text-secondary); margin-top:4px;}
   .secao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; margin-bottom:20px; box-shadow:var(--shadow-sm);}
-  .secao h2{font-size:15px; margin:0 0 12px;}
+  .secao h2{font-family:var(--font-display); font-size:15px; margin:0 0 12px; font-weight:700;}
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th, td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); white-space:nowrap;}
   th{color:var(--text-secondary); font-weight:600; font-size:12px;}
-  tbody tr:nth-child(even){background:rgba(15,92,76,0.025);}
+  tbody tr:nth-child(even){background:rgba(18,105,90,0.03);}
   tbody tr:hover{background:var(--brand-soft);}
   .tabela-wrap{overflow-x:auto;}
-  #telaBloqueada, #telaLoginDash{position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;}
-  .caixaLogin{background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:32px; max-width:360px; width:100%; text-align:center;}
+  #telaBloqueada, #telaLoginDash{position:fixed; inset:0; background:radial-gradient(circle at 20% 10%, rgba(28,138,109,0.16), transparent 45%), radial-gradient(circle at 100% 100%, rgba(207,168,99,0.14), transparent 40%), var(--bg); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;}
+  .caixaLogin{background:var(--surface-2); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:36px 32px; max-width:360px; width:100%; text-align:center; border-top:4px solid var(--brand2);}
   .caixaLogin input{width:100%; margin-bottom:8px;}
+  .caixaLogin h1{ font-size:22px; }
   a.voltar{color:var(--text-accent); font-size:13px; text-decoration:none;}
   .filtros{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
-  .abas{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
-  .abas button{font-weight:500;}
-  .abas button.ativa{background:var(--fill-primary); color:var(--on-primary); border-color:var(--fill-primary);}
+  .abas{display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; background:var(--surface-1); border-radius:999px; padding:4px; width:fit-content;}
+  .abas button{font-weight:700; border-radius:999px; border:none; box-shadow:none; background:transparent; color:var(--text-secondary);}
+  .abas button:hover{ box-shadow:none; transform:none; background:rgba(18,105,90,0.08); }
+  .abas button.ativa{background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); box-shadow:0 3px 10px rgba(18,105,90,0.35);}
   .buscaLista{width:100%; margin-bottom:10px;}
-  .linhaItem{border:1px solid var(--border); border-radius:var(--radius); margin-bottom:8px; overflow:hidden;}
+  .linhaItem{border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:8px; overflow:hidden; transition:box-shadow 0.18s ease;}
+  .linhaItem:hover{ box-shadow:var(--shadow-sm); }
   .linhaItem summary{padding:10px 12px; cursor:pointer; font-size:13px; list-style:none;}
   .linhaItem summary::-webkit-details-marker{display:none;}
   .linhaItem summary:before{content:'▸ '; color:var(--text-muted);}
@@ -102,7 +119,7 @@
     <input id="loginDashUsuario" type="text" placeholder="usuário" autocomplete="username" />
     <input id="loginDashSenha" type="password" placeholder="senha" autocomplete="current-password" />
     <p id="loginDashErro" style="font-size:13px; color:var(--text-danger); display:none; margin:0 0 8px;"></p>
-    <button id="btnLoginDash" style="width:100%; background:var(--brand); color:var(--on-brand); border:none; font-weight:600; padding:10px;">Entrar</button>
+    <button id="btnLoginDash" style="width:100%; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700; padding:11px; box-shadow:0 4px 14px rgba(18,105,90,0.35);">Entrar</button>
     <p style="margin-top:14px;"><a class="voltar" href="index.html">← voltar pro Rasmar</a></p>
   </div>
 </div>
@@ -140,7 +157,7 @@
       <select id="pontoDe"></select>
       <label style="font-size:12px; color:var(--text-muted);">até</label>
       <select id="pontoAte"></select>
-      <button id="btnAtualizar" style="background:var(--brand); color:var(--on-brand); border:none; font-weight:500;">Atualizar</button>
+      <button id="btnAtualizar" style="background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700; box-shadow:0 3px 10px rgba(18,105,90,0.3);">Atualizar</button>
       <span id="statusCarregando" style="font-size:12px; color:var(--text-muted);"></span>
     </div>
 
