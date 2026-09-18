@@ -1393,7 +1393,11 @@ function renderProjetos(){
   // chance de gerar a baixa — senão o projeto some antes desse clique.
   const comModulosAqui = lista.filter(pr =>
     pr.modulos.some(m => moduloTemPresencaEm(m, station)) ||
-    (station.destinoKey === 'final' && pedidoCompleto(pr) && !pr.baixado)
+    (station.destinoKey === 'final' && pedidoCompleto(pr) && !pr.baixado) ||
+    // se todas as peças ativas de um módulo foram descartadas, ele não tem
+    // presença em etapa nenhuma — mas o pedido ainda precisa aparecer numa
+    // etapa de peça pra dar acesso ao botão "recriar no CNC" das descartadas.
+    (station.type === 'peca' && pecasDescartadasDoProjeto(pr).length > 0)
   );
   if (comModulosAqui.length === 0){
     el.innerHTML = '<p style="font-size:13px; color:var(--text-muted); margin:8px 4px;">nenhum módulo nesta etapa</p>';
@@ -1706,9 +1710,11 @@ function buscarEstadoServidor(){
 // Manda só os logs/movimentos NOVOS (ainda não confirmados) — eles são
 // anexados na planilha (nunca sobrescritos); projetos/usuarios continuam
 // sendo o retrato completo de cada vez.
-function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos){
+function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios){
   return new Promise((resolve, reject) => {
     const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos };
+    if (confirmarZerarTudo) corpo.confirmarZerarTudo = true;
+    if (confirmarZerarUsuarios) corpo.confirmarZerarUsuarios = true;
     let iframe = document.getElementById('rasmarSyncFrame');
     if (!iframe){
       iframe = document.createElement('iframe');
@@ -1773,10 +1779,16 @@ async function carregarDoServidorAgora_lancaErro(){
 }
 
 async function carregarDoServidorAgora(){
+  // mesma trava usada pra salvar — evita que uma leitura e uma escrita (ou
+  // duas leituras) rodem ao mesmo tempo, brigando pela mesma conexão.
+  if (syncEmAndamento) return;
+  syncEmAndamento = true;
   try {
     await carregarDoServidorAgora_lancaErro();
   } catch (err) {
     atualizarStatusSync('não consegui buscar os dados do servidor (' + err.message + ')', 'erro');
+  } finally {
+    syncEmAndamento = false;
   }
 }
 
@@ -1784,7 +1796,7 @@ let assinaturaAoEntrarEmConflito = null;
 let ultimaVerificacaoSaude = 0;
 const INTERVALO_MINIMO_VERIFICACAO_SAUDE = 60000; // não verifica de novo antes de passar 1 minuto, pra não sobrecarregar o Apps Script
 
-async function salvarNoServidorComSeguranca(silencioso, tentativa){
+async function salvarNoServidorComSeguranca(silencioso, tentativa, confirmarZerarTudo, confirmarZerarUsuarios){
   tentativa = tentativa || 0;
   if (!syncUrl) return;
   // proteção crítica: nunca escreve no servidor antes da carga inicial real
@@ -1792,14 +1804,14 @@ async function salvarNoServidorComSeguranca(silencioso, tentativa){
   // um estado local ainda vazio (projetos=[]) logo ao abrir a página, numa
   // corrida contra o carregamento de verdade. Só tenta de novo mais tarde.
   if (!cargaInicialCompleta){
-    if (tentativa < 30) setTimeout(() => salvarNoServidorComSeguranca(silencioso, tentativa + 1), 300);
+    if (tentativa < 30) setTimeout(() => salvarNoServidorComSeguranca(silencioso, tentativa + 1, confirmarZerarTudo, confirmarZerarUsuarios), 300);
     return;
   }
   // se já tem uma sincronização acontecendo agora, não desiste — tenta de
   // novo em pouco tempo (em vez de só esperar o próximo ciclo de 5s inteiro,
   // o que atrasava demais quando várias ações aconteciam em sequência rápida).
   if (syncEmAndamento){
-    if (tentativa < 12) setTimeout(() => salvarNoServidorComSeguranca(silencioso, tentativa + 1), 400);
+    if (tentativa < 12) setTimeout(() => salvarNoServidorComSeguranca(silencioso, tentativa + 1, confirmarZerarTudo, confirmarZerarUsuarios), 400);
     return;
   }
 
@@ -1854,7 +1866,7 @@ async function salvarNoServidorComSeguranca(silencioso, tentativa){
     const assinaturaAntesDeEnviar = assinaturaEstadoAtual();
     const logsNovos = logs.slice(logsEnviadosCount);
     const movimentosNovos = movimentos.slice(movimentosEnviadosCount);
-    const resultado = await enviarEstadoServidor(atual.salvoEm, logsNovos, movimentosNovos);
+    const resultado = await enviarEstadoServidor(atual.salvoEm, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios);
     if (resultado.ok){
       ultimoSalvoConhecido = resultado.salvoEm;
       ultimoConteudoSincronizado = assinaturaAntesDeEnviar;
@@ -2065,7 +2077,7 @@ document.getElementById('btnZerarTudo').onclick = () => {
   renderSeletor(); renderProjetos();
   document.getElementById('telaAdmin').style.display = 'none';
   showFeedback('todos os pedidos foram apagados', false);
-  if (syncUrl) salvarNoServidorComSeguranca(false);
+  if (syncUrl) salvarNoServidorComSeguranca(false, 0, true, false);
 };
 
 document.getElementById('btnZerarUsuarios').onclick = () => {
@@ -2077,7 +2089,7 @@ document.getElementById('btnZerarUsuarios').onclick = () => {
   usuarios = [];
   usuarioLogadoNome = null;
   sessionStorage.removeItem('rasmar_usuario');
-  if (syncUrl) salvarNoServidorComSeguranca(false);
+  if (syncUrl) salvarNoServidorComSeguranca(false, 0, false, true);
   document.getElementById('telaAdmin').style.display = 'none';
   document.getElementById('loginUsuario').value = '';
   document.getElementById('loginSenha').value = '';
