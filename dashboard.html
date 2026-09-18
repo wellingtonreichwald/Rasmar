@@ -6,19 +6,23 @@
 <title>Rasmar V1 — Dashboard</title>
 <style>
   :root{
-    --bg:#f6f5f2; --surface-1:#eeece7; --surface-2:#ffffff;
-    --border:#e2dfd8; --border-strong:#cdc8bc; --border-accent:#cfa863;
-    --text-primary:#20221f; --text-secondary:#5b5a52; --text-muted:#928f83;
+    --bg:#f4f2ee; --surface-1:#ece9e2; --surface-2:#ffffff;
+    --border:#e0dcd3; --border-strong:#c9c2b3; --border-accent:#cfa863;
+    --text-primary:#1e2320; --text-secondary:#5a5951; --text-muted:#8f8b7f;
     --text-success:#0e6b53; --text-danger:#ab2b23; --text-accent:#7a5a2e;
-    --fill-primary:#1f2a28; --on-primary:#fff;
-    --brand:#0f5c4c; --brand-dark:#0b4a3d; --on-brand:#fff;
-    --radius:10px; --radius-lg:16px;
-    --shadow-sm:0 1px 2px rgba(20,20,15,0.06);
-    --shadow-md:0 4px 14px rgba(20,20,15,0.08);
+    --fill-primary:#1c2624; --on-primary:#fff;
+    --brand:#0f5c4c; --brand-dark:#0b4a3d; --brand-soft:#e6f0ec; --on-brand:#fff;
+    --radius:10px; --radius-lg:18px;
+    --shadow-sm:0 1px 3px rgba(30,28,20,0.07);
+    --shadow-md:0 6px 20px rgba(30,28,20,0.10);
+    --shadow-lg:0 12px 32px rgba(30,28,20,0.14);
   }
   *{box-sizing:border-box;}
   body{
-    background:var(--bg); color:var(--text-primary); margin:0; padding:24px;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(15,92,76,0.05), transparent 45%),
+      var(--bg);
+    color:var(--text-primary); margin:0; padding:24px;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased; line-height:1.4;
   }
@@ -26,9 +30,12 @@
   button, select, input{
     font-family:inherit; cursor:pointer; background:var(--surface-2);
     border:1px solid var(--border-strong); border-radius:var(--radius); color:var(--text-primary);
-    padding:8px 12px; font-size:13px;
+    padding:8px 12px; font-size:13px; font-weight:500;
+    transition:filter 0.12s ease, transform 0.08s ease, box-shadow 0.15s ease;
+    box-shadow:var(--shadow-sm);
   }
-  button:hover{ filter:brightness(0.97); }
+  button:hover{ filter:brightness(0.98); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+  button:active{ transform:translateY(0); filter:brightness(0.93); box-shadow:var(--shadow-sm); }
   input[type=text], input[type=password], input[type=date]{ cursor:text; }
   .cabecalho{
     display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
@@ -36,10 +43,11 @@
     border-bottom:3px solid var(--brand); box-shadow:var(--shadow-sm);
   }
   h1{font-size:18px; font-weight:700; margin:0;}
-  .versao{font-size:11px; background:var(--brand); color:var(--on-brand); border-radius:5px; padding:1px 6px; margin-left:6px; font-weight:700;}
+  .versao{font-size:11px; background:linear-gradient(135deg, var(--brand), var(--brand-dark)); color:var(--on-brand); border-radius:5px; padding:1px 6px; margin-left:6px; font-weight:700;}
   .sub{font-size:11px; color:var(--text-muted); margin:2px 0 0;}
   .cartoes{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px;}
-  .cartao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm);}
+  .cartao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm); transition:box-shadow 0.18s ease;}
+  .cartao:hover{ box-shadow:var(--shadow-md); }
   .cartao .numero{font-size:26px; font-weight:700; color:var(--brand);}
   .cartao .rotulo{font-size:12px; color:var(--text-secondary); margin-top:4px;}
   .secao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; margin-bottom:20px; box-shadow:var(--shadow-sm);}
@@ -47,10 +55,11 @@
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th, td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); white-space:nowrap;}
   th{color:var(--text-secondary); font-weight:600; font-size:12px;}
-  tbody tr:hover{background:var(--surface-1);}
+  tbody tr:nth-child(even){background:rgba(15,92,76,0.025);}
+  tbody tr:hover{background:var(--brand-soft);}
   .tabela-wrap{overflow-x:auto;}
   #telaBloqueada, #telaLoginDash{position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;}
-  .caixaLogin{background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-md); padding:32px; max-width:360px; width:100%; text-align:center;}
+  .caixaLogin{background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:32px; max-width:360px; width:100%; text-align:center;}
   .caixaLogin input{width:100%; margin-bottom:8px;}
   a.voltar{color:var(--text-accent); font-size:13px; text-decoration:none;}
   .filtros{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
