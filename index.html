@@ -86,6 +86,18 @@
     backdrop-filter:blur(4px);
   }
   .cabecalho button:hover{ background:rgba(255,255,255,0.24); }
+  /* os painéis flutuantes (sincronização, trocar senha) têm fundo claro —
+     os botões de dentro deles precisam voltar ao estilo normal (escuro
+     sobre claro), não herdar o estilo branco-sobre-transparente do
+     cabeçalho, senão ficam ilegíveis (texto branco em fundo branco). */
+  #blocoSync button, #blocoTrocarSenha button{
+    background:var(--surface-2); color:var(--text-primary); border-color:var(--border-strong);
+    backdrop-filter:none; box-shadow:var(--shadow-sm);
+  }
+  #blocoSync button:hover, #blocoTrocarSenha button:hover{ background:var(--surface-1); }
+  #btnSalvarSyncUrl, #btnConfirmarTrocaSenha{
+    background:linear-gradient(135deg, var(--brand2), var(--brand-dark)) !important; color:#fff !important; border:none !important;
+  }
 
   #tabs{display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:4px; background:var(--surface-1); border-radius:999px; width:fit-content;}
   #tabs::-webkit-scrollbar{display:none;}
@@ -1828,8 +1840,10 @@ async function carregarDoServidorAgora(){
   syncEmAndamento = true;
   try {
     await carregarDoServidorAgora_lancaErro();
+    backoffReconexao = 5000;
   } catch (err) {
-    atualizarStatusSync('não consegui buscar os dados do servidor (' + err.message + ')', 'erro');
+    atualizarStatusSync('não consegui buscar os dados do servidor (' + err.message + ') — reconectando automaticamente em breve', 'erro');
+    agendarReconexao();
   } finally {
     syncEmAndamento = false;
   }
@@ -1838,6 +1852,13 @@ async function carregarDoServidorAgora(){
 let assinaturaAoEntrarEmConflito = null;
 let ultimaVerificacaoSaude = 0;
 const INTERVALO_MINIMO_VERIFICACAO_SAUDE = 60000; // não verifica de novo antes de passar 1 minuto, pra não sobrecarregar o Apps Script
+
+let backoffReconexao = 5000; // cresce (5s, 10s, 20s... até 60s) enquanto continuar falhando; volta pra 5s no primeiro sucesso
+
+function agendarReconexao(){
+  setTimeout(() => salvarNoServidorComSeguranca(true), backoffReconexao);
+  backoffReconexao = Math.min(backoffReconexao * 2, 60000);
+}
 
 async function salvarNoServidorComSeguranca(silencioso, tentativa, confirmarZerarTudo, confirmarZerarUsuarios){
   tentativa = tentativa || 0;
@@ -1884,13 +1905,15 @@ async function salvarNoServidorComSeguranca(silencioso, tentativa, confirmarZera
       ultimaVerificacaoSaude = agora;
       const verificacao = await buscarEstadoServidor();
       if (verificacao.salvoEm === ultimoSalvoConhecido){
+        backoffReconexao = 5000;
         if (!silencioso) atualizarStatusSync('já sincronizado — última atualização: ' + formatarCarimbo(ultimoSalvoConhecido), null);
         return;
       }
       // discrepância: o que a gente pensava ter salvo não está lá — força um novo envio
       ultimoConteudoSincronizado = null;
     } catch (err) {
-      atualizarStatusSync('sem conexão com o servidor agora (' + err.message + ') — suas alterações continuam aqui, tentando de novo em breve', 'erro');
+      atualizarStatusSync('sem conexão com o servidor agora (' + err.message + ') — reconectando automaticamente em breve', 'erro');
+      agendarReconexao();
       return;
     }
   }
@@ -1911,16 +1934,19 @@ async function salvarNoServidorComSeguranca(silencioso, tentativa, confirmarZera
     const movimentosNovos = movimentos.slice(movimentosEnviadosCount);
     const resultado = await enviarEstadoServidor(atual.salvoEm, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios);
     if (resultado.ok){
+      backoffReconexao = 5000;
       ultimoSalvoConhecido = resultado.salvoEm;
       ultimoConteudoSincronizado = assinaturaAntesDeEnviar;
       logsEnviadosCount += logsNovos.length;
       movimentosEnviadosCount += movimentosNovos.length;
       atualizarStatusSync('sincronizado — última atualização: ' + formatarCarimbo(ultimoSalvoConhecido), null);
     } else {
-      atualizarStatusSync('não consegui salvar: ' + (resultado.erro || 'erro desconhecido'), 'erro');
+      atualizarStatusSync('não consegui salvar: ' + (resultado.erro || 'erro desconhecido') + ' — reconectando automaticamente em breve', 'erro');
+      agendarReconexao();
     }
   } catch (err) {
-    atualizarStatusSync('sem conexão com o servidor agora (' + err.message + ') — suas alterações continuam aqui, tentando de novo em breve', 'erro');
+    atualizarStatusSync('sem conexão com o servidor agora (' + err.message + ') — reconectando automaticamente em breve', 'erro');
+    agendarReconexao();
   } finally {
     syncEmAndamento = false;
   }
@@ -2026,7 +2052,8 @@ async function iniciarApp(){
           atualizarStatusSync('conectando... (tentativa ' + (tentativa+1) + ' de 3)', 'aviso');
           await new Promise(r => setTimeout(r, 1500));
         } else {
-          atualizarStatusSync('não consegui conectar (' + err.message + ') — suas informações locais continuam aqui, tentando de novo em breve', 'erro');
+          atualizarStatusSync('não consegui conectar (' + err.message + ') — reconectando automaticamente em breve', 'erro');
+          agendarReconexao();
         }
       }
     }
