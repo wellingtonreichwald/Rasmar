@@ -2110,6 +2110,9 @@ document.getElementById('btnLoginEntrar').onclick = () => {
   sessionStorage.setItem('rasmar_usuario', usuarioLogadoNome);
   registrarLog('login');
   mostrarApp();
+  // busca a versão mais fresca da planilha bem na hora do login — não espera
+  // o próximo ciclo automático, pra já entrar vendo o que há de mais atual.
+  if (syncUrl) carregarDoServidorAgora();
 };
 document.getElementById('loginSenha').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnLoginEntrar').click(); });
 
