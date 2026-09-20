@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.12.3/JsBarcode.all.min.js"></script>
 <style>
   :root{
     --bg:#eef1ee; --surface-1:#e9ede9; --surface-2:#ffffff;
@@ -128,9 +129,32 @@
     input[type=checkbox]{ width:20px; height:20px; }
     .cabecalho .marca img{ height:34px !important; }
   }
+
+  /* etiqueta de código de barras — tamanho padrão de rolo térmico comum
+     (60mm x 40mm). Se sua etiqueta for outro tamanho, ajuste nas
+     configurações de impressão da sua impressora térmica (tamanho do
+     papel), que a etiqueta se adapta. */
+  @page { size: 60mm 40mm; margin: 2mm; }
+  @media print{
+    body *{ visibility: hidden; }
+    #areaEtiquetaImpressao, #areaEtiquetaImpressao *{ visibility: visible; }
+    #areaEtiquetaImpressao{
+      display: block !important; position: fixed; inset: 0;
+      width: 60mm; height: 40mm; padding: 0; margin: 0;
+    }
+  }
+  .etiqueta{
+    width: 56mm; padding: 2mm; text-align: center; font-family: var(--font-body);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1mm;
+  }
+  .etiqueta svg{ width: 100%; height: auto; max-height: 18mm; }
+  .etiqueta .linha1{ font-size: 11pt; font-weight: 800; margin: 0; }
+  .etiqueta .linha2{ font-size: 8pt; margin: 0; line-height: 1.3; }
 </style>
 </head>
 <body>
+
+<div id="areaEtiquetaImpressao" style="display:none;"></div>
 
 <div id="popupBloqueioGoogle" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.55); z-index:200; align-items:center; justify-content:center; padding:20px;">
   <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:28px; max-width:420px; width:100%; border-top:5px solid var(--text-danger); text-align:center;">
@@ -179,15 +203,24 @@
         <input id="primeiroAdminSenha" type="password" style="width:100%;" autocomplete="new-password" />
       </div>
 
-      <button type="button" id="btnMostrarServidorAlternativo" style="align-self:flex-start; font-size:11px; padding:4px 8px; background:transparent; border:none; box-shadow:none; color:var(--text-accent); text-decoration:underline;">usar um servidor diferente do padrão (opcional)</button>
-      <div id="campoServidorAlternativo" style="display:none;">
-        <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">URL do servidor (Google Apps Script ou seu próprio servidor)</label>
-        <input id="primeiroAdminServidorUrl" type="text" placeholder="https://... (deixe em branco pra usar o padrão)" style="width:100%; font-size:12px;" />
+      <p style="font-size:12px; color:var(--text-secondary); margin:8px 0 2px;">Onde os dados vão ficar salvos:</p>
+      <div style="display:flex; gap:6px;">
+        <button type="button" id="btnPrimeiroAdminEscolherProprio" style="flex:1; font-size:12px; padding:8px 6px; background:var(--brand-soft); border-color:var(--brand2); font-weight:700;">Meu servidor</button>
+        <button type="button" id="btnPrimeiroAdminEscolherSheets" style="flex:1; font-size:12px; padding:8px 6px;">Google Sheets (não recomendado)</button>
+      </div>
+
+      <div id="primeiroAdminCampoProprio">
+        <label style="font-size:12px; color:var(--text-muted); display:block; margin:4px 0 4px;">Link do seu servidor (ex: http://SEU_IP:3000/)</label>
+        <input id="primeiroAdminServidorUrl" type="text" placeholder="http://..." style="width:100%; font-size:12px;" />
+      </div>
+      <div id="primeiroAdminCampoSheets" style="display:none;">
+        <label style="font-size:12px; color:var(--text-muted); display:block; margin:4px 0 4px;">Link do Google Apps Script (termina em /exec)</label>
+        <input id="primeiroAdminGoogleUrl" type="text" placeholder="https://script.google.com/.../exec" style="width:100%; font-size:12px;" />
+        <p style="font-size:11px; color:var(--fill-warning); margin:6px 0 0;">⚠ O Google Sheets tem um limite de chamadas por dia e pode ficar instável com uso mais intenso — prefira um servidor próprio quando puder.</p>
       </div>
 
       <p id="primeiroAdminErro" style="font-size:13px; color:var(--text-danger); margin:0; display:none;"></p>
       <button id="btnCriarPrimeiroAdmin" style="background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700; padding:11px 16px; margin-top:6px; box-shadow:0 4px 14px rgba(18,105,90,0.35);">Criar administrador</button>
-      <p style="font-size:11px; color:var(--text-muted); margin:4px 0 0;">Depois de criar, configure a sincronização (na seção de admin) pra essas credenciais não se perderem ao recarregar a página.</p>
     </div>
   </div>
 </div>
@@ -313,10 +346,23 @@
           <button id="btnConfigurarSync" style="font-size:12px; padding:5px 10px;">Configurar sincronização</button>
         </div>
         <div id="painelConfigSync" style="display:none; border-top:1px solid var(--border); padding-top:10px;">
-          <p style="font-size:12px; margin:0 0 8px;">Cole aqui a URL do Google Apps Script (termina em <code>/exec</code>):</p>
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <input id="inputSyncUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1; min-width:180px; font-size:12px;" />
-            <button id="btnSalvarSyncUrl" style="font-size:12px; padding:6px 10px; background:var(--brand); color:var(--on-brand); border:none;">Salvar</button>
+          <p style="font-size:12px; margin:0 0 6px;">Onde os dados ficam salvos:</p>
+          <div style="display:flex; gap:6px; margin-bottom:8px;">
+            <button type="button" id="btnConfigEscolherProprio" style="flex:1; font-size:12px; padding:7px 6px;">Meu servidor</button>
+            <button type="button" id="btnConfigEscolherSheets" style="flex:1; font-size:12px; padding:7px 6px;">Google Sheets (não recomendado)</button>
+          </div>
+          <div id="configCampoProprio">
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <input id="inputSyncUrlProprio" type="text" placeholder="http://SEU_IP:3000/" style="flex:1; min-width:180px; font-size:12px;" />
+              <button id="btnSalvarSyncUrl" style="font-size:12px; padding:6px 10px; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none;">Salvar</button>
+            </div>
+          </div>
+          <div id="configCampoSheets" style="display:none;">
+            <p style="font-size:11px; margin:0 0 6px; color:var(--fill-warning);">⚠ Sujeito ao limite diário de chamadas do Google.</p>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <input id="inputSyncUrlSheets" type="text" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1; min-width:180px; font-size:12px;" />
+              <button id="btnSalvarSyncUrlSheets" style="font-size:12px; padding:6px 10px; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none;">Salvar</button>
+            </div>
           </div>
           <p style="font-size:11px; margin:10px 0 4px; color:var(--text-muted);">Limite estimado de chamadas por dia (ajuste conforme sua conta — Gmail comum costuma ser bem mais baixo que Workspace):</p>
           <div style="display:flex; gap:6px;">
@@ -1109,6 +1155,44 @@ function enviarProntosDoProjetoPara(pr, station, prontos, destinoId){
 // marca todas as peças de um módulo (ou de todos os módulos de um projeto)
 // como concluídas nesta etapa sem exigir bipagem/checkbox individual — só
 // disponível pra quem tem a permissão "concluirSemBipar" (ou é admin).
+// ---------- etiquetas com código de barras (pedido e módulo) ----------
+// o código do módulo na etiqueta combina o código do pedido com o id do
+// módulo, pra ficar único e fácil de rastrear de volta (ex: "P01-M1").
+function codigoEtiquetaModulo(pr, mod){
+  return pr.codigo + '-M' + mod.id;
+}
+
+function imprimirEtiqueta(codigo, linha1, linha2){
+  const area = document.getElementById('areaEtiquetaImpressao');
+  area.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'etiqueta';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'svgEtiquetaTemp';
+  const p1 = document.createElement('p'); p1.className = 'linha1'; p1.textContent = linha1;
+  const p2 = document.createElement('p'); p2.className = 'linha2'; p2.textContent = linha2;
+  div.appendChild(svg); div.appendChild(p1); div.appendChild(p2);
+  area.appendChild(div);
+  JsBarcode(svg, codigo, { format: 'CODE128', displayValue: true, fontSize: 14, height: 40, margin: 0 });
+  // pequena espera pro SVG terminar de desenhar antes de abrir o diálogo de impressão
+  setTimeout(() => window.print(), 60);
+}
+
+function imprimirEtiquetaPedido(pr){
+  imprimirEtiqueta(pr.codigo, pr.codigo, pr.cliente + ' · ' + pr.projeto);
+}
+function imprimirEtiquetaModulo(pr, mod){
+  imprimirEtiqueta(codigoEtiquetaModulo(pr, mod), mod.nome, pr.codigo + ' · ' + pr.cliente);
+}
+function renderBotaoEtiquetaModulo(pr, mod){
+  const btn = document.createElement('button');
+  btn.textContent = '🖨️';
+  btn.title = 'Imprimir etiqueta com código de barras do módulo';
+  btn.style.fontSize = '12px'; btn.style.padding = '4px 8px';
+  btn.onclick = (e) => { e.stopPropagation(); imprimirEtiquetaModulo(pr, mod); };
+  return btn;
+}
+
 function marcarModuloConcluidoForcado(mod, station){
   const agora = formatarDataHora(new Date());
   pecasNaEstacao(mod, station.id).forEach(p => { if (!p[station.field]) p[station.field] = agora; });
@@ -1347,6 +1431,7 @@ function renderModuloCard(pr, mod, station){
       btnForcar.onclick = (e) => { e.stopPropagation(); marcarModuloConcluidoForcado(mod, station); };
       direita.appendChild(btnForcar);
     }
+    direita.appendChild(renderBotaoEtiquetaModulo(pr, mod));
     direita.appendChild(renderBotaoExcluir(pr, mod));
     modHeader.appendChild(esquerda); modHeader.appendChild(direita);
     modWrap.appendChild(modHeader);
@@ -1372,6 +1457,7 @@ function renderModuloCard(pr, mod, station){
       acoes.appendChild(renderBotoesEnvioCompactos(mod, station.id));
       acoes.appendChild(renderBotaoOutroSetorToggle(mod));
     }
+    acoes.appendChild(renderBotaoEtiquetaModulo(pr, mod));
     acoes.appendChild(renderBotaoExcluir(pr, mod));
     header.appendChild(titulo);
     header.appendChild(acoes);
@@ -1431,6 +1517,12 @@ function renderBlocoProjeto(pr, station, dinamico){
   if (descartadasEl) right.appendChild(descartadasEl);
   const baixaEl = renderBaixaPedido(pr);
   if (baixaEl) right.appendChild(baixaEl);
+  const btnEtiquetaPedido = document.createElement('button');
+  btnEtiquetaPedido.textContent = '🖨️ Etiqueta';
+  btnEtiquetaPedido.title = 'Imprimir etiqueta com código de barras do pedido';
+  btnEtiquetaPedido.style.fontSize = '12px'; btnEtiquetaPedido.style.padding = '4px 10px';
+  btnEtiquetaPedido.onclick = (e) => { e.stopPropagation(); imprimirEtiquetaPedido(pr); };
+  right.appendChild(btnEtiquetaPedido);
 
   header.appendChild(left); header.appendChild(right);
   bloco.appendChild(header);
@@ -1604,26 +1696,68 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
     }
     if (peca) break;
   }
-  if (!peca){
-    showFeedback('código não encontrado nas planilhas importadas: ' + codigo + ' — ', true, codigo);
-  } else if (peca.descartada){
-    showFeedback(peca.descricao + ' está descartada por defeito — recrie ela primeiro', true);
-  } else if (peca.estacaoAtual !== station.id){
-    showFeedback(peca.descricao + ' está em outra etapa agora (' + stations.find(s=>s.id===peca.estacaoAtual).label + ')', true);
-  } else if (peca[station.field]){
-    showFeedback(peca.descricao + ' já bipada em ' + peca[station.field], true);
-  } else {
-    peca[station.field] = formatarDataHora(new Date());
-    registrarLog('bipou ' + peca.descricao + ' (' + peca.codigo + ') em ' + station.label);
-    registrarMovimento('bipagem', { pecaCodigo: peca.codigo, pecaDescricao: peca.descricao, moduloId: modDaPeca.id, moduloNome: modDaPeca.nome, clienteCodigo: prDaPeca.codigo, cliente: prDaPeca.cliente, projeto: prDaPeca.projeto, detalhe: station.label });
-    let msg = peca.descricao + ' registrada na etapa ' + station.label;
-    if (todasCompletas(pecasNaEstacao(modDaPeca, station.id), station.field) && moduloUnidoEm(modDaPeca, station.id)){
-      if (station.id === 'limpeza') msg += ' — módulo completo, escolha o destino';
-      else msg += ' — módulo completo, envie pra próxima etapa';
+  if (peca){
+    if (peca.descartada){
+      showFeedback(peca.descricao + ' está descartada por defeito — recrie ela primeiro', true);
+    } else if (peca.estacaoAtual !== station.id){
+      showFeedback(peca.descricao + ' está em outra etapa agora (' + stations.find(s=>s.id===peca.estacaoAtual).label + ')', true);
+    } else if (peca[station.field]){
+      showFeedback(peca.descricao + ' já bipada em ' + peca[station.field], true);
+    } else {
+      peca[station.field] = formatarDataHora(new Date());
+      registrarLog('bipou ' + peca.descricao + ' (' + peca.codigo + ') em ' + station.label);
+      registrarMovimento('bipagem', { pecaCodigo: peca.codigo, pecaDescricao: peca.descricao, moduloId: modDaPeca.id, moduloNome: modDaPeca.nome, clienteCodigo: prDaPeca.codigo, cliente: prDaPeca.cliente, projeto: prDaPeca.projeto, detalhe: station.label });
+      let msg = peca.descricao + ' registrada na etapa ' + station.label;
+      if (todasCompletas(pecasNaEstacao(modDaPeca, station.id), station.field) && moduloUnidoEm(modDaPeca, station.id)){
+        if (station.id === 'limpeza') msg += ' — módulo completo, escolha o destino';
+        else msg += ' — módulo completo, envie pra próxima etapa';
+      }
+      showFeedback(msg, false);
+      renderProjetos();
     }
-    showFeedback(msg, false);
-    renderProjetos();
+    e.target.value = '';
+    return;
   }
+
+  // não é código de peça — confere se é etiqueta de MÓDULO (código do
+  // pedido + "-M" + id do módulo, ex: "P01-M1"): bipar marca o módulo
+  // inteiro como concluído na etapa atual, sem precisar bipar peça por peça.
+  for (const pr of projetos){
+    const modAlvo = pr.modulos.find(m => codigoEtiquetaModulo(pr, m) === codigo);
+    if (modAlvo){
+      if (!moduloTemPresencaEm(modAlvo, station)){
+        showFeedback('módulo #' + modAlvo.id + ' (' + modAlvo.nome + ') não está na etapa ' + station.label + ' agora', true);
+      } else if (isConcluidoNaEstacao(modAlvo, station)){
+        showFeedback('módulo #' + modAlvo.id + ' (' + modAlvo.nome + ') já está concluído em ' + station.label, true);
+      } else {
+        marcarModuloConcluidoForcado(modAlvo, station);
+      }
+      e.target.value = '';
+      return;
+    }
+  }
+
+  // também não é módulo — confere se é etiqueta de PEDIDO (código do
+  // cliente, ex: "P01"): bipar confirma a entrega/baixa do pedido inteiro.
+  const prAlvo = projetos.find(pr => pr.codigo === codigo);
+  if (prAlvo){
+    if (prAlvo.baixado){
+      showFeedback('pedido ' + prAlvo.codigo + ' já foi baixado em ' + prAlvo.baixadoEm, true);
+    } else if (!pedidoCompleto(prAlvo)){
+      showFeedback('pedido ' + prAlvo.codigo + ' · ' + prAlvo.cliente + ' ainda não está completo em todas as etapas — não é possível dar baixa', true);
+    } else {
+      prAlvo.baixado = true;
+      prAlvo.baixadoEm = formatarDataHora(new Date());
+      registrarLog('gerou a baixa do pedido ' + prAlvo.codigo + ' · ' + prAlvo.cliente + ' · ' + prAlvo.projeto + ' (bipando a etiqueta)');
+      registrarMovimento('baixa_pedido', { clienteCodigo: prAlvo.codigo, cliente: prAlvo.cliente, projeto: prAlvo.projeto });
+      showFeedback('pedido ' + prAlvo.codigo + ' · ' + prAlvo.cliente + ' · ' + prAlvo.projeto + ' baixado com sucesso', false);
+      renderProjetos();
+    }
+    e.target.value = '';
+    return;
+  }
+
+  showFeedback('código não encontrado nas planilhas importadas: ' + codigo + ' — ', true, codigo);
   e.target.value = '';
 });
 
@@ -2077,14 +2211,40 @@ document.getElementById('btnConfirmarTrocaSenha').onclick = () => {
   agendarSincronizacaoRapida();
 };
 
+let configOpcaoServidor = 'proprio';
+function atualizarSelecaoServidorConfig(){
+  const btnProprio = document.getElementById('btnConfigEscolherProprio');
+  const btnSheets = document.getElementById('btnConfigEscolherSheets');
+  const campoProprio = document.getElementById('configCampoProprio');
+  const campoSheets = document.getElementById('configCampoSheets');
+  function marcar(btn, ativo){
+    btn.style.background = ativo ? 'var(--brand-soft)' : 'var(--surface-2)';
+    btn.style.borderColor = ativo ? 'var(--brand2)' : 'var(--border-strong)';
+    btn.style.fontWeight = ativo ? '700' : '600';
+  }
+  const proprioAtivo = configOpcaoServidor === 'proprio';
+  marcar(btnProprio, proprioAtivo);
+  marcar(btnSheets, !proprioAtivo);
+  campoProprio.style.display = proprioAtivo ? 'block' : 'none';
+  campoSheets.style.display = proprioAtivo ? 'none' : 'block';
+}
+document.getElementById('btnConfigEscolherProprio').onclick = () => { configOpcaoServidor = 'proprio'; atualizarSelecaoServidorConfig(); };
+document.getElementById('btnConfigEscolherSheets').onclick = () => { configOpcaoServidor = 'sheets'; atualizarSelecaoServidorConfig(); };
+
 document.getElementById('btnConfigurarSync').onclick = () => {
   const painel = document.getElementById('painelConfigSync');
   const abrindo = painel.style.display === 'none';
   painel.style.display = abrindo ? 'block' : 'none';
-  if (abrindo) document.getElementById('inputSyncUrl').value = syncUrl;
+  if (abrindo){
+    // adivinha qual aba mostrar com base na URL atual configurada
+    const ehGoogle = syncUrl && syncUrl.includes('script.google.com');
+    configOpcaoServidor = ehGoogle ? 'sheets' : 'proprio';
+    document.getElementById(ehGoogle ? 'inputSyncUrlSheets' : 'inputSyncUrlProprio').value = syncUrl;
+    atualizarSelecaoServidorConfig();
+  }
 };
-document.getElementById('btnSalvarSyncUrl').onclick = async () => {
-  const url = document.getElementById('inputSyncUrl').value.trim();
+
+async function salvarNovaSyncUrl(url){
   if (!url){ atualizarStatusSync('cole a URL antes de salvar', 'erro'); return; }
   syncUrl = url;
   localStorage.setItem('rasmar_sync_url', syncUrl);
@@ -2093,7 +2253,9 @@ document.getElementById('btnSalvarSyncUrl').onclick = async () => {
   atualizarStatusSync('conectando...', null);
   await carregarDoServidorAgora();
   iniciarSincronizacaoAutomatica();
-};
+}
+document.getElementById('btnSalvarSyncUrl').onclick = () => salvarNovaSyncUrl(document.getElementById('inputSyncUrlProprio').value.trim());
+document.getElementById('btnSalvarSyncUrlSheets').onclick = () => salvarNovaSyncUrl(document.getElementById('inputSyncUrlSheets').value.trim());
 document.getElementById('btnSincronizarAgora').onclick = () => {
   if (modoConflitoSync) carregarDoServidorAgora();
   else salvarNoServidorComSeguranca(false);
@@ -2563,25 +2725,39 @@ function renderListaHistorico(){
 }
 document.getElementById('buscaHistorico').addEventListener('input', renderListaHistorico);
 
-document.getElementById('btnMostrarServidorAlternativo').onclick = () => {
-  const campo = document.getElementById('campoServidorAlternativo');
-  campo.style.display = campo.style.display === 'none' ? 'block' : 'none';
-};
+let primeiroAdminOpcaoServidor = 'proprio'; // 'proprio' ou 'sheets'
+function atualizarSelecaoServidorPrimeiroAdmin(){
+  const btnProprio = document.getElementById('btnPrimeiroAdminEscolherProprio');
+  const btnSheets = document.getElementById('btnPrimeiroAdminEscolherSheets');
+  const campoProprio = document.getElementById('primeiroAdminCampoProprio');
+  const campoSheets = document.getElementById('primeiroAdminCampoSheets');
+  function marcar(btn, ativo){
+    btn.style.background = ativo ? 'var(--brand-soft)' : 'var(--surface-2)';
+    btn.style.borderColor = ativo ? 'var(--brand2)' : 'var(--border-strong)';
+    btn.style.fontWeight = ativo ? '700' : '600';
+  }
+  const proprioAtivo = primeiroAdminOpcaoServidor === 'proprio';
+  marcar(btnProprio, proprioAtivo);
+  marcar(btnSheets, !proprioAtivo);
+  campoProprio.style.display = proprioAtivo ? 'block' : 'none';
+  campoSheets.style.display = proprioAtivo ? 'none' : 'block';
+}
+document.getElementById('btnPrimeiroAdminEscolherProprio').onclick = () => { primeiroAdminOpcaoServidor = 'proprio'; atualizarSelecaoServidorPrimeiroAdmin(); };
+document.getElementById('btnPrimeiroAdminEscolherSheets').onclick = () => { primeiroAdminOpcaoServidor = 'sheets'; atualizarSelecaoServidorPrimeiroAdmin(); };
+atualizarSelecaoServidorPrimeiroAdmin();
 
 document.getElementById('btnCriarPrimeiroAdmin').onclick = () => {
   const usuario = document.getElementById('primeiroAdminUsuario').value.trim();
   const senha = document.getElementById('primeiroAdminSenha').value;
   const erro = document.getElementById('primeiroAdminErro');
   if (!usuario || !senha){ erro.textContent = 'preencha usuário e senha'; erro.style.display = 'block'; return; }
+  const urlEscolhida = (primeiroAdminOpcaoServidor === 'proprio'
+    ? document.getElementById('primeiroAdminServidorUrl').value
+    : document.getElementById('primeiroAdminGoogleUrl').value).trim();
+  if (!urlEscolhida){ erro.textContent = 'cole o link do servidor escolhido acima'; erro.style.display = 'block'; return; }
   erro.style.display = 'none';
-  // se marcou um servidor diferente do padrão (Google Apps Script ou o
-  // próprio servidor deles), usa essa URL a partir de agora — já cria o
-  // primeiro administrador direto lá.
-  const servidorAlternativo = document.getElementById('primeiroAdminServidorUrl').value.trim();
-  if (servidorAlternativo){
-    syncUrl = servidorAlternativo;
-    localStorage.setItem('rasmar_sync_url', syncUrl);
-  }
+  syncUrl = urlEscolhida;
+  localStorage.setItem('rasmar_sync_url', syncUrl);
   usuarios.push({
     usuario, senha, admin: true,
     permissoes: { excluir: true, cadastrarManual: true, concluirSemBipar: true, setores: stations.map(s=>s.id) }
