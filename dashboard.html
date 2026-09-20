@@ -646,7 +646,7 @@ async function iniciar(){
     const dados = await buscarNoServidor({});
     usuariosCache = Array.isArray(dados.usuarios) ? dados.usuarios : [];
   } catch (err) {
-    bloquear('Não consegui conectar com a planilha: ' + err.message);
+    bloquear('Não consegui conectar com o servidor: ' + err.message);
     return;
   }
   if (usuariosCache.length === 0){

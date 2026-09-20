@@ -203,20 +203,9 @@
         <input id="primeiroAdminSenha" type="password" style="width:100%;" autocomplete="new-password" />
       </div>
 
-      <p style="font-size:12px; color:var(--text-secondary); margin:8px 0 2px;">Onde os dados vão ficar salvos:</p>
-      <div style="display:flex; gap:6px;">
-        <button type="button" id="btnPrimeiroAdminEscolherProprio" style="flex:1; font-size:12px; padding:8px 6px; background:var(--brand-soft); border-color:var(--brand2); font-weight:700;">Meu servidor</button>
-        <button type="button" id="btnPrimeiroAdminEscolherSheets" style="flex:1; font-size:12px; padding:8px 6px;">Google Sheets (não recomendado)</button>
-      </div>
-
       <div id="primeiroAdminCampoProprio">
-        <label style="font-size:12px; color:var(--text-muted); display:block; margin:4px 0 4px;">Link do seu servidor (ex: http://SEU_IP:3000/)</label>
-        <input id="primeiroAdminServidorUrl" type="text" placeholder="http://..." style="width:100%; font-size:12px;" />
-      </div>
-      <div id="primeiroAdminCampoSheets" style="display:none;">
-        <label style="font-size:12px; color:var(--text-muted); display:block; margin:4px 0 4px;">Link do Google Apps Script (termina em /exec)</label>
-        <input id="primeiroAdminGoogleUrl" type="text" placeholder="https://script.google.com/.../exec" style="width:100%; font-size:12px;" />
-        <p style="font-size:11px; color:var(--fill-warning); margin:6px 0 0;">⚠ O Google Sheets tem um limite de chamadas por dia e pode ficar instável com uso mais intenso — prefira um servidor próprio quando puder.</p>
+        <label style="font-size:12px; color:var(--text-muted); display:block; margin:4px 0 4px;">Link do servidor (ex: https://SEU_IP:3000/)</label>
+        <input id="primeiroAdminServidorUrl" type="text" placeholder="https://..." style="width:100%; font-size:12px;" />
       </div>
 
       <p id="primeiroAdminErro" style="font-size:13px; color:var(--text-danger); margin:0; display:none;"></p>
@@ -303,6 +292,14 @@
 
 <div class="wrap">
 
+  <div id="overlayDesconectado" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.6); z-index:150; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(2px);">
+    <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:28px; max-width:380px; width:100%; text-align:center; border-top:5px solid var(--text-danger);">
+      <p style="font-size:32px; margin:0 0 8px;">🔴</p>
+      <h2 style="font-size:16px; margin:0 0 10px;">Sem conexão com o servidor</h2>
+      <p style="font-size:13px; color:var(--text-secondary); margin:0;">Suas ações ficam bloqueadas enquanto isso, pra não arriscar salvar algo errado. Tentando reconectar automaticamente — a tela libera sozinha assim que voltar.</p>
+    </div>
+  </div>
+
   <div class="cabecalho">
     <div class="linhaTopo">
     <div class="marca">
@@ -310,11 +307,9 @@
     <div>
       <h1 style="margin:0;">Rasmar<span class="versao">V2</span></h1>
       <p class="sub">rastreio na marcenaria</p>
-      <p class="origem">Marcenaria Cireneu Liebl</p>
     </div>
     </div>
     <div style="display:flex; align-items:center; gap:10px;">
-      <span class="data" id="dataAtual"></span>
       <span id="usuarioLogadoTexto" style="font-size:12px; color:var(--text-secondary); white-space:nowrap;"></span>
       <button id="btnSair" style="font-size:12px; padding:5px 10px; display:none;">Sair</button>
     </div>
@@ -323,9 +318,13 @@
     <div class="barraAcoes">
       <button id="btnToggleSync" title="Sincronização" style="font-size:15px; padding:5px 8px; display:none; line-height:1;">🔄</button>
       <button id="btnTrocarSenha" style="font-size:12px; padding:5px 10px; display:none;">Trocar senha</button>
-      <button id="btnAbrirAdmin" style="font-size:12px; padding:5px 10px; display:none;">Administração</button>
-      <button id="btnAbrirHistorico" style="font-size:12px; padding:5px 10px; display:none;">Histórico</button>
-      <button id="btnAbrirDashboard" style="font-size:12px; padding:5px 10px; display:none;">Dashboard</button>
+      <button id="btnMenuAdmin" style="font-size:12px; padding:5px 10px; display:none;">☰ Menu</button>
+
+      <div id="blocoMenuAdmin" style="display:none; position:absolute; top:100%; right:0; margin-top:8px; width:200px; background:var(--surface-2); border:1px solid var(--border-accent); border-radius:var(--radius); box-shadow:var(--shadow-md); padding:6px; z-index:20; text-align:left;">
+        <button id="btnAbrirAdmin" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:block;">Administração</button>
+        <button id="btnAbrirHistorico" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:block;">Histórico</button>
+        <button id="btnAbrirDashboard" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:block;">Dashboard</button>
+      </div>
 
       <div id="blocoTrocarSenha" style="display:none; position:absolute; top:100%; right:0; margin-top:8px; width:280px; background:var(--surface-2); border:1px solid var(--border-accent); border-radius:var(--radius); box-shadow:var(--shadow-md); padding:12px 14px; z-index:20; text-align:left;">
         <p style="font-size:13px; font-weight:600; margin:0 0 8px;">Trocar minha senha</p>
@@ -346,25 +345,14 @@
           <button id="btnConfigurarSync" style="font-size:12px; padding:5px 10px;">Configurar sincronização</button>
         </div>
         <div id="painelConfigSync" style="display:none; border-top:1px solid var(--border); padding-top:10px;">
-          <p style="font-size:12px; margin:0 0 6px;">Onde os dados ficam salvos:</p>
-          <div style="display:flex; gap:6px; margin-bottom:8px;">
-            <button type="button" id="btnConfigEscolherProprio" style="flex:1; font-size:12px; padding:7px 6px;">Meu servidor</button>
-            <button type="button" id="btnConfigEscolherSheets" style="flex:1; font-size:12px; padding:7px 6px;">Google Sheets (não recomendado)</button>
-          </div>
+          <p style="font-size:12px; margin:0 0 6px;">Endereço do servidor:</p>
           <div id="configCampoProprio">
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <input id="inputSyncUrlProprio" type="text" placeholder="http://SEU_IP:3000/" style="flex:1; min-width:180px; font-size:12px;" />
+              <input id="inputSyncUrlProprio" type="text" placeholder="https://SEU_IP:3000/" style="flex:1; min-width:180px; font-size:12px;" />
               <button id="btnSalvarSyncUrl" style="font-size:12px; padding:6px 10px; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none;">Salvar</button>
             </div>
           </div>
-          <div id="configCampoSheets" style="display:none;">
-            <p style="font-size:11px; margin:0 0 6px; color:var(--fill-warning);">⚠ Sujeito ao limite diário de chamadas do Google.</p>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <input id="inputSyncUrlSheets" type="text" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1; min-width:180px; font-size:12px;" />
-              <button id="btnSalvarSyncUrlSheets" style="font-size:12px; padding:6px 10px; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none;">Salvar</button>
-            </div>
-          </div>
-          <p style="font-size:11px; margin:10px 0 4px; color:var(--text-muted);">Limite estimado de chamadas por dia (ajuste conforme sua conta — Gmail comum costuma ser bem mais baixo que Workspace):</p>
+          <p style="font-size:11px; margin:10px 0 4px; color:var(--text-muted);">Limite estimado de chamadas por dia (opcional, só pra acompanhar o uso):</p>
           <div style="display:flex; gap:6px;">
             <input id="inputLimiteChamadas" type="text" inputmode="numeric" placeholder="ex: 2000" style="flex:1; font-size:12px;" />
             <button id="btnSalvarLimiteChamadas" style="font-size:12px; padding:6px 10px;">Salvar</button>
@@ -389,7 +377,7 @@
     <span>▸</span>
     <input id="scanInput" type="text" placeholder="digite ou bipe um código, ex: ROD23157222B" style="flex:1; border:none; background:transparent; box-shadow:none;" />
   </div>
-  <p id="avisoModulo" style="font-size:13px; color:var(--text-muted); margin:0 0 12px; display:none;">nesta etapa a conclusão é por módulo inteiro, não por peça — use o botão dentro de cada módulo abaixo.</p>
+  <p id="avisoModulo" style="font-size:13px; color:var(--text-muted); margin:0 0 12px; display:none;">nesta etapa a conclusão é por módulo inteiro, não por peça — bipe a etiqueta do módulo/pedido acima, ou use o botão dentro de cada módulo abaixo.</p>
 
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem;">
     <div id="feedback" style="font-size:13px;"></div>
@@ -685,7 +673,10 @@ function renderTabs(){
     el.appendChild(btn);
   });
   const ehModulo = estacaoAtual().type === 'modulo';
-  document.getElementById('barraBipagem').style.display = ehModulo ? 'none' : 'flex';
+  document.getElementById('barraBipagem').style.display = 'flex';
+  document.getElementById('scanInput').placeholder = ehModulo
+    ? (estacaoAtual().id === 'pre' ? 'bipe a etiqueta do módulo pra marcar concluído' : 'bipe a etiqueta do pedido pra confirmar a entrega')
+    : 'digite ou bipe um código, ex: ROD23157222B';
   document.getElementById('btnCadastroManual').style.display = (!ehModulo && temPermissao('cadastrarManual')) ? 'inline-block' : 'none';
   document.getElementById('avisoModulo').style.display = ehModulo ? 'block' : 'none';
 }
@@ -1195,7 +1186,16 @@ function renderBotaoEtiquetaModulo(pr, mod){
 
 function marcarModuloConcluidoForcado(mod, station){
   const agora = formatarDataHora(new Date());
-  pecasNaEstacao(mod, station.id).forEach(p => { if (!p[station.field]) p[station.field] = agora; });
+  if (station.type === 'peca'){
+    pecasNaEstacao(mod, station.id).forEach(p => { if (!p[station.field]) p[station.field] = agora; });
+  } else {
+    // Pré Montagem / Montagem Final: a conclusão aqui não é por peça, é uma
+    // marcação direta no módulo (mesmo campo que o checkbox normal usa).
+    const completaKey = station.destinoKey === 'pre' ? 'preCompleta' : 'finalCompleta';
+    const completaEmKey = station.destinoKey === 'pre' ? 'preCompletaEm' : 'finalCompletaEm';
+    mod[completaKey] = true;
+    mod[completaEmKey] = agora;
+  }
   registrarLog('marcou o módulo #' + mod.id + ' (' + mod.nome + ') como concluído em ' + station.label + ' sem bipar peça por peça');
   registrarMovimento('conclusao_forcada_modulo', { moduloId: mod.id, moduloNome: mod.nome, detalhe: station.label + ' (sem bipar)' });
   showFeedback('módulo #' + mod.id + ' marcado como concluído em ' + station.label + ' (sem bipar)', false);
@@ -1721,11 +1721,14 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
 
   // não é código de peça — confere se é etiqueta de MÓDULO (código do
   // pedido + "-M" + id do módulo, ex: "P01-M1"): bipar marca o módulo
-  // inteiro como concluído na etapa atual, sem precisar bipar peça por peça.
+  // inteiro como concluído — mas só faz sentido bipar isso na etapa de
+  // Pré Montagem (é ali que o módulo é tratado como uma peça só).
   for (const pr of projetos){
     const modAlvo = pr.modulos.find(m => codigoEtiquetaModulo(pr, m) === codigo);
     if (modAlvo){
-      if (!moduloTemPresencaEm(modAlvo, station)){
+      if (station.id !== 'pre'){
+        showFeedback('etiqueta de módulo (#' + modAlvo.id + ' ' + modAlvo.nome + ') só pode ser bipada na etapa Pré Montagem — vá pra essa aba antes de bipar', true);
+      } else if (!moduloTemPresencaEm(modAlvo, station)){
         showFeedback('módulo #' + modAlvo.id + ' (' + modAlvo.nome + ') não está na etapa ' + station.label + ' agora', true);
       } else if (isConcluidoNaEstacao(modAlvo, station)){
         showFeedback('módulo #' + modAlvo.id + ' (' + modAlvo.nome + ') já está concluído em ' + station.label, true);
@@ -1738,10 +1741,13 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
   }
 
   // também não é módulo — confere se é etiqueta de PEDIDO (código do
-  // cliente, ex: "P01"): bipar confirma a entrega/baixa do pedido inteiro.
+  // cliente, ex: "P01"): bipar confirma a entrega/baixa do pedido inteiro —
+  // só faz sentido bipar isso na etapa de Montagem Final (a última).
   const prAlvo = projetos.find(pr => pr.codigo === codigo);
   if (prAlvo){
-    if (prAlvo.baixado){
+    if (station.id !== 'final'){
+      showFeedback('etiqueta do pedido (' + prAlvo.codigo + ') só pode ser bipada na etapa Montagem Final — vá pra essa aba antes de bipar', true);
+    } else if (prAlvo.baixado){
       showFeedback('pedido ' + prAlvo.codigo + ' já foi baixado em ' + prAlvo.baixadoEm, true);
     } else if (!pedidoCompleto(prAlvo)){
       showFeedback('pedido ' + prAlvo.codigo + ' · ' + prAlvo.cliente + ' ainda não está completo em todas as etapas — não é possível dar baixa', true);
@@ -1817,9 +1823,6 @@ document.getElementById('fileInput').addEventListener('change', e => {
   e.target.value = '';
 });
 
-const nomesDia = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
-const hoje = new Date();
-document.getElementById('dataAtual').textContent = nomesDia[hoje.getDay()] + ', ' + formatarDataHora(hoje);
 
 // ---------- sincronização entre computadores (via Google Apps Script + Sheets) ----------
 // o app guarda o estado inteiro (pedidos/módulos/peças) numa planilha
@@ -1881,6 +1884,11 @@ function atualizarStatusSync(msg, tipo){
     iconeLogin.textContent = icone;
     document.getElementById('loginStatusTexto').textContent = msg;
   }
+  // bloqueia qualquer ação enquanto estiver desconectado (só depois que já
+  // entrou no app — a tela de login tem seu próprio indicador, não precisa
+  // desse overlay em cima dela).
+  const dentroDoApp = document.getElementById('telaLogin').style.display === 'none';
+  document.getElementById('overlayDesconectado').style.display = (tipo === 'erro' && dentroDoApp) ? 'flex' : 'none';
 }
 
 // o Google Apps Script não manda os cabeçalhos de CORS que fetch()/XHR
@@ -2213,37 +2221,11 @@ document.getElementById('btnConfirmarTrocaSenha').onclick = () => {
   agendarSincronizacaoRapida();
 };
 
-let configOpcaoServidor = 'proprio';
-function atualizarSelecaoServidorConfig(){
-  const btnProprio = document.getElementById('btnConfigEscolherProprio');
-  const btnSheets = document.getElementById('btnConfigEscolherSheets');
-  const campoProprio = document.getElementById('configCampoProprio');
-  const campoSheets = document.getElementById('configCampoSheets');
-  function marcar(btn, ativo){
-    btn.style.background = ativo ? 'var(--brand-soft)' : 'var(--surface-2)';
-    btn.style.borderColor = ativo ? 'var(--brand2)' : 'var(--border-strong)';
-    btn.style.fontWeight = ativo ? '700' : '600';
-  }
-  const proprioAtivo = configOpcaoServidor === 'proprio';
-  marcar(btnProprio, proprioAtivo);
-  marcar(btnSheets, !proprioAtivo);
-  campoProprio.style.display = proprioAtivo ? 'block' : 'none';
-  campoSheets.style.display = proprioAtivo ? 'none' : 'block';
-}
-document.getElementById('btnConfigEscolherProprio').onclick = () => { configOpcaoServidor = 'proprio'; atualizarSelecaoServidorConfig(); };
-document.getElementById('btnConfigEscolherSheets').onclick = () => { configOpcaoServidor = 'sheets'; atualizarSelecaoServidorConfig(); };
-
 document.getElementById('btnConfigurarSync').onclick = () => {
   const painel = document.getElementById('painelConfigSync');
   const abrindo = painel.style.display === 'none';
   painel.style.display = abrindo ? 'block' : 'none';
-  if (abrindo){
-    // adivinha qual aba mostrar com base na URL atual configurada
-    const ehGoogle = syncUrl && syncUrl.includes('script.google.com');
-    configOpcaoServidor = ehGoogle ? 'sheets' : 'proprio';
-    document.getElementById(ehGoogle ? 'inputSyncUrlSheets' : 'inputSyncUrlProprio').value = syncUrl;
-    atualizarSelecaoServidorConfig();
-  }
+  if (abrindo) document.getElementById('inputSyncUrlProprio').value = syncUrl;
 };
 
 async function salvarNovaSyncUrl(url){
@@ -2257,7 +2239,6 @@ async function salvarNovaSyncUrl(url){
   iniciarSincronizacaoAutomatica();
 }
 document.getElementById('btnSalvarSyncUrl').onclick = () => salvarNovaSyncUrl(document.getElementById('inputSyncUrlProprio').value.trim());
-document.getElementById('btnSalvarSyncUrlSheets').onclick = () => salvarNovaSyncUrl(document.getElementById('inputSyncUrlSheets').value.trim());
 document.getElementById('btnSincronizarAgora').onclick = () => {
   if (modoConflitoSync) carregarDoServidorAgora();
   else salvarNoServidorComSeguranca(false);
@@ -2328,9 +2309,10 @@ function mostrarApp(){
   document.getElementById('usuarioLogadoTexto').textContent = u ? (u.usuario + (u.admin ? ' · admin' : '')) : '';
   document.getElementById('btnSair').style.display = 'inline-block';
   document.getElementById('btnTrocarSenha').style.display = 'inline-block';
-  document.getElementById('btnAbrirAdmin').style.display = (u && u.admin) ? 'inline-block' : 'none';
-  document.getElementById('btnAbrirHistorico').style.display = (u && u.admin) ? 'inline-block' : 'none';
-  document.getElementById('btnAbrirDashboard').style.display = (u && u.admin) ? 'inline-block' : 'none';
+  document.getElementById('btnMenuAdmin').style.display = (u && u.admin) ? 'inline-block' : 'none';
+  document.getElementById('btnAbrirAdmin').style.display = (u && u.admin) ? 'block' : 'none';
+  document.getElementById('btnAbrirHistorico').style.display = (u && u.admin) ? 'block' : 'none';
+  document.getElementById('btnAbrirDashboard').style.display = (u && u.admin) ? 'block' : 'none';
   document.getElementById('btnImportar').style.display = (u && u.admin) ? 'inline-block' : 'none';
   document.getElementById('btnCadastroManual').style.display = temPermissao('cadastrarManual') ? 'inline-block' : 'none';
   document.getElementById('btnToggleSync').style.display = (u && u.admin) ? 'inline-block' : 'none';
@@ -2370,7 +2352,13 @@ document.getElementById('btnSair').onclick = () => {
   document.getElementById('telaLogin').style.display = 'flex';
 };
 
+document.getElementById('btnMenuAdmin').onclick = () => {
+  const bloco = document.getElementById('blocoMenuAdmin');
+  bloco.style.display = bloco.style.display === 'none' ? 'block' : 'none';
+};
+
 document.getElementById('btnAbrirAdmin').onclick = () => {
+  document.getElementById('blocoMenuAdmin').style.display = 'none';
   document.getElementById('telaAdmin').style.display = 'block';
   cancelarEdicaoUsuario();
   renderListaUsuarios();
@@ -2378,13 +2366,24 @@ document.getElementById('btnAbrirAdmin').onclick = () => {
 document.getElementById('btnFecharAdmin').onclick = () => { document.getElementById('telaAdmin').style.display = 'none'; };
 
 document.getElementById('btnAbrirHistorico').onclick = () => {
+  document.getElementById('blocoMenuAdmin').style.display = 'none';
   document.getElementById('telaHistorico').style.display = 'block';
   renderListaLogs();
   renderListaHistorico();
+  // já busca o histórico de todos os usuários (últimos 30 dias) na hora de
+  // abrir, em vez de exigir um clique manual em "Buscar logs" — assim o
+  // admin já vê tudo, não só o que aconteceu nesta sessão/computador.
+  const hoje = new Date();
+  const trintaDiasAtras = new Date(hoje.getTime() - 30*24*60*60*1000);
+  const paraISO = d => d.toISOString().slice(0,10);
+  document.getElementById('periodoDe').value = paraISO(trintaDiasAtras);
+  document.getElementById('periodoAte').value = paraISO(hoje);
+  document.getElementById('btnBuscarPeriodo').click();
 };
 document.getElementById('btnFecharHistorico').onclick = () => { document.getElementById('telaHistorico').style.display = 'none'; };
 
 document.getElementById('btnAbrirDashboard').onclick = () => {
+  document.getElementById('blocoMenuAdmin').style.display = 'none';
   window.location.href = 'dashboard.html';
 };
 
@@ -2727,36 +2726,13 @@ function renderListaHistorico(){
 }
 document.getElementById('buscaHistorico').addEventListener('input', renderListaHistorico);
 
-let primeiroAdminOpcaoServidor = 'proprio'; // 'proprio' ou 'sheets'
-function atualizarSelecaoServidorPrimeiroAdmin(){
-  const btnProprio = document.getElementById('btnPrimeiroAdminEscolherProprio');
-  const btnSheets = document.getElementById('btnPrimeiroAdminEscolherSheets');
-  const campoProprio = document.getElementById('primeiroAdminCampoProprio');
-  const campoSheets = document.getElementById('primeiroAdminCampoSheets');
-  function marcar(btn, ativo){
-    btn.style.background = ativo ? 'var(--brand-soft)' : 'var(--surface-2)';
-    btn.style.borderColor = ativo ? 'var(--brand2)' : 'var(--border-strong)';
-    btn.style.fontWeight = ativo ? '700' : '600';
-  }
-  const proprioAtivo = primeiroAdminOpcaoServidor === 'proprio';
-  marcar(btnProprio, proprioAtivo);
-  marcar(btnSheets, !proprioAtivo);
-  campoProprio.style.display = proprioAtivo ? 'block' : 'none';
-  campoSheets.style.display = proprioAtivo ? 'none' : 'block';
-}
-document.getElementById('btnPrimeiroAdminEscolherProprio').onclick = () => { primeiroAdminOpcaoServidor = 'proprio'; atualizarSelecaoServidorPrimeiroAdmin(); };
-document.getElementById('btnPrimeiroAdminEscolherSheets').onclick = () => { primeiroAdminOpcaoServidor = 'sheets'; atualizarSelecaoServidorPrimeiroAdmin(); };
-atualizarSelecaoServidorPrimeiroAdmin();
-
 document.getElementById('btnCriarPrimeiroAdmin').onclick = () => {
   const usuario = document.getElementById('primeiroAdminUsuario').value.trim();
   const senha = document.getElementById('primeiroAdminSenha').value;
   const erro = document.getElementById('primeiroAdminErro');
   if (!usuario || !senha){ erro.textContent = 'preencha usuário e senha'; erro.style.display = 'block'; return; }
-  const urlEscolhida = (primeiroAdminOpcaoServidor === 'proprio'
-    ? document.getElementById('primeiroAdminServidorUrl').value
-    : document.getElementById('primeiroAdminGoogleUrl').value).trim();
-  if (!urlEscolhida){ erro.textContent = 'cole o link do servidor escolhido acima'; erro.style.display = 'block'; return; }
+  const urlEscolhida = document.getElementById('primeiroAdminServidorUrl').value.trim();
+  if (!urlEscolhida){ erro.textContent = 'cole o link do servidor acima'; erro.style.display = 'block'; return; }
   erro.style.display = 'none';
   syncUrl = urlEscolhida;
   localStorage.setItem('rasmar_sync_url', syncUrl);
