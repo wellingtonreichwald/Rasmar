@@ -91,11 +91,11 @@
      os botões de dentro deles precisam voltar ao estilo normal (escuro
      sobre claro), não herdar o estilo branco-sobre-transparente do
      cabeçalho, senão ficam ilegíveis (texto branco em fundo branco). */
-  #blocoSync button, #blocoTrocarSenha button{
+  #blocoSync button, #blocoTrocarSenha button, #blocoMenuAdmin button{
     background:var(--surface-2); color:var(--text-primary); border-color:var(--border-strong);
     backdrop-filter:none; box-shadow:var(--shadow-sm);
   }
-  #blocoSync button:hover, #blocoTrocarSenha button:hover{ background:var(--surface-1); }
+  #blocoSync button:hover, #blocoTrocarSenha button:hover, #blocoMenuAdmin button:hover{ background:var(--surface-1); }
   #btnSalvarSyncUrl, #btnConfirmarTrocaSenha{
     background:linear-gradient(135deg, var(--brand2), var(--brand-dark)) !important; color:#fff !important; border:none !important;
   }
@@ -456,12 +456,35 @@ function gerarId(){
 
 // timestamp no horário LOCAL de quem está usando (não UTC), mas ainda em
 // formato que ordena certinho como texto — pra ficar legível direto na
-// planilha sem precisar fazer conta de fuso horário.
+// planilha sem precisar fazer conta de fuso horário. Sempre calcula em
+// horário de Brasília (GMT-3), não importa como o computador/navegador
+// esteja configurado — assim os registros ficam certos mesmo que o relógio
+// da máquina esteja no fuso errado.
 function timestampLocalOrdenavel(d){
   d = d || new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
-    'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).formatToParts(d);
+  const obter = tipo => partes.find(p => p.type === tipo).value;
+  return obter('year') + '-' + obter('month') + '-' + obter('day') +
+    'T' + obter('hour') + ':' + obter('minute') + ':' + obter('second');
+}
+
+// converte um texto de data/hora "ingênuo" (sem fuso, tipo
+// "2026-09-20T19:29:00") pra um Date de verdade, tratando ele como horário
+// de Brasília — não como a hora local do navegador, que pode estar num
+// fuso diferente. Sem isso, o mesmo texto podia aparecer com horas
+// diferentes dependendo de como o computador de quem está olhando estava
+// configurado.
+function parsearComoBrasilia(isoNaive){
+  if (!isoNaive) return null;
+  const m = String(isoNaive).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return new Date(isoNaive);
+  const [ano, mes, dia, hora, min, seg] = m.slice(1).map(Number);
+  return new Date(Date.UTC(ano, mes-1, dia, hora+3, min, seg));
 }
 
 function getUsuarioLogado(){
@@ -643,10 +666,16 @@ function contagemPecasNaEtapaAtual(pr, station){
 }
 
 function formatarDataHora(d){
-  const dia = String(d.getDate()).padStart(2,'0');
-  const mes = String(d.getMonth()+1).padStart(2,'0');
-  const hora = d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-  return dia + '/' + mes + ' ' + hora;
+  // sempre formata no fuso de Brasília, independente da configuração do
+  // computador/navegador que está exibindo — veja parsearComoBrasilia()
+  // acima pra converter um texto de data recebido antes de chamar isto.
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    hour12: false
+  }).formatToParts(d);
+  const obter = tipo => partes.find(p => p.type === tipo).value;
+  return obter('day') + '/' + obter('month') + ' ' + obter('hour') + ':' + obter('minute');
 }
 
 // ---------- render: abas ----------
@@ -1866,7 +1895,7 @@ function assinaturaEstadoAtual(){
 
 function formatarCarimbo(iso){
   if (!iso) return '—';
-  return formatarDataHora(new Date(iso));
+  return formatarDataHora(parsearComoBrasilia(iso));
 }
 
 function atualizarStatusSync(msg, tipo){
@@ -2589,7 +2618,7 @@ function renderListaLogs(){
   }
   el.innerHTML = filtrados.map(l =>
     '<div style="padding:4px 0; border-bottom:1px solid var(--border);"><span style="color:var(--text-muted);">' +
-    formatarDataHora(new Date(l.em)) + '</span> · <strong>' + l.usuario + '</strong> — ' + l.acao + '</div>'
+    formatarDataHora(parsearComoBrasilia(l.em)) + '</span> · <strong>' + l.usuario + '</strong> — ' + l.acao + '</div>'
   ).join('');
 }
 document.getElementById('buscaLogTexto').addEventListener('input', renderListaLogs);
@@ -2662,7 +2691,7 @@ document.getElementById('btnBuscarPeriodo').onclick = async () => {
     } else {
       resultadoEl.innerHTML = items.map(l =>
         '<div style="padding:4px 0; border-bottom:1px solid var(--border);"><span style="color:var(--text-muted);">' +
-        formatarDataHora(new Date(l.em)) + '</span> · <strong>' + l.usuario + '</strong> — ' + l.acao + '</div>'
+        formatarDataHora(parsearComoBrasilia(l.em)) + '</span> · <strong>' + l.usuario + '</strong> — ' + l.acao + '</div>'
       ).join('');
     }
     mostrarStatusPeriodo(items.length + ' log(s) encontrado(s)' + (de || ate ? ' no período' : ''), null);
