@@ -1368,10 +1368,19 @@ function moverModuloPara(mod, destinoId){
   return s;
 }
 
+// acha o pedido/projeto que contém um módulo específico — usado pra
+// garantir que todo evento de módulo carregue o código do cliente/pedido
+// junto, senão o dashboard não consegue juntar esse evento com os outros
+// da mesma peça/módulo na hora de calcular tempos.
+function projetoDoModulo(mod){
+  return projetos.find(pr => pr.modulos.includes(mod));
+}
+
 function enviarModuloPara(mod, destinoId){
   const s = moverModuloPara(mod, destinoId);
   registrarLog('enviou o módulo #' + mod.id + ' (' + mod.nome + ') para ' + s.label);
-  registrarMovimento('envio_modulo', { moduloId: mod.id, moduloNome: mod.nome, detalhe: 'para ' + s.label });
+  const pr = projetoDoModulo(mod);
+  registrarMovimento('envio_modulo', { moduloId: mod.id, moduloNome: mod.nome, clienteCodigo: pr ? pr.codigo : '', cliente: pr ? pr.cliente : '', projeto: pr ? pr.projeto : '', detalhe: 'para ' + s.label });
   renderProjetos();
 }
 
@@ -1554,7 +1563,8 @@ function marcarModuloConcluidoForcado(mod, station){
     mod[completaEmKey] = agora;
   }
   registrarLog('marcou o módulo #' + mod.id + ' (' + mod.nome + ') como concluído em ' + station.label + ' sem bipar peça por peça');
-  registrarMovimento('conclusao_forcada_modulo', { moduloId: mod.id, moduloNome: mod.nome, detalhe: station.label + ' (sem bipar)' });
+  const prDoModulo = projetoDoModulo(mod);
+  registrarMovimento('conclusao_forcada_modulo', { moduloId: mod.id, moduloNome: mod.nome, clienteCodigo: prDoModulo ? prDoModulo.codigo : '', cliente: prDoModulo ? prDoModulo.cliente : '', projeto: prDoModulo ? prDoModulo.projeto : '', detalhe: station.label + ' (sem bipar)' });
   showFeedback('módulo #' + mod.id + ' marcado como concluído em ' + station.label + ' (sem bipar)', false);
   renderProjetos();
 }
@@ -1702,7 +1712,8 @@ function renderConclusaoModulo(mod, station){
     mod[completaEmKey] = chk.checked ? formatarDataHora(new Date()) : null;
     if (chk.checked){
       registrarLog('concluiu o módulo #' + mod.id + ' (' + mod.nome + ') em ' + station.label);
-      registrarMovimento('conclusao_modulo', { moduloId: mod.id, moduloNome: mod.nome, detalhe: station.label });
+      const prDoModulo = projetoDoModulo(mod);
+      registrarMovimento('conclusao_modulo', { moduloId: mod.id, moduloNome: mod.nome, clienteCodigo: prDoModulo ? prDoModulo.codigo : '', cliente: prDoModulo ? prDoModulo.cliente : '', projeto: prDoModulo ? prDoModulo.projeto : '', detalhe: station.label });
     }
     renderProjetos();
   };

@@ -155,6 +155,7 @@
       <button id="modoKanban">🗂️ Kanban (agora)</button>
       <button id="modoOee">⚙️ OEE</button>
       <button id="modoVsm">🧭 VSM</button>
+      <button id="modoSetups">🔧 Setups/Paradas</button>
     </div>
 
     <div class="filtros ocultarNaImpressao">
@@ -241,6 +242,15 @@
       <div id="resultadoVsm"></div>
     </div>
 
+    <div id="secaoSetups" style="display:none;">
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Paradas (imprevistas) e setups (trocas/ajustes planejados) registrados no período — separado dos tempos normais de processo.</p>
+      <div class="cartoes" id="cartoesSetups"></div>
+      <div class="secao" id="secaoDetalheSetups" style="padding:12px 14px; margin-top:14px;">
+        <input id="buscaSetups" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar por processo, motivo..." style="margin-bottom:8px;" />
+        <div id="listaSetups"></div>
+      </div>
+    </div>
+
     <footer class="ocultarNaImpressao" style="margin-top:32px; padding:16px 0 8px; text-align:center; border-top:1px solid var(--border);">
       <p style="font-size:11px; color:var(--text-muted); margin:0;">Rasmar <span style="font-weight:600;">V2</span> — Sistema de rastreamento de peças · Marcenaria Cireneu Liebl</p>
       <p style="font-size:11px; color:var(--text-muted); margin:4px 0 0;">Todos os direitos reservados © 2026 · Criador: Wellington Reichwald — SENAI · Brasil + Produtivo</p>
@@ -253,11 +263,11 @@ const syncUrl = localStorage.getItem('rasmar_sync_url') || '';
 let usuarioLogadoNome = sessionStorage.getItem('rasmar_usuario') || '';
 let usuariosCache = [];
 let movimentosAtuais = [];
-// pra aba Tempos: sem os eventos de defeito/retrabalho, que agora só entram
-// na aba Defeitos — assim o cálculo de tempo de processo fica limpo, só com
-// o fluxo normal (bipagem, envio, conclusão).
+// pra aba Tempos: sem os eventos de defeito/retrabalho nem de parada/setup —
+// esses agora têm abas próprias, assim o cálculo de tempo de processo fica
+// limpo, só com o fluxo normal (bipagem, envio, conclusão).
 function movimentosTempos(){
-  return movimentosAtuais.filter(m => !TIPOS_DEFEITO.includes(m.tipo));
+  return movimentosAtuais.filter(m => !TIPOS_DEFEITO.includes(m.tipo) && !TIPOS_PARADA_SETUP.includes(m.tipo));
 }
 let abaAtiva = 'pecas';
 
@@ -412,15 +422,19 @@ function minutosLegivel(totalMinFloat){
 // Kaizen pra ver de cara qual etapa está mais lenta, sem precisar escolher
 // os pontos manualmente toda vez.
 const TRANSICOES_PROCESSO = [
-  { label: 'CNC → Coladeira', de: 'bipagem|CNC', ate: 'bipagem|Coladeira' },
-  { label: 'Coladeira → Limpeza e Separação', de: 'bipagem|Coladeira', ate: 'bipagem|Limpeza e Separação' },
-  { label: 'CNC → Limpeza (peça completa)', de: 'bipagem|CNC', ate: 'bipagem|Limpeza e Separação' }
+  { label: 'CNC → Coladeira', de: 'bipagem|CNC', ate: 'bipagem|Coladeira', nivel: 'peca' },
+  { label: 'Coladeira → Limpeza e Separação', de: 'bipagem|Coladeira', ate: 'bipagem|Limpeza e Separação', nivel: 'peca' },
+  { label: 'Limpeza e Separação → Pré Montagem', de: 'bipagem|Limpeza e Separação', ate: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
+  { label: 'Pré Montagem → Montagem Final', de: 'conclusao_modulo|Pré Montagem', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' },
+  { label: 'CNC → Limpeza (peça completa)', de: 'bipagem|CNC', ate: 'bipagem|Limpeza e Separação', nivel: 'peca' }
 ];
 function montarTempoMedioProcesso(){
   const movimentos = movimentosTempos();
   const porPeca = agruparPorPeca(movimentos);
+  const porModulo = agruparPorModulo(movimentos);
   const linhas = TRANSICOES_PROCESSO.map(t => {
-    const tempos = porPeca.map(g => tempoEntrePontos(g.eventos, t.de, t.ate).minutos).filter(m => m !== null);
+    const grupos = t.nivel === 'modulo' ? porModulo : porPeca;
+    const tempos = grupos.map(g => tempoEntrePontos(g.eventos, t.de, t.ate).minutos).filter(m => m !== null);
     return { label: t.label, media: mediaLegivel(tempos), amostras: tempos.length };
   }).filter(l => l.amostras > 0);
   const el = document.getElementById('tempoMedioProcessoLista');
@@ -652,23 +666,27 @@ function aplicarModo(){
   document.getElementById('modoKanban').classList.toggle('ativa', modoAtivo === 'kanban');
   document.getElementById('modoOee').classList.toggle('ativa', modoAtivo === 'oee');
   document.getElementById('modoVsm').classList.toggle('ativa', modoAtivo === 'vsm');
+  document.getElementById('modoSetups').classList.toggle('ativa', modoAtivo === 'setups');
   document.getElementById('secaoTempos').style.display = modoAtivo === 'tempos' ? 'block' : 'none';
   document.getElementById('secaoDefeitos').style.display = modoAtivo === 'defeitos' ? 'block' : 'none';
   document.getElementById('secaoKanban').style.display = modoAtivo === 'kanban' ? 'block' : 'none';
   document.getElementById('secaoOee').style.display = modoAtivo === 'oee' ? 'block' : 'none';
   document.getElementById('secaoVsm').style.display = modoAtivo === 'vsm' ? 'block' : 'none';
+  document.getElementById('secaoSetups').style.display = modoAtivo === 'setups' ? 'block' : 'none';
   document.getElementById('filtroPontosWrap').style.display = modoAtivo === 'tempos' ? 'contents' : 'none';
-  document.getElementById('cartoes').style.display = (modoAtivo === 'kanban' || modoAtivo === 'oee' || modoAtivo === 'vsm') ? 'none' : 'grid';
+  document.getElementById('cartoes').style.display = (modoAtivo === 'kanban' || modoAtivo === 'oee' || modoAtivo === 'vsm' || modoAtivo === 'setups') ? 'none' : 'grid';
   if (modoAtivo === 'tempos'){ montarCartoes(movimentosTempos()); renderListaDetalhe(); montarTempoMedioProcesso(); }
   else if (modoAtivo === 'defeitos'){ montarCartoesDefeitos(movimentosAtuais); renderListaDefeitos(); }
   else if (modoAtivo === 'kanban'){ renderKanban(); }
   else if (modoAtivo === 'oee'){ montarOee(); }
+  else if (modoAtivo === 'setups'){ montarSetups(); }
 }
 document.getElementById('modoTempos').onclick = () => { modoAtivo = 'tempos'; aplicarModo(); };
 document.getElementById('modoDefeitos').onclick = () => { modoAtivo = 'defeitos'; aplicarModo(); };
 document.getElementById('modoKanban').onclick = () => { modoAtivo = 'kanban'; aplicarModo(); };
 document.getElementById('modoOee').onclick = () => { modoAtivo = 'oee'; aplicarModo(); };
 document.getElementById('modoVsm').onclick = () => { modoAtivo = 'vsm'; aplicarModo(); };
+document.getElementById('modoSetups').onclick = () => { modoAtivo = 'setups'; aplicarModo(); };
 
 const ESTACOES_KANBAN = [
   {id:'cnc', label:'CNC', tipo:'peca'},
@@ -780,6 +798,63 @@ function renderVsm(){
 }
 document.getElementById('btnVsmBuscar').onclick = renderVsm;
 document.getElementById('vsmBusca').addEventListener('keydown', e => { if (e.key === 'Enter') renderVsm(); });
+
+// ---------- Setups e paradas (separado dos tempos normais de processo) ----------
+function paresParadaSetup(){
+  const eventos = movimentosAtuais.filter(m => TIPOS_PARADA_SETUP.includes(m.tipo));
+  const pares = {};
+  eventos.forEach(m => {
+    if (!pares[m.pecaCodigo]) pares[m.pecaCodigo] = { tipo: m.tipo.startsWith('parada') ? 'parada' : 'setup', processo: m.moduloNome, processoId: m.moduloId, usuario: m.usuario };
+    if (m.tipo.endsWith('_inicio')){ pares[m.pecaCodigo].inicio = m.em; pares[m.pecaCodigo].motivo = m.detalhe; }
+    else { pares[m.pecaCodigo].fim = m.em; }
+  });
+  return Object.values(pares).map(p => ({ ...p, minutos: (p.inicio && p.fim) ? diffMinutos(p.inicio, p.fim) : null }));
+}
+function montarSetups(){
+  const pares = paresParadaSetup();
+  const paradas = pares.filter(p => p.tipo === 'parada' && p.minutos !== null);
+  const setups = pares.filter(p => p.tipo === 'setup' && p.minutos !== null);
+  const emAndamento = pares.filter(p => p.minutos === null);
+  const totalParadaMin = paradas.reduce((a,p) => a+p.minutos, 0);
+  const totalSetupMin = setups.reduce((a,p) => a+p.minutos, 0);
+
+  const contagemProcesso = {};
+  pares.forEach(p => { contagemProcesso[p.processo] = (contagemProcesso[p.processo]||0) + (p.minutos||0); });
+  const processoTopo = Object.entries(contagemProcesso).sort((a,b) => b[1]-a[1])[0];
+
+  const cartoes = [
+    { numero: minutosLegivel(totalParadaMin), rotulo: 'tempo total parado (paradas)', grande:true, cor: totalParadaMin > 0 ? 'var(--text-danger)' : 'var(--text-primary)' },
+    { numero: minutosLegivel(totalSetupMin), rotulo: 'tempo total em setup' },
+    { numero: paradas.length + setups.length, rotulo: 'eventos concluídos no período' },
+    { numero: emAndamento.length, rotulo: 'em andamento agora', alerta: emAndamento.length > 0 },
+    { numero: processoTopo ? processoTopo[0] : '—', rotulo: 'processo com mais tempo parado/setup' },
+  ];
+  document.getElementById('cartoesSetups').innerHTML = cartoes.map(c =>
+    '<div class="cartao"><div class="numero" style="font-size:' + (c.grande?'22px':'20px') + '; color:' + (c.cor || (c.alerta ? 'var(--fill-warning)' : 'var(--text-primary)')) + ';">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
+  ).join('');
+
+  renderListaSetups();
+}
+function renderListaSetups(){
+  const termo = document.getElementById('buscaSetups').value.trim().toLowerCase();
+  let pares = paresParadaSetup();
+  if (termo) pares = pares.filter(p => ((p.processo||'') + (p.motivo||'')).toLowerCase().includes(termo));
+  pares.sort((a,b) => (b.inicio||'').localeCompare(a.inicio||''));
+  const el = document.getElementById('listaSetups');
+  if (!pares.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
+  const linhas = pares.map(p =>
+    '<tr>' +
+      '<td>' + (p.tipo === 'setup' ? '🔧 Setup' : '⏸ Parada') + '</td>' +
+      '<td>' + (p.processo||'') + '</td>' +
+      '<td>' + (p.motivo||'') + '</td>' +
+      '<td style="white-space:nowrap;">' + (p.inicio ? p.inicio.replace('T',' ') : '—') + '</td>' +
+      '<td>' + (p.minutos !== null ? minutosLegivel(p.minutos) : '<span style="color:var(--text-danger); font-weight:600;">em andamento</span>') + '</td>' +
+      '<td>' + (p.usuario||'') + '</td>' +
+    '</tr>'
+  ).join('');
+  el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>tipo</th><th>processo</th><th>motivo</th><th>início</th><th>duração</th><th>usuário</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+}
+document.getElementById('buscaSetups').addEventListener('input', renderListaSetups);
 
 function montarOee(){
   const sel = document.getElementById('oeeFiltroProcesso');
@@ -906,6 +981,7 @@ function renderKanban(){
 }
 
 const TIPOS_DEFEITO = ['defeito_descarte', 'defeito_retrabalho', 'defeito_modulo_recriacao', 'defeito_modulo_retrabalho'];
+const TIPOS_PARADA_SETUP = ['parada_inicio', 'parada_fim', 'setup_inicio', 'setup_fim'];
 
 function montarCartoesDefeitos(movimentos){
   const porPeca = agruparPorPeca(movimentos);
