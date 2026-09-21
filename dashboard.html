@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#eef1ee; --surface-1:#e9ede9; --surface-2:#ffffff;
@@ -137,6 +138,7 @@
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;" class="ocultarNaImpressao">
         <span id="usuarioTexto" style="font-size:12px; color:var(--text-secondary);"></span>
         <button id="btnExportarPdf" style="font-size:12px; padding:5px 10px;">Exportar PDF</button>
+        <button id="btnExportarExcel" style="font-size:12px; padding:5px 10px;">Exportar Excel</button>
         <button id="btnSairDash" style="font-size:12px; padding:5px 10px;">Sair</button>
         <a class="voltar" href="index.html">← voltar pro Rasmar</a>
       </div>
@@ -150,6 +152,7 @@
     <div class="abas ocultarNaImpressao" style="margin-bottom:8px;">
       <button id="modoTempos" class="ativa">📊 Tempos</button>
       <button id="modoDefeitos">⚠ Defeitos</button>
+      <button id="modoKanban">🗂️ Kanban (agora)</button>
     </div>
 
     <div class="filtros ocultarNaImpressao">
@@ -190,6 +193,11 @@
         <input id="buscaDefeitos" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar por peça, módulo, categoria..." style="margin-bottom:8px;" />
         <div id="listaDefeitos"></div>
       </div>
+    </div>
+
+    <div id="secaoKanban" style="display:none;">
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 12px;">O que está em cada etapa agora mesmo — atualiza sozinho a cada 5 segundos.</p>
+      <div id="colunasKanban" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;"></div>
     </div>
 
     <footer class="ocultarNaImpressao" style="margin-top:32px; padding:16px 0 8px; text-align:center; border-top:1px solid var(--border);">
@@ -570,17 +578,73 @@ document.getElementById('listaDetalhe').addEventListener('click', (e) => {
 
 let modoAtivo = 'tempos'; // 'tempos' ou 'defeitos'
 function aplicarModo(){
-  const ehTempos = modoAtivo === 'tempos';
-  document.getElementById('modoTempos').classList.toggle('ativa', ehTempos);
-  document.getElementById('modoDefeitos').classList.toggle('ativa', !ehTempos);
-  document.getElementById('secaoTempos').style.display = ehTempos ? 'block' : 'none';
-  document.getElementById('secaoDefeitos').style.display = ehTempos ? 'none' : 'block';
-  document.getElementById('filtroPontosWrap').style.display = ehTempos ? 'contents' : 'none';
-  if (ehTempos){ montarCartoes(movimentosAtuais); renderListaDetalhe(); }
-  else { montarCartoesDefeitos(movimentosAtuais); renderListaDefeitos(); }
+  document.getElementById('modoTempos').classList.toggle('ativa', modoAtivo === 'tempos');
+  document.getElementById('modoDefeitos').classList.toggle('ativa', modoAtivo === 'defeitos');
+  document.getElementById('modoKanban').classList.toggle('ativa', modoAtivo === 'kanban');
+  document.getElementById('secaoTempos').style.display = modoAtivo === 'tempos' ? 'block' : 'none';
+  document.getElementById('secaoDefeitos').style.display = modoAtivo === 'defeitos' ? 'block' : 'none';
+  document.getElementById('secaoKanban').style.display = modoAtivo === 'kanban' ? 'block' : 'none';
+  document.getElementById('filtroPontosWrap').style.display = modoAtivo === 'tempos' ? 'contents' : 'none';
+  document.getElementById('cartoes').style.display = modoAtivo === 'kanban' ? 'none' : 'grid';
+  if (modoAtivo === 'tempos'){ montarCartoes(movimentosAtuais); renderListaDetalhe(); }
+  else if (modoAtivo === 'defeitos'){ montarCartoesDefeitos(movimentosAtuais); renderListaDefeitos(); }
+  else { renderKanban(); }
 }
 document.getElementById('modoTempos').onclick = () => { modoAtivo = 'tempos'; aplicarModo(); };
 document.getElementById('modoDefeitos').onclick = () => { modoAtivo = 'defeitos'; aplicarModo(); };
+document.getElementById('modoKanban').onclick = () => { modoAtivo = 'kanban'; aplicarModo(); };
+
+const ESTACOES_KANBAN = [
+  {id:'cnc', label:'CNC', tipo:'peca'},
+  {id:'coladeira', label:'Coladeira', tipo:'peca'},
+  {id:'limpeza', label:'Limpeza e Separação', tipo:'peca'},
+  {id:'pre', label:'Pré Montagem', tipo:'modulo'},
+  {id:'final', label:'Montagem Final', tipo:'modulo'}
+];
+
+function renderKanban(){
+  const el = document.getElementById('colunasKanban');
+  el.innerHTML = '';
+  ESTACOES_KANBAN.forEach(estacao => {
+    const itens = [];
+    projetosAtuais.forEach(pr => {
+      if (pr.baixado) return;
+      pr.modulos.forEach(mod => {
+        if (estacao.tipo === 'peca'){
+          mod.pecas.forEach(p => {
+            if (!p.descartada && p.estacaoAtual === estacao.id){
+              itens.push({ codigo: p.codigo, desc: p.descricao, contexto: '#' + mod.id + ' ' + mod.nome + ' · ' + (pr.cliente||'') });
+            }
+          });
+        } else {
+          const completaKey = estacao.id === 'pre' ? 'preCompleta' : 'finalCompleta';
+          if (mod.fase === estacao.id && !mod[completaKey]){
+            itens.push({ codigo: '#' + mod.id, desc: mod.nome, contexto: (pr.codigo||'') + ' · ' + (pr.cliente||'') + ' (' + mod.pecas.length + ' peça(s))' });
+          }
+        }
+      });
+    });
+    const coluna = document.createElement('div');
+    coluna.className = 'secao';
+    coluna.style.padding = '12px';
+    const titulo = document.createElement('h3');
+    titulo.style.cssText = 'font-size:13px; margin:0 0 10px; display:flex; justify-content:space-between; align-items:center;';
+    titulo.innerHTML = '<span>' + estacao.label + '</span><span style="background:var(--brand2); color:#fff; border-radius:999px; padding:1px 8px; font-size:12px; font-weight:700;">' + itens.length + '</span>';
+    coluna.appendChild(titulo);
+    if (!itens.length){
+      const vazio = document.createElement('p'); vazio.className = 'tagMuted'; vazio.textContent = 'nada aqui agora';
+      coluna.appendChild(vazio);
+    } else {
+      itens.forEach(item => {
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--surface-1); border-radius:8px; padding:8px 10px; margin-bottom:6px; font-size:12px;';
+        card.innerHTML = '<strong>' + item.codigo + '</strong>' + (item.desc ? '<br><span class="tagMuted">' + item.desc + '</span>' : '') + '<br><span class="tagMuted" style="font-size:11px;">' + item.contexto + '</span>';
+        coluna.appendChild(card);
+      });
+    }
+    el.appendChild(coluna);
+  });
+}
 
 const TIPOS_DEFEITO = ['defeito_descarte', 'defeito_retrabalho', 'defeito_modulo_recriacao', 'defeito_modulo_retrabalho'];
 
@@ -638,13 +702,18 @@ function renderListaDefeitos(){
 }
 document.getElementById('buscaDefeitos').addEventListener('input', renderListaDefeitos);
 
+let projetosAtuais = [];
 async function carregar(){
   const de = document.getElementById('filtroDe').value;
   const ate = document.getElementById('filtroAte').value;
   document.getElementById('statusCarregando').textContent = 'carregando...';
   try {
-    const dados = await buscarNoServidor({ acao: 'movimentos', de, ate });
+    const [dados, estado] = await Promise.all([
+      buscarNoServidor({ acao: 'movimentos', de, ate }),
+      buscarNoServidor({})
+    ]);
     movimentosAtuais = Array.isArray(dados.movimentos) ? dados.movimentos : [];
+    projetosAtuais = Array.isArray(estado.projetos) ? estado.projetos : [];
     popularSelectsDePontos(movimentosAtuais);
     aplicarModo();
     document.getElementById('statusCarregando').textContent = movimentosAtuais.length + ' evento(s) carregado(s)';
@@ -657,6 +726,57 @@ document.getElementById('pontoDe').addEventListener('change', () => { montarCart
 document.getElementById('pontoAte').addEventListener('change', () => { montarCartoes(movimentosAtuais); renderListaDetalhe(); });
 
 document.getElementById('btnExportarPdf').onclick = () => window.print();
+
+document.getElementById('btnExportarExcel').onclick = () => {
+  const pontoDe = document.getElementById('pontoDe').value, pontoAte = document.getElementById('pontoAte').value;
+  const labelDe = labelPontoAtual('pontoDe'), labelAte = labelPontoAtual('pontoAte');
+
+  const linhasPecas = agruparPorPeca(movimentosAtuais).map(g => {
+    const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
+    return {
+      'Peça': g.pecaCodigo, 'Descrição': g.pecaDescricao || '', 'Módulo': g.moduloNome || '',
+      'Cliente/Projeto': (g.clienteCodigo||'') + ' ' + (g.cliente||'') + ' · ' + (g.projeto||''),
+      [labelDe]: r.de ? r.de.replace('T',' ') : '', [labelAte]: r.ate ? r.ate.replace('T',' ') : '',
+      'Tempo': r.minutos !== null ? minutosLegivel(r.minutos) : '', 'Eventos': g.eventos.length
+    };
+  });
+  const linhasModulos = agruparPorModulo(movimentosAtuais).map(g => {
+    const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
+    return {
+      'Módulo': '#' + g.moduloId + ' ' + (g.moduloNome||''), 'Cliente/Projeto': (g.clienteCodigo||'') + ' ' + (g.cliente||'') + ' · ' + (g.projeto||''),
+      'Peças': g.totalPecas, [labelDe]: r.de ? r.de.replace('T',' ') : '', [labelAte]: r.ate ? r.ate.replace('T',' ') : '',
+      'Tempo': r.minutos !== null ? minutosLegivel(r.minutos) : '', 'Eventos': g.eventos.length
+    };
+  });
+  const linhasProjetos = agruparPorProjeto(movimentosAtuais).map(g => {
+    const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
+    return {
+      'Pedido': g.clienteCodigo, 'Cliente': g.cliente || '', 'Projeto': g.projeto || '',
+      'Módulos': g.totalModulos, 'Peças': g.totalPecas,
+      [labelDe]: r.de ? r.de.replace('T',' ') : '', [labelAte]: r.ate ? r.ate.replace('T',' ') : '',
+      'Tempo': r.minutos !== null ? minutosLegivel(r.minutos) : '', 'Eventos': g.eventos.length
+    };
+  });
+  const linhasDefeitos = movimentosAtuais.filter(m => TIPOS_DEFEITO.includes(m.tipo)).map(ev => ({
+    'Quando': ev.em.replace('T',' '), 'Tipo': nomeTipo(ev.tipo),
+    'Peça/Módulo': ev.pecaCodigo ? (ev.pecaCodigo + (ev.pecaDescricao ? ' — ' + ev.pecaDescricao : '')) : ('módulo #' + ev.moduloId + ' ' + (ev.moduloNome||'')),
+    'Categoria/Detalhe': ev.detalhe || '', 'Usuário': ev.usuario || ''
+  }));
+  const linhasEventos = ordenarPorData(movimentosAtuais).map(ev => ({
+    'Quando': ev.em.replace('T',' '), 'Tipo': nomeTipo(ev.tipo),
+    'Peça': ev.pecaCodigo || '', 'Módulo': ev.moduloNome || '', 'Cliente': ev.cliente || '', 'Projeto': ev.projeto || '',
+    'Detalhe': ev.detalhe || '', 'Usuário': ev.usuario || ''
+  }));
+
+  const livro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(livro, XLSX.utils.json_to_sheet(linhasPecas), 'Por peça');
+  XLSX.utils.book_append_sheet(livro, XLSX.utils.json_to_sheet(linhasModulos), 'Por módulo');
+  XLSX.utils.book_append_sheet(livro, XLSX.utils.json_to_sheet(linhasProjetos), 'Por projeto');
+  XLSX.utils.book_append_sheet(livro, XLSX.utils.json_to_sheet(linhasDefeitos), 'Defeitos');
+  XLSX.utils.book_append_sheet(livro, XLSX.utils.json_to_sheet(linhasEventos), 'Todos os eventos');
+  const carimbo = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+  XLSX.writeFile(livro, 'rasmar-dashboard-' + carimbo + '.xlsx');
+};
 
 // busca rápida por código — acha se é peça/módulo/projeto e já abre na aba certa
 document.getElementById('buscaCodigo').addEventListener('keydown', (e) => {
