@@ -470,6 +470,7 @@
     <span>▸</span>
     <input id="scanInput" type="text" placeholder="digite ou bipe um código, ex: ROD23157222B" style="flex:1; border:none; background:transparent; box-shadow:none;" />
   </div>
+  <div id="barraParadaSetup" style="margin-bottom:8px;"></div>
   <p id="avisoModulo" style="font-size:13px; color:var(--text-muted); margin:0 0 12px; display:none;">nesta etapa a conclusão é por módulo inteiro, não por peça — bipe a etiqueta do módulo/pedido acima, ou use o botão dentro de cada módulo abaixo.</p>
 
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem;">
@@ -1937,7 +1938,7 @@ function renderProjetos(){
   agendarSincronizacaoRapida();
 }
 
-function renderTudo(){ renderTabs(); renderFiltro(); renderProjetos(); }
+function renderTudo(){ renderTabs(); renderFiltro(); renderProjetos(); renderBarraParadaSetup(); }
 
 function showFeedback(msg, isError, mostrarLink){
   const el = document.getElementById('feedback');
@@ -2778,19 +2779,90 @@ function paradasAtivasPorProcesso(){
   return porProcesso;
 }
 
+const MOTIVOS_PARADA = ['Quebra de máquina', 'Falta de material', 'Falta de energia', 'Manutenção corretiva', 'Aguardando aprovação/decisão', 'Outro motivo...'];
+const MOTIVOS_SETUP = ['Troca de ferramenta', 'Ajuste de máquina', 'Troca de programa/lote', 'Limpeza da máquina', 'Outro motivo...'];
+
 function iniciarParadaOuSetup(processoId, processoLabel, tipo, motivo){
   const paradaId = gerarIdParada();
   const rotulo = tipo === 'setup' ? 'setup' : 'parada';
   registrarLog('iniciou ' + rotulo + ' em ' + processoLabel + ' (' + motivo + ')');
   registrarMovimento(tipo + '_inicio', { moduloId: processoId, moduloNome: processoLabel, pecaCodigo: paradaId, detalhe: motivo });
-  renderTelaParadas();
+  renderBarraParadaSetup();
+  if (document.getElementById('telaParadas').style.display !== 'none') renderTelaParadas();
 }
 function finalizarParadaOuSetup(processoId, processoLabel, tipo, paradaId){
   const rotulo = tipo === 'setup' ? 'o setup' : 'a parada';
   registrarLog('finalizou ' + rotulo + ' em ' + processoLabel);
   registrarMovimento(tipo + '_fim', { moduloId: processoId, moduloNome: processoLabel, pecaCodigo: paradaId });
-  renderTelaParadas();
+  renderBarraParadaSetup();
+  if (document.getElementById('telaParadas').style.display !== 'none') renderTelaParadas();
 }
+
+function tempoDecorridoLegivel(inicioIso){
+  const inicio = parsearComoBrasilia(inicioIso);
+  if (!inicio) return '';
+  const min = (Date.now() - inicio.getTime()) / 60000;
+  const h = Math.floor(min/60), m = Math.round(min%60);
+  return (h ? h+'h ' : '') + m + 'min';
+}
+
+// pede o motivo escolhendo de uma lista pronta (um clique, sem digitar) —
+// só pede pra digitar se escolher "Outro motivo...". Reaproveitado tanto
+// no controle rápido da tela principal quanto na tela cheia de paradas.
+function montarSeletorMotivo(tipo, onEscolher){
+  const sel = document.createElement('select');
+  sel.style.cssText = 'font-size:12px; padding:5px 8px;';
+  const opcoes = tipo === 'parada' ? MOTIVOS_PARADA : MOTIVOS_SETUP;
+  sel.innerHTML = '<option value="">' + (tipo === 'setup' ? '🔧 Iniciar setup...' : '⏸ Iniciar parada...') + '</option>' +
+    opcoes.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+  sel.onchange = () => {
+    if (!sel.value) return;
+    let motivo = sel.value;
+    if (motivo === 'Outro motivo...'){
+      motivo = window.prompt('Descreva rapidinho o motivo:');
+      if (!motivo || !motivo.trim()){ sel.value = ''; return; }
+      motivo = motivo.trim();
+    }
+    onEscolher(motivo);
+    sel.value = '';
+  };
+  return sel;
+}
+
+// controle rápido dentro da própria tela de trabalho — sem precisar abrir
+// outra tela. Mostra os botões de iniciar se nada estiver rolando na etapa
+// atual, ou um cronômetro com "Finalizar" se já tiver uma parada/setup ativo.
+function renderBarraParadaSetup(){
+  const el = document.getElementById('barraParadaSetup');
+  if (!el) return;
+  const station = estacaoAtual();
+  const ativo = paradasAtivasPorProcesso()[station.id];
+  el.innerHTML = '';
+  el.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;';
+
+  ['parada','setup'].forEach(tipo => {
+    const info = ativo[tipo];
+    if (info){
+      const chip = document.createElement('div');
+      chip.style.cssText = 'display:flex; align-items:center; gap:8px; background:#fdeceb; border:1px solid var(--text-danger); border-radius:999px; padding:5px 6px 5px 12px; font-size:12px;';
+      const texto = document.createElement('span');
+      texto.style.cssText = 'color:var(--text-danger); font-weight:600;';
+      texto.textContent = '🔴 ' + (tipo === 'setup' ? 'Setup' : 'Parada') + ': ' + info.motivo + ' — ' + tempoDecorridoLegivel(info.inicio);
+      const btnFim = document.createElement('button');
+      btnFim.textContent = 'Finalizar';
+      btnFim.style.cssText = 'font-size:11px; padding:4px 10px; background:var(--text-danger); color:#fff; border:none;';
+      btnFim.onclick = () => finalizarParadaOuSetup(station.id, station.label, tipo, info.paradaId);
+      chip.appendChild(texto); chip.appendChild(btnFim);
+      el.appendChild(chip);
+    } else {
+      el.appendChild(montarSeletorMotivo(tipo, (motivo) => iniciarParadaOuSetup(station.id, station.label, tipo, motivo)));
+    }
+  });
+}
+// atualiza o cronômetro a cada 30s enquanto a tela estiver montada
+setInterval(() => {
+  if (document.getElementById('barraParadaSetup')) renderBarraParadaSetup();
+}, 30000);
 
 function renderTelaParadas(){
   const el = document.getElementById('listaProcessosParadas');
@@ -2812,26 +2884,14 @@ function renderTelaParadas(){
       if (info){
         const texto = document.createElement('span');
         texto.style.color = 'var(--text-danger)';
-        texto.textContent = '🔴 ' + (tipo === 'setup' ? 'Setup' : 'Parada') + ' em andamento — ' + info.motivo + ' (desde ' + formatarDataHora(parsearComoBrasilia(info.inicio)) + ')';
+        texto.textContent = '🔴 ' + (tipo === 'setup' ? 'Setup' : 'Parada') + ' em andamento — ' + info.motivo + ' (' + tempoDecorridoLegivel(info.inicio) + ')';
         const btnFim = document.createElement('button');
         btnFim.textContent = 'Finalizar';
         btnFim.style.cssText = 'font-size:12px; padding:4px 10px; color:var(--text-danger);';
         btnFim.onclick = () => finalizarParadaOuSetup(s.id, s.label, tipo, info.paradaId);
         linha.appendChild(texto); linha.appendChild(btnFim);
       } else {
-        const texto = document.createElement('span');
-        texto.className = 'tagMuted';
-        texto.textContent = (tipo === 'setup' ? 'Setup' : 'Parada') + ': nada em andamento';
-        const btnInicio = document.createElement('button');
-        btnInicio.textContent = '▶ Iniciar ' + tipo;
-        btnInicio.style.cssText = 'font-size:12px; padding:4px 10px;';
-        btnInicio.onclick = () => {
-          const motivo = window.prompt('Motivo do ' + tipo + ' em ' + s.label + ':');
-          if (motivo === null) return;
-          if (!motivo.trim()){ window.alert('preciso de um motivo pra registrar'); return; }
-          iniciarParadaOuSetup(s.id, s.label, tipo, motivo.trim());
-        };
-        linha.appendChild(texto); linha.appendChild(btnInicio);
+        linha.appendChild(montarSeletorMotivo(tipo, (motivo) => iniciarParadaOuSetup(s.id, s.label, tipo, motivo)));
       }
       card.appendChild(linha);
     });
