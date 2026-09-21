@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.12.3/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --bg:#eef1ee; --surface-1:#e9ede9; --surface-2:#ffffff;
@@ -75,7 +76,7 @@
   .cabecalho h1, .cabecalho .sub, .cabecalho .origem{ color:var(--on-brand); }
   .cabecalho .sub{ color:rgba(255,255,255,0.75); }
   .cabecalho .origem{ color:rgba(255,255,255,0.6); }
-  .cabecalho .marca img{ background:transparent; filter:none; mix-blend-mode:multiply; padding:0; box-shadow:none; height:60px; }
+  .cabecalho .marca img{ background:#fff; border-radius:10px; padding:4px; box-shadow:var(--shadow-md); height:60px; }
   .cabecalho .linhaTopo{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;}
   .cabecalho .marca{display:flex; align-items:center; gap:14px;}
   .cabecalho .data{font-size:12px; color:rgba(255,255,255,0.8); white-space:nowrap;}
@@ -157,7 +158,10 @@
     font-size: 9pt; font-weight: 800; letter-spacing: 0.06em; background: #000; color: #fff;
     padding: 0.7mm 2mm; border-radius: 1.2mm;
   }
-  .etiqueta svg{ width: 100%; height: auto; max-height: 18mm; }
+  .etiqueta .etiquetaCorpo{ width: 100%; display: flex; align-items: center; gap: 2mm; }
+  .etiqueta .etiquetaCorpo svg{ flex: 1; min-width: 0; height: auto; max-height: 16mm; }
+  .etiqueta .etiquetaQr{ flex-shrink: 0; width: 14mm; height: 14mm; }
+  .etiqueta .etiquetaQr img, .etiqueta .etiquetaQr canvas, .etiqueta .etiquetaQr table{ width: 14mm !important; height: 14mm !important; }
   .etiqueta .linha1{ font-size: 13pt; font-weight: 800; margin: 0; line-height: 1.15; }
   .etiqueta .linha2{ font-size: 9.5pt; margin: 0; line-height: 1.25; color: #333; }
   .etiqueta .etiquetaRodape{ font-size: 6.5pt; color: #666; margin: auto 0 0; }
@@ -270,7 +274,7 @@
       <div style="display:flex; flex-direction:column; gap:8px;">
         <input id="novoUsuUsuario" type="text" placeholder="usuário (ex: joao.silva)" style="width:100%;" />
         <input id="novoUsuSenha" type="text" placeholder="senha" style="width:100%;" />
-        <input id="novoUsuEmail" type="email" placeholder="e-mail (opcional)" style="width:100%;" />
+        <input id="novoUsuEmail" type="text" placeholder="e-mail (opcional)" style="width:100%;" />
         <label style="font-size:13px; display:flex; align-items:center; gap:6px; font-weight:600;"><input id="novoUsuAdmin" type="checkbox" /> é administrador (acesso total, ignora as permissões abaixo)</label>
         <label style="font-size:13px; display:flex; align-items:center; gap:6px;"><input id="novoUsuExcluir" type="checkbox" /> pode excluir módulos/peças</label>
         <label style="font-size:13px; display:flex; align-items:center; gap:6px;"><input id="novoUsuCadastrar" type="checkbox" /> pode cadastrar peça manualmente</label>
@@ -305,6 +309,33 @@
       <button id="btnZerarUsuarios" style="font-size:13px; padding:8px 14px; color:var(--text-danger); border-color:var(--text-danger);">Zerar todos os usuários</button>
       <p style="font-size:12px; color:var(--text-muted); margin:14px 0 8px;">Apaga TODOS os movimentos e logs guardados (o histórico que alimenta o Dashboard e o Histórico). Não mexe nos pedidos/peças em andamento nem nos usuários. Não pode ser desfeito.</p>
       <button id="btnZerarDashboard" style="font-size:13px; padding:8px 14px; color:var(--text-danger); border-color:var(--text-danger);">Zerar dashboard (movimentos e logs)</button>
+    </div>
+  </div>
+</div>
+
+<div id="telaParadas" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.45); z-index:90; padding:20px; overflow-y:auto;">
+  <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-md); padding:24px; max-width:720px; margin:0 auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h1 style="font-size:16px;">Paradas e Setups</h1>
+      <button id="btnFecharParadas" style="font-size:13px; padding:6px 12px;">Fechar</button>
+    </div>
+    <p style="font-size:12px; color:var(--text-muted); margin:0 0 16px;">Aponte quando uma máquina/etapa para de produzir por parada (quebra, falta de material, etc.) ou setup (troca de ferramenta, ajuste). Isso alimenta o cálculo de OEE no dashboard.</p>
+
+    <div id="listaProcessosParadas" style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;"></div>
+
+    <div style="background:var(--surface-1); border-radius:var(--radius); padding:14px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 10px;">Registrar manualmente (pra algo que já aconteceu)</p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <select id="paradaManualProcesso" style="font-size:13px;"></select>
+        <select id="paradaManualTipo" style="font-size:13px;">
+          <option value="parada">Parada</option>
+          <option value="setup">Setup</option>
+        </select>
+        <input id="paradaManualMotivo" type="text" placeholder="motivo (ex: quebra de ferramenta, falta de material)" style="font-size:13px;" />
+        <input id="paradaManualDuracao" type="text" inputmode="numeric" placeholder="duração em minutos (ex: 25)" style="font-size:13px;" />
+        <button id="btnRegistrarParadaManual" style="background:var(--brand); color:var(--on-brand); border:none; font-weight:500; padding:8px 14px; font-size:13px;">Registrar</button>
+        <p id="paradaManualErro" style="font-size:12px; color:var(--text-danger); margin:0; display:none;"></p>
+      </div>
     </div>
   </div>
 </div>
@@ -375,6 +406,7 @@
       <button id="btnAbrirDashboard" style="font-size:12px; padding:5px 10px; display:none;">Dashboard</button>
       <button id="btnTrocarSenha" style="font-size:12px; padding:5px 10px; display:none;">Trocar senha</button>
       <button id="btnAjuda" style="font-size:12px; padding:5px 10px; display:none;">❓ Ajuda</button>
+      <button id="btnAbrirParadas" style="font-size:12px; padding:5px 10px; display:none;">⏱ Paradas/Setup</button>
       <button id="btnMenuAdmin" style="font-size:12px; padding:5px 10px; display:none;">☰ Menu</button>
 
       <div id="blocoMenuAdmin" style="display:none; position:absolute; top:100%; right:0; margin-top:8px; width:200px; background:var(--surface-2); border:1px solid var(--border-accent); border-radius:var(--radius); box-shadow:var(--shadow-md); padding:6px; z-index:20; text-align:left;">
@@ -613,16 +645,21 @@ let filtroModulos = 'pendentes';
 
 // ---------- semi-cabeçalho: data/hora ao vivo + mensagem divertida ----------
 const MENSAGENS_DIVERTIDAS = [
-  'Toda peça bipada é um passo mais perto da entrega 🪚',
-  'Café tomado, peça bipada, dia produtivo ☕',
-  'Devagar e sempre — a marcenaria não se faz correndo 🌳',
-  'Um bom acabamento começa com um bom registro 📋',
-  'Cada módulo concluído é motivo de orgulho 🔨',
-  'Kaizen: melhoria contínua, um dia de cada vez 📈',
-  'Madeira boa, processo bom, resultado bom 🪵',
-  'Bipou? Beleza. Bora pra próxima! 🚀',
-  'A organização de hoje é a entrega tranquila de amanhã 📦',
-  'Ninguém disse que marcenaria é fácil, mas é gratificante 💪'
+  'A madeira não perdoa pressa, mas recompensa paciência 🪵',
+  'Excelência não é um ato, é um hábito repetido todo dia 🔨',
+  'Kaizen: o processo perfeito de hoje é só o rascunho do de amanhã 📈',
+  'Cada peça registrada é um passo mais próximo da verdade sobre o processo 📋',
+  'Quem mede, melhora. Quem melhora, entrega 🎯',
+  'O artesão não teme o detalhe — é nele que mora o resultado 🪚',
+  'Um sistema bem cuidado é um presente pro time do futuro ⚙️',
+  'Disciplina é lembrar do que você quer, mesmo quando ninguém está olhando 💪',
+  'A melhoria contínua não pede perfeição, pede constância 🌱',
+  'Toda grande entrega começou com uma peça bem registrada 📦',
+  'Trabalho bem feito não faz barulho, mas se nota 🔧',
+  'O tempo que você mede hoje é o tempo que você economiza amanhã ⏱️',
+  'Qualidade é fazer certo mesmo quando é mais fácil fazer errado ✅',
+  'Processos claros libertam a criatividade pra onde ela importa 🌳',
+  'A marcenaria ensina: cada corte é definitivo, cada cuidado vale a pena 🪵'
 ];
 function atualizarSemiCabecalho(){
   const elData = document.getElementById('semiCabecalhoData');
@@ -1446,9 +1483,20 @@ function imprimirEtiqueta(codigo, opcoes){
   cabecalho.appendChild(tagTipo); cabecalho.appendChild(logo);
   div.appendChild(cabecalho);
 
+  const corpo = document.createElement('div');
+  corpo.className = 'etiquetaCorpo';
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.id = 'svgEtiquetaTemp';
-  div.appendChild(svg);
+  corpo.appendChild(svg);
+  if (opcoes.urlConsulta && typeof QRCode !== 'undefined'){
+    const qrDiv = document.createElement('div');
+    qrDiv.className = 'etiquetaQr';
+    corpo.appendChild(qrDiv);
+    div.appendChild(corpo);
+    new QRCode(qrDiv, { text: opcoes.urlConsulta, width: 90, height: 90, correctLevel: QRCode.CorrectLevel.M });
+  } else {
+    div.appendChild(corpo);
+  }
 
   const p1 = document.createElement('p'); p1.className = 'linha1'; p1.textContent = opcoes.titulo;
   const p2 = document.createElement('p'); p2.className = 'linha2'; p2.textContent = opcoes.subtitulo;
@@ -1456,20 +1504,32 @@ function imprimirEtiqueta(codigo, opcoes){
 
   const rodape = document.createElement('p');
   rodape.className = 'etiquetaRodape';
-  rodape.textContent = 'impresso em ' + formatarDataHora(new Date());
+  rodape.textContent = 'impresso em ' + formatarDataHora(new Date()) + (opcoes.urlConsulta ? ' · aponte a câmera pro QR pra ver o histórico' : '');
   div.appendChild(rodape);
 
   area.appendChild(div);
   JsBarcode(svg, codigo, { format: 'CODE128', displayValue: true, fontSize: 12, height: 28, margin: 0 });
-  // pequena espera pro SVG terminar de desenhar antes de abrir o diálogo de impressão
-  setTimeout(() => window.print(), 60);
+  // pequena espera pro SVG e o QR terminarem de desenhar antes de abrir o diálogo de impressão
+  setTimeout(() => window.print(), 120);
+}
+
+// monta o link da página de consulta pública (sem login), incluindo o
+// próprio endereço do servidor na URL — assim funciona em qualquer
+// celular que escanear o QR, mesmo que nunca tenha aberto o Rasmar antes.
+function montarUrlConsulta(tipo, codigo){
+  if (!syncUrl) return '';
+  const base = new URL('consulta.html', window.location.href);
+  base.searchParams.set('servidor', syncUrl);
+  base.searchParams.set('tipo', tipo);
+  base.searchParams.set('codigo', codigo);
+  return base.href;
 }
 
 function imprimirEtiquetaPedido(pr){
-  imprimirEtiqueta(pr.codigo, { tipo: 'PEDIDO', titulo: pr.cliente, subtitulo: pr.projeto + ' · ' + pr.codigo });
+  imprimirEtiqueta(pr.codigo, { tipo: 'PEDIDO', titulo: pr.cliente, subtitulo: pr.projeto + ' · ' + pr.codigo, urlConsulta: montarUrlConsulta('pedido', pr.codigo) });
 }
 function imprimirEtiquetaModulo(pr, mod){
-  imprimirEtiqueta(codigoEtiquetaModulo(pr, mod), { tipo: 'MÓDULO', titulo: mod.nome, subtitulo: pr.codigo + ' · ' + pr.cliente });
+  imprimirEtiqueta(codigoEtiquetaModulo(pr, mod), { tipo: 'MÓDULO', titulo: mod.nome, subtitulo: pr.codigo + ' · ' + pr.cliente, urlConsulta: montarUrlConsulta('modulo', codigoEtiquetaModulo(pr, mod)) });
 }
 function renderBotaoEtiquetaModulo(pr, mod){
   const btn = document.createElement('button');
@@ -2593,13 +2653,13 @@ async function iniciarApp(){
     document.getElementById('loginStatusTexto').textContent = 'sincronização não configurada';
   }
   cargaInicialCompleta = true; // a partir daqui, escrever no servidor é seguro
+  document.getElementById('loginCarregando').style.display = 'none'; // sempre esconde, não importa o caminho que seguiu daqui pra baixo
   // sessão já ativa (mesma aba) e o usuário ainda existe depois de carregar
   if (usuarioLogadoNome && getUsuarioLogado()){
     mostrarApp();
     return;
   }
   usuarioLogadoNome = null;
-  document.getElementById('loginCarregando').style.display = 'none';
   if (usuarios.length === 0){
     document.getElementById('loginPrimeiroAdmin').style.display = 'flex';
   } else {
@@ -2619,6 +2679,7 @@ function mostrarApp(){
   document.getElementById('btnMenuAdmin').style.display = (u && u.admin) ? 'inline-block' : 'none';
   document.getElementById('btnAbrirAdmin').style.display = (u && u.admin) ? 'block' : 'none';
   document.getElementById('btnAbrirHistorico').style.display = (u && u.admin) ? 'block' : 'none';
+  document.getElementById('btnAbrirParadas').style.display = u ? 'inline-block' : 'none';
   document.getElementById('btnAbrirDashboard').style.display = u ? 'inline-block' : 'none';
   document.getElementById('btnImportar').style.display = (u && u.admin) ? 'inline-block' : 'none';
   document.getElementById('btnCadastroManual').style.display = temPermissao('cadastrarManual') ? 'inline-block' : 'none';
@@ -2655,6 +2716,7 @@ document.getElementById('btnSair').onclick = () => {
   sessionStorage.removeItem('rasmar_usuario');
   document.getElementById('loginUsuario').value = '';
   document.getElementById('loginSenha').value = '';
+  document.getElementById('loginCarregando').style.display = 'none';
   document.getElementById('loginPrimeiroAdmin').style.display = usuarios.length === 0 ? 'flex' : 'none';
   document.getElementById('loginFormNormal').style.display = usuarios.length === 0 ? 'none' : 'flex';
   document.getElementById('telaLogin').style.display = 'flex';
@@ -2689,6 +2751,124 @@ document.getElementById('btnAbrirHistorico').onclick = () => {
   document.getElementById('btnBuscarPeriodo').click();
 };
 document.getElementById('btnFecharHistorico').onclick = () => { document.getElementById('telaHistorico').style.display = 'none'; };
+
+// ---------- paradas e setups (alimenta o cálculo de OEE no dashboard) ----------
+// reaproveita o mecanismo de movimentos que já existe (mesmo append-only,
+// mesma sincronização) — só usa 4 tipos novos: parada_inicio/parada_fim e
+// setup_inicio/setup_fim. moduloId guarda o id do processo (cnc, coladeira,
+// etc.), pecaCodigo guarda um id só da parada (pra casar início com fim), e
+// detalhe guarda o motivo.
+function gerarIdParada(){ return 'par_' + Date.now() + '_' + Math.floor(Math.random()*100000); }
+
+function paradasAtivasPorProcesso(){
+  const porProcesso = {};
+  stations.forEach(s => { porProcesso[s.id] = { parada: null, setup: null }; });
+  const relevantes = movimentos.filter(m => ['parada_inicio','parada_fim','setup_inicio','setup_fim'].includes(m.tipo));
+  const ordenados = relevantes.slice().sort((a,b) => a.em.localeCompare(b.em));
+  ordenados.forEach(m => {
+    const processo = m.moduloId;
+    if (!porProcesso[processo]) return;
+    const tipoBase = m.tipo.startsWith('parada') ? 'parada' : 'setup';
+    if (m.tipo.endsWith('_inicio')){
+      porProcesso[processo][tipoBase] = { paradaId: m.pecaCodigo, motivo: m.detalhe, inicio: m.em };
+    } else if (porProcesso[processo][tipoBase] && porProcesso[processo][tipoBase].paradaId === m.pecaCodigo){
+      porProcesso[processo][tipoBase] = null;
+    }
+  });
+  return porProcesso;
+}
+
+function iniciarParadaOuSetup(processoId, processoLabel, tipo, motivo){
+  const paradaId = gerarIdParada();
+  const rotulo = tipo === 'setup' ? 'setup' : 'parada';
+  registrarLog('iniciou ' + rotulo + ' em ' + processoLabel + ' (' + motivo + ')');
+  registrarMovimento(tipo + '_inicio', { moduloId: processoId, moduloNome: processoLabel, pecaCodigo: paradaId, detalhe: motivo });
+  renderTelaParadas();
+}
+function finalizarParadaOuSetup(processoId, processoLabel, tipo, paradaId){
+  const rotulo = tipo === 'setup' ? 'o setup' : 'a parada';
+  registrarLog('finalizou ' + rotulo + ' em ' + processoLabel);
+  registrarMovimento(tipo + '_fim', { moduloId: processoId, moduloNome: processoLabel, pecaCodigo: paradaId });
+  renderTelaParadas();
+}
+
+function renderTelaParadas(){
+  const el = document.getElementById('listaProcessosParadas');
+  el.innerHTML = '';
+  const ativos = paradasAtivasPorProcesso();
+  stations.forEach(s => {
+    const card = document.createElement('div');
+    card.style.cssText = 'border:1px solid var(--border-strong); border-radius:var(--radius); padding:10px 14px;';
+    const titulo = document.createElement('p');
+    titulo.style.cssText = 'font-weight:600; font-size:13px; margin:0 0 8px;';
+    titulo.textContent = s.label;
+    card.appendChild(titulo);
+
+    const ativo = ativos[s.id];
+    ['parada','setup'].forEach(tipo => {
+      const info = ativo[tipo];
+      const linha = document.createElement('div');
+      linha.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:12px;';
+      if (info){
+        const texto = document.createElement('span');
+        texto.style.color = 'var(--text-danger)';
+        texto.textContent = '🔴 ' + (tipo === 'setup' ? 'Setup' : 'Parada') + ' em andamento — ' + info.motivo + ' (desde ' + formatarDataHora(parsearComoBrasilia(info.inicio)) + ')';
+        const btnFim = document.createElement('button');
+        btnFim.textContent = 'Finalizar';
+        btnFim.style.cssText = 'font-size:12px; padding:4px 10px; color:var(--text-danger);';
+        btnFim.onclick = () => finalizarParadaOuSetup(s.id, s.label, tipo, info.paradaId);
+        linha.appendChild(texto); linha.appendChild(btnFim);
+      } else {
+        const texto = document.createElement('span');
+        texto.className = 'tagMuted';
+        texto.textContent = (tipo === 'setup' ? 'Setup' : 'Parada') + ': nada em andamento';
+        const btnInicio = document.createElement('button');
+        btnInicio.textContent = '▶ Iniciar ' + tipo;
+        btnInicio.style.cssText = 'font-size:12px; padding:4px 10px;';
+        btnInicio.onclick = () => {
+          const motivo = window.prompt('Motivo do ' + tipo + ' em ' + s.label + ':');
+          if (motivo === null) return;
+          if (!motivo.trim()){ window.alert('preciso de um motivo pra registrar'); return; }
+          iniciarParadaOuSetup(s.id, s.label, tipo, motivo.trim());
+        };
+        linha.appendChild(texto); linha.appendChild(btnInicio);
+      }
+      card.appendChild(linha);
+    });
+    el.appendChild(card);
+  });
+}
+
+document.getElementById('btnAbrirParadas').onclick = () => {
+  document.getElementById('paradaManualProcesso').innerHTML = stations.map(s => '<option value="' + s.id + '">' + s.label + '</option>').join('');
+  renderTelaParadas();
+  document.getElementById('telaParadas').style.display = 'block';
+};
+document.getElementById('btnFecharParadas').onclick = () => { document.getElementById('telaParadas').style.display = 'none'; };
+
+document.getElementById('btnRegistrarParadaManual').onclick = () => {
+  const processoId = document.getElementById('paradaManualProcesso').value;
+  const processoLabel = stations.find(s => s.id === processoId).label;
+  const tipo = document.getElementById('paradaManualTipo').value;
+  const motivo = document.getElementById('paradaManualMotivo').value.trim();
+  const duracao = parseFloat(document.getElementById('paradaManualDuracao').value.replace(',', '.'));
+  const erro = document.getElementById('paradaManualErro');
+  if (!motivo){ erro.textContent = 'preencha o motivo'; erro.style.display = 'block'; return; }
+  if (!duracao || duracao <= 0){ erro.textContent = 'digite uma duração válida em minutos'; erro.style.display = 'block'; return; }
+  erro.style.display = 'none';
+  const agora = new Date();
+  const inicio = new Date(agora.getTime() - duracao*60000);
+  const paradaId = gerarIdParada();
+  const u = getUsuarioLogado();
+  const usuarioNome = u ? u.usuario : '—';
+  movimentos.push({ id: gerarId(), em: timestampLocalOrdenavel(inicio), usuario: usuarioNome, tipo: tipo + '_inicio', pecaCodigo: paradaId, pecaDescricao:'', moduloId: processoId, moduloNome: processoLabel, clienteCodigo:'', cliente:'', projeto:'', detalhe: motivo });
+  movimentos.push({ id: gerarId(), em: timestampLocalOrdenavel(agora), usuario: usuarioNome, tipo: tipo + '_fim', pecaCodigo: paradaId, pecaDescricao:'', moduloId: processoId, moduloNome: processoLabel, clienteCodigo:'', cliente:'', projeto:'', detalhe: motivo });
+  registrarLog('registrou manualmente ' + duracao + 'min de ' + tipo + ' em ' + processoLabel + ' (' + motivo + ')');
+  agendarSincronizacaoRapida();
+  document.getElementById('paradaManualMotivo').value = '';
+  document.getElementById('paradaManualDuracao').value = '';
+  renderTelaParadas();
+};
 
 document.getElementById('btnAbrirDashboard').onclick = () => {
   document.getElementById('blocoMenuAdmin').style.display = 'none';

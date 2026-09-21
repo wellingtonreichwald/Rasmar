@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Rasmar V2 — Consulta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#eef1ee; --surface-1:#e9ede9; --surface-2:#ffffff;
+    --border:#dde3dc; --border-strong:#c3ccc2; --border-accent:#cfa863;
+    --text-primary:#161c19; --text-secondary:#535e58; --text-muted:#8b968f;
+    --text-success:#0e6b53; --text-danger:#c22f24; --text-accent:#8a6a1f;
+    --brand:#12695a; --brand2:#1c8a6d; --brand-dark:#0a4a3e; --brand-soft:#e3f2ec; --on-brand:#fff;
+    --radius:12px; --radius-lg:20px; --radius-xl:26px;
+    --shadow-sm:0 1px 3px rgba(15,30,25,0.08);
+    --shadow-md:0 8px 24px rgba(15,30,25,0.12);
+    --shadow-lg:0 18px 44px rgba(15,30,25,0.18);
+    --font-display:'Manrope','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --font-body:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:
+      radial-gradient(circle at 8% -5%, rgba(18,105,90,0.14), transparent 42%),
+      radial-gradient(circle at 100% 0%, rgba(207,168,99,0.10), transparent 38%),
+      var(--bg);
+    color:var(--text-primary); margin:0; padding:20px;
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased; line-height:1.45;
+  }
+  .wrap{max-width:720px; margin:0 auto;}
+  .cabecalho{
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    padding:18px 24px; margin:-20px -20px 22px;
+    background:linear-gradient(120deg, var(--brand-dark) 0%, var(--brand) 55%, var(--brand2) 100%);
+    border-radius:0 0 var(--radius-xl) var(--radius-xl); box-shadow:var(--shadow-lg);
+  }
+  .cabecalho h1{ color:#fff; font-family:var(--font-display); font-size:18px; margin:0; font-weight:800; }
+  .cabecalho .sub{ color:rgba(255,255,255,0.75); font-size:11px; text-transform:uppercase; letter-spacing:0.03em; font-weight:600; margin:2px 0 0; }
+  .versao{font-size:11px; background:rgba(255,255,255,0.2); color:#fff; border-radius:6px; padding:2px 7px; margin-left:6px; font-weight:800;}
+  .secao{background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; margin-bottom:16px; box-shadow:var(--shadow-sm);}
+  .secao h2{font-family:var(--font-display); font-size:15px; margin:0 0 12px; font-weight:700;}
+  .tagMuted{color:var(--text-muted); font-size:13px;}
+  .linhaEvento{display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px;}
+  .linhaEvento:last-child{border-bottom:none;}
+  .linhaEvento .quando{color:var(--text-muted); min-width:120px; font-size:12px;}
+  .linhaEvento .tipo{font-weight:600;}
+  .badge{display:inline-block; font-size:11px; font-weight:700; padding:2px 10px; border-radius:999px; background:var(--brand-soft); color:var(--brand-dark);}
+  .badge.pronto{background:#dcf3e7; color:var(--text-success);}
+  .badge.andamento{background:#fdf1da; color:var(--text-accent);}
+  footer{margin-top:24px; padding:14px 0 8px; text-align:center; border-top:1px solid var(--border); font-size:11px; color:var(--text-muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="cabecalho">
+    <div>
+      <h1>Rasmar<span class="versao">V2</span></h1>
+      <p class="sub">consulta pública — só leitura</p>
+    </div>
+  </div>
+
+  <div id="conteudo">
+    <div class="secao">
+      <p class="tagMuted" id="statusCarregando">carregando...</p>
+    </div>
+  </div>
+
+  <footer>Rasmar V2 — Marcenaria Cireneu Liebl · Esta página é só de consulta, não permite fazer login ou alterar nada.</footer>
+</div>
+
+<script>
+function buscarNoServidor(syncUrl, params){
+  return new Promise((resolve, reject) => {
+    const nomeCallback = 'rasmarConsultaCb_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    const script = document.createElement('script');
+    let finalizado = false;
+    const limpar = () => { delete window[nomeCallback]; script.remove(); clearTimeout(timeout); };
+    const timeout = setTimeout(() => {
+      if (finalizado) return; finalizado = true; limpar();
+      reject(new Error('tempo esgotado buscando no servidor'));
+    }, 20000);
+    window[nomeCallback] = (dados) => { if (finalizado) return; finalizado = true; limpar(); resolve(dados); };
+    script.onerror = () => { if (finalizado) return; finalizado = true; limpar(); reject(new Error('não consegui buscar no servidor')); };
+    const query = new URLSearchParams(Object.assign({ callback: nomeCallback, _: Date.now() }, params)).toString();
+    script.src = syncUrl + (syncUrl.includes('?') ? '&' : '?') + query;
+    document.body.appendChild(script);
+  });
+}
+
+function formatarEm(em){ return (em || '').replace('T', ' '); }
+
+function nomeTipoEvento(t){
+  const nomes = {
+    bipagem: 'Bipagem', envio_individual: 'Envio individual', envio_modulo: 'Envio de módulo',
+    defeito_retrabalho: 'Defeito — retrabalho', defeito_descarte: 'Defeito — descarte',
+    defeito_modulo_recriacao: 'Defeito — módulo recriado', defeito_modulo_retrabalho: 'Defeito — módulo em retrabalho',
+    conclusao_modulo: 'Módulo concluído', conclusao_forcada_modulo: 'Módulo concluído (sem bipar)',
+    conclusao_pedido_macro: 'Pedido concluído', baixa_pedido: 'Baixa do pedido',
+    cadastro_manual: 'Cadastro manual', recriacao_peca: 'Peça recriada'
+  };
+  return nomes[t] || t;
+}
+
+async function iniciar(){
+  const params = new URLSearchParams(window.location.search);
+  const syncUrl = params.get('servidor');
+  const tipo = params.get('tipo'); // 'modulo' ou 'pedido'
+  const codigo = params.get('codigo');
+  const el = document.getElementById('conteudo');
+
+  if (!syncUrl || !tipo || !codigo){
+    el.innerHTML = '<div class="secao"><p class="tagMuted">Link incompleto — falta informação pra saber o que consultar. Escaneie a etiqueta de novo.</p></div>';
+    return;
+  }
+
+  try {
+    const [estado, movs] = await Promise.all([
+      buscarNoServidor(syncUrl, {}),
+      buscarNoServidor(syncUrl, { acao: 'movimentos' })
+    ]);
+    const projetos = Array.isArray(estado.projetos) ? estado.projetos : [];
+    const movimentos = Array.isArray(movs.movimentos) ? movs.movimentos : [];
+
+    if (tipo === 'modulo'){
+      // código de etiqueta de módulo é "CODIGOPEDIDO-M<id>"
+      const i = codigo.lastIndexOf('-M');
+      const codigoPedido = i >= 0 ? codigo.slice(0, i) : codigo;
+      const moduloId = i >= 0 ? codigo.slice(i+2) : '';
+      const pr = projetos.find(p => p.codigo === codigoPedido);
+      const mod = pr ? pr.modulos.find(m => String(m.id) === moduloId) : null;
+      if (!pr || !mod){
+        el.innerHTML = '<div class="secao"><p class="tagMuted">Módulo não encontrado (pode já ter sido excluído ou o pedido baixado).</p></div>';
+        return;
+      }
+      const eventos = movimentos.filter(m => String(m.moduloId) === String(mod.id) && m.clienteCodigo === pr.codigo)
+        .sort((a,b) => a.em.localeCompare(b.em));
+      const status = mod.finalCompleta ? '<span class="badge pronto">concluído</span>' : '<span class="badge andamento">em andamento</span>';
+      el.innerHTML =
+        '<div class="secao">' +
+          '<h2>Módulo #' + mod.id + ' — ' + (mod.nome||'') + ' ' + status + '</h2>' +
+          '<p class="tagMuted">Pedido ' + pr.codigo + ' · ' + (pr.cliente||'') + ' · ' + (pr.projeto||'') + '</p>' +
+          '<p class="tagMuted">' + mod.pecas.length + ' peça(s) neste módulo</p>' +
+        '</div>' +
+        '<div class="secao"><h2>Histórico</h2>' + renderEventos(eventos) + '</div>';
+    } else {
+      const pr = projetos.find(p => p.codigo === codigo);
+      if (!pr){
+        el.innerHTML = '<div class="secao"><p class="tagMuted">Pedido não encontrado (pode já ter sido apagado).</p></div>';
+        return;
+      }
+      const eventos = movimentos.filter(m => m.clienteCodigo === pr.codigo).sort((a,b) => a.em.localeCompare(b.em));
+      const status = pr.baixado ? '<span class="badge pronto">entregue</span>' : '<span class="badge andamento">em andamento</span>';
+      el.innerHTML =
+        '<div class="secao">' +
+          '<h2>Pedido ' + pr.codigo + ' ' + status + '</h2>' +
+          '<p class="tagMuted">' + (pr.cliente||'') + ' · ' + (pr.projeto||'') + '</p>' +
+          '<p class="tagMuted">' + pr.modulos.length + ' módulo(s)' + (pr.baixado ? (' · entregue em ' + formatarEm(pr.baixadoEm)) : '') + '</p>' +
+        '</div>' +
+        '<div class="secao"><h2>Histórico</h2>' + renderEventos(eventos) + '</div>';
+    }
+  } catch (err) {
+    el.innerHTML = '<div class="secao"><p class="tagMuted">Não consegui buscar os dados agora (' + err.message + '). Tente de novo em alguns segundos.</p></div>';
+  }
+}
+
+function renderEventos(eventos){
+  if (!eventos.length) return '<p class="tagMuted">nenhum evento registrado ainda</p>';
+  return eventos.slice().reverse().map(ev =>
+    '<div class="linhaEvento"><span class="quando">' + formatarEm(ev.em) + '</span><span><span class="tipo">' + nomeTipoEvento(ev.tipo) + '</span>' + (ev.detalhe ? ' — ' + ev.detalhe : '') + (ev.pecaCodigo ? ' (' + ev.pecaCodigo + ')' : '') + '</span></div>'
+  ).join('');
+}
+
+iniciar();
+</script>
+</body>
+</html>

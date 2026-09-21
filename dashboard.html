@@ -153,6 +153,8 @@
       <button id="modoTempos" class="ativa">📊 Tempos</button>
       <button id="modoDefeitos">⚠ Defeitos</button>
       <button id="modoKanban">🗂️ Kanban (agora)</button>
+      <button id="modoOee">⚙️ OEE</button>
+      <button id="modoVsm">🧭 VSM</button>
     </div>
 
     <div class="filtros ocultarNaImpressao">
@@ -162,6 +164,13 @@
       <input id="filtroAte" type="date" />
       <span id="filtroPontosWrap" style="display:contents;">
       <span style="width:1px; height:20px; background:var(--border-strong); margin:0 4px;"></span>
+      <label style="font-size:12px; color:var(--text-muted);">processo a processo</label>
+      <select id="filtroProcessoAProcesso">
+        <option value="">personalizado (escolha abaixo)</option>
+        <option value="bipagem|CNC|bipagem|Coladeira">CNC → Coladeira</option>
+        <option value="bipagem|Coladeira|bipagem|Limpeza e Separação">Coladeira → Limpeza e Separação</option>
+        <option value="bipagem|CNC|bipagem|Limpeza e Separação">CNC → Limpeza (peça completa)</option>
+      </select>
       <label style="font-size:12px; color:var(--text-muted);">calcular tempo de</label>
       <select id="pontoDe"></select>
       <label style="font-size:12px; color:var(--text-muted);">até</label>
@@ -174,6 +183,11 @@
     <div class="cartoes" id="cartoes"></div>
 
     <div id="secaoTempos">
+      <div class="secao" id="secaoTempoMedioProcesso" style="padding:12px 14px; margin-bottom:14px;">
+        <h3 style="font-size:13px; margin:0 0 10px;">Tempo médio de cada processo (Kaizen)</h3>
+        <div id="tempoMedioProcessoLista"></div>
+      </div>
+
       <div class="abas ocultarNaImpressao">
         <button id="abaPecas" class="ativa">Por peça</button>
         <button id="abaModulos">Por módulo</button>
@@ -197,7 +211,34 @@
 
     <div id="secaoKanban" style="display:none;">
       <p style="font-size:12px; color:var(--text-muted); margin:0 0 12px;">O que está em cada etapa agora mesmo — atualiza sozinho a cada 5 segundos.</p>
+      <div class="filtros ocultarNaImpressao" style="margin-bottom:12px;">
+        <label style="font-size:12px; color:var(--text-muted);">Cliente/Projeto</label>
+        <select id="kanbanFiltroProjeto"><option value="">todos</option></select>
+        <label style="font-size:12px; color:var(--text-muted);">Módulo</label>
+        <select id="kanbanFiltroModulo"><option value="">todos</option></select>
+        <label style="font-size:12px; color:var(--text-muted);">Peça</label>
+        <select id="kanbanFiltroPeca"><option value="">todas</option></select>
+      </div>
       <div id="colunasKanban" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;"></div>
+    </div>
+
+    <div id="secaoOee" style="display:none;">
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">OEE aproximado — Disponibilidade × Performance × Qualidade. Como o sistema não tem um "tempo de ciclo ideal" nem uma jornada de trabalho cadastrada, os cálculos usam premissas explicadas abaixo de cada indicador. Use como referência de tendência, não como valor absoluto de auditoria.</p>
+      <div class="filtros ocultarNaImpressao" style="margin-bottom:12px;">
+        <label style="font-size:12px; color:var(--text-muted);">processo</label>
+        <select id="oeeFiltroProcesso"></select>
+      </div>
+      <div class="cartoes" id="cartoesOee"></div>
+      <div class="secao" id="secaoDetalheOee" style="padding:12px 14px; margin-top:14px;"></div>
+    </div>
+
+    <div id="secaoVsm" style="display:none;">
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Mapa do fluxo de valor de uma peça, módulo ou pedido específico — busque pelo código pra ver o caminho completo, com os tempos entre cada etapa.</p>
+      <div class="filtros ocultarNaImpressao" style="margin-bottom:12px;">
+        <input id="vsmBusca" type="text" placeholder="código da peça, módulo ou pedido..." style="min-width:220px;" />
+        <button id="btnVsmBuscar" style="background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700;">Buscar</button>
+      </div>
+      <div id="resultadoVsm"></div>
     </div>
 
     <footer class="ocultarNaImpressao" style="margin-top:32px; padding:16px 0 8px; text-align:center; border-top:1px solid var(--border);">
@@ -212,6 +253,12 @@ const syncUrl = localStorage.getItem('rasmar_sync_url') || '';
 let usuarioLogadoNome = sessionStorage.getItem('rasmar_usuario') || '';
 let usuariosCache = [];
 let movimentosAtuais = [];
+// pra aba Tempos: sem os eventos de defeito/retrabalho, que agora só entram
+// na aba Defeitos — assim o cálculo de tempo de processo fica limpo, só com
+// o fluxo normal (bipagem, envio, conclusão).
+function movimentosTempos(){
+  return movimentosAtuais.filter(m => !TIPOS_DEFEITO.includes(m.tipo));
+}
 let abaAtiva = 'pecas';
 
 const NOMES_TIPO = {
@@ -361,6 +408,28 @@ function minutosLegivel(totalMinFloat){
 }
 
 // ---------- indicadores (cartões) ----------
+// tabela de tempo médio entre cada processo consecutivo — visão rápida de
+// Kaizen pra ver de cara qual etapa está mais lenta, sem precisar escolher
+// os pontos manualmente toda vez.
+const TRANSICOES_PROCESSO = [
+  { label: 'CNC → Coladeira', de: 'bipagem|CNC', ate: 'bipagem|Coladeira' },
+  { label: 'Coladeira → Limpeza e Separação', de: 'bipagem|Coladeira', ate: 'bipagem|Limpeza e Separação' },
+  { label: 'CNC → Limpeza (peça completa)', de: 'bipagem|CNC', ate: 'bipagem|Limpeza e Separação' }
+];
+function montarTempoMedioProcesso(){
+  const movimentos = movimentosTempos();
+  const porPeca = agruparPorPeca(movimentos);
+  const linhas = TRANSICOES_PROCESSO.map(t => {
+    const tempos = porPeca.map(g => tempoEntrePontos(g.eventos, t.de, t.ate).minutos).filter(m => m !== null);
+    return { label: t.label, media: mediaLegivel(tempos), amostras: tempos.length };
+  }).filter(l => l.amostras > 0);
+  const el = document.getElementById('tempoMedioProcessoLista');
+  if (!linhas.length){ el.innerHTML = '<p class="tagMuted">sem dados suficientes ainda nesse período</p>'; return; }
+  el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>processo</th><th>tempo médio</th><th>amostras</th></tr></thead><tbody>' +
+    linhas.map(l => '<tr><td>' + l.label + '</td><td><strong>' + l.media + '</strong></td><td>' + l.amostras + '</td></tr>').join('') +
+    '</tbody></table></div>';
+}
+
 function montarCartoes(movimentos){
   const porPeca = agruparPorPeca(movimentos);
   const pontoDe = document.getElementById('pontoDe').value;
@@ -541,15 +610,15 @@ function renderListaDetalhe(){
   let grupos, filtroFn, renderFn;
 
   if (abaAtiva === 'pecas'){
-    grupos = agruparPorPeca(movimentosAtuais);
+    grupos = agruparPorPeca(movimentosTempos());
     filtroFn = g => (g.pecaCodigo+g.pecaDescricao+g.moduloNome+g.cliente+g.projeto).toLowerCase().includes(termo);
     renderFn = renderTabelaPecas;
   } else if (abaAtiva === 'modulos'){
-    grupos = agruparPorModulo(movimentosAtuais);
+    grupos = agruparPorModulo(movimentosTempos());
     filtroFn = g => (g.moduloId+g.moduloNome+g.cliente+g.projeto).toLowerCase().includes(termo);
     renderFn = renderTabelaModulos;
   } else {
-    grupos = agruparPorProjeto(movimentosAtuais);
+    grupos = agruparPorProjeto(movimentosTempos());
     filtroFn = g => (g.clienteCodigo+g.cliente+g.projeto).toLowerCase().includes(termo);
     renderFn = renderTabelaProjetos;
   }
@@ -581,18 +650,25 @@ function aplicarModo(){
   document.getElementById('modoTempos').classList.toggle('ativa', modoAtivo === 'tempos');
   document.getElementById('modoDefeitos').classList.toggle('ativa', modoAtivo === 'defeitos');
   document.getElementById('modoKanban').classList.toggle('ativa', modoAtivo === 'kanban');
+  document.getElementById('modoOee').classList.toggle('ativa', modoAtivo === 'oee');
+  document.getElementById('modoVsm').classList.toggle('ativa', modoAtivo === 'vsm');
   document.getElementById('secaoTempos').style.display = modoAtivo === 'tempos' ? 'block' : 'none';
   document.getElementById('secaoDefeitos').style.display = modoAtivo === 'defeitos' ? 'block' : 'none';
   document.getElementById('secaoKanban').style.display = modoAtivo === 'kanban' ? 'block' : 'none';
+  document.getElementById('secaoOee').style.display = modoAtivo === 'oee' ? 'block' : 'none';
+  document.getElementById('secaoVsm').style.display = modoAtivo === 'vsm' ? 'block' : 'none';
   document.getElementById('filtroPontosWrap').style.display = modoAtivo === 'tempos' ? 'contents' : 'none';
-  document.getElementById('cartoes').style.display = modoAtivo === 'kanban' ? 'none' : 'grid';
-  if (modoAtivo === 'tempos'){ montarCartoes(movimentosAtuais); renderListaDetalhe(); }
+  document.getElementById('cartoes').style.display = (modoAtivo === 'kanban' || modoAtivo === 'oee' || modoAtivo === 'vsm') ? 'none' : 'grid';
+  if (modoAtivo === 'tempos'){ montarCartoes(movimentosTempos()); renderListaDetalhe(); montarTempoMedioProcesso(); }
   else if (modoAtivo === 'defeitos'){ montarCartoesDefeitos(movimentosAtuais); renderListaDefeitos(); }
-  else { renderKanban(); }
+  else if (modoAtivo === 'kanban'){ renderKanban(); }
+  else if (modoAtivo === 'oee'){ montarOee(); }
 }
 document.getElementById('modoTempos').onclick = () => { modoAtivo = 'tempos'; aplicarModo(); };
 document.getElementById('modoDefeitos').onclick = () => { modoAtivo = 'defeitos'; aplicarModo(); };
 document.getElementById('modoKanban').onclick = () => { modoAtivo = 'kanban'; aplicarModo(); };
+document.getElementById('modoOee').onclick = () => { modoAtivo = 'oee'; aplicarModo(); };
+document.getElementById('modoVsm').onclick = () => { modoAtivo = 'vsm'; aplicarModo(); };
 
 const ESTACOES_KANBAN = [
   {id:'cnc', label:'CNC', tipo:'peca'},
@@ -602,21 +678,204 @@ const ESTACOES_KANBAN = [
   {id:'final', label:'Montagem Final', tipo:'modulo'}
 ];
 
+function popularFiltrosKanban(){
+  const selProjeto = document.getElementById('kanbanFiltroProjeto');
+  const selModulo = document.getElementById('kanbanFiltroModulo');
+  const selPeca = document.getElementById('kanbanFiltroPeca');
+  const valorProjetoAntes = selProjeto.value;
+
+  selProjeto.innerHTML = '<option value="">todos</option>' + projetosAtuais
+    .filter(pr => !pr.baixado)
+    .map(pr => '<option value="' + pr.codigo + '">' + pr.codigo + ' · ' + (pr.cliente||'') + '</option>')
+    .join('');
+  selProjeto.value = Array.from(selProjeto.options).some(o => o.value === valorProjetoAntes) ? valorProjetoAntes : '';
+
+  atualizarFiltroModuloKanban();
+}
+function atualizarFiltroModuloKanban(){
+  const selProjeto = document.getElementById('kanbanFiltroProjeto');
+  const selModulo = document.getElementById('kanbanFiltroModulo');
+  const valorModuloAntes = selModulo.value;
+  const pr = projetosAtuais.find(p => p.codigo === selProjeto.value);
+  const modulos = pr ? pr.modulos : projetosAtuais.filter(p => !p.baixado).flatMap(p => p.modulos.map(m => ({ ...m, _pai: p.codigo })));
+  selModulo.innerHTML = '<option value="">todos</option>' + modulos
+    .map(m => '<option value="' + m.id + '">#' + m.id + ' ' + (m.nome||'') + (m._pai ? ' (' + m._pai + ')' : '') + '</option>')
+    .join('');
+  selModulo.value = Array.from(selModulo.options).some(o => o.value === valorModuloAntes) ? valorModuloAntes : '';
+  atualizarFiltroPecaKanban();
+}
+function atualizarFiltroPecaKanban(){
+  const selProjeto = document.getElementById('kanbanFiltroProjeto');
+  const selModulo = document.getElementById('kanbanFiltroModulo');
+  const selPeca = document.getElementById('kanbanFiltroPeca');
+  const valorPecaAntes = selPeca.value;
+  let pecas = [];
+  projetosAtuais.forEach(pr => {
+    if (selProjeto.value && pr.codigo !== selProjeto.value) return;
+    pr.modulos.forEach(mod => {
+      if (selModulo.value && String(mod.id) !== selModulo.value) return;
+      mod.pecas.forEach(p => { if (!p.descartada) pecas.push(p); });
+    });
+  });
+  selPeca.innerHTML = '<option value="">todas</option>' + pecas
+    .map(p => '<option value="' + p.codigo + '">' + p.codigo + (p.descricao ? ' — ' + p.descricao : '') + '</option>')
+    .join('');
+  selPeca.value = Array.from(selPeca.options).some(o => o.value === valorPecaAntes) ? valorPecaAntes : '';
+}
+document.getElementById('kanbanFiltroProjeto').addEventListener('change', () => { atualizarFiltroModuloKanban(); renderKanban(); });
+document.getElementById('kanbanFiltroModulo').addEventListener('change', () => { atualizarFiltroPecaKanban(); renderKanban(); });
+document.getElementById('kanbanFiltroPeca').addEventListener('change', renderKanban);
+
+// ---------- OEE aproximado (Disponibilidade × Performance × Qualidade) ----------
+const ESTACOES_OEE = [
+  {id:'cnc', label:'CNC'},
+  {id:'coladeira', label:'Coladeira'},
+  {id:'limpeza', label:'Limpeza e Separação'},
+  {id:'pre', label:'Pré Montagem'},
+  {id:'final', label:'Montagem Final'}
+];
+// ---------- VSM (mapa do fluxo de valor) de um item específico ----------
+function buscarVsm(termoOriginal){
+  const termo = termoOriginal.trim().toLowerCase();
+  if (!termo) return null;
+  const eventosPeca = movimentosAtuais.filter(m => (m.pecaCodigo||'').toLowerCase() === termo);
+  if (eventosPeca.length) return { tipo: 'peça', rotulo: eventosPeca[0].pecaCodigo + (eventosPeca[0].pecaDescricao ? ' — ' + eventosPeca[0].pecaDescricao : ''), eventos: ordenarPorData(eventosPeca) };
+  const eventosModulo = movimentosAtuais.filter(m => (String(m.moduloId||'').toLowerCase() === termo || (m.moduloNome||'').toLowerCase() === termo) && m.moduloId);
+  if (eventosModulo.length) return { tipo: 'módulo', rotulo: '#' + eventosModulo[0].moduloId + ' ' + (eventosModulo[0].moduloNome||''), eventos: ordenarPorData(eventosModulo) };
+  const eventosProjeto = movimentosAtuais.filter(m => (m.clienteCodigo||'').toLowerCase() === termo || (m.cliente||'').toLowerCase() === termo);
+  if (eventosProjeto.length) return { tipo: 'pedido', rotulo: (eventosProjeto[0].clienteCodigo||'') + ' · ' + (eventosProjeto[0].cliente||''), eventos: ordenarPorData(eventosProjeto) };
+  return null;
+}
+function renderVsm(){
+  const termo = document.getElementById('vsmBusca').value;
+  const el = document.getElementById('resultadoVsm');
+  if (!termo.trim()){ el.innerHTML = ''; return; }
+  const resultado = buscarVsm(termo);
+  if (!resultado){
+    el.innerHTML = '<p class="tagMuted">nada encontrado com esse código nesse período — tente ampliar o filtro de período acima</p>';
+    return;
+  }
+  const eventos = resultado.eventos;
+  let html = '<p style="font-size:13px; margin:0 0 14px;">Encontrado como <strong>' + resultado.tipo + '</strong>: ' + resultado.rotulo + ' — ' + eventos.length + ' evento(s) no período</p>';
+  html += '<div style="display:flex; align-items:stretch; overflow-x:auto; gap:0; padding-bottom:10px;">';
+  eventos.forEach((ev, i) => {
+    html += '<div style="min-width:170px; flex-shrink:0; background:var(--surface-1); border:1px solid var(--border-strong); border-radius:8px; padding:10px;">' +
+      '<div style="font-size:11px; color:var(--text-muted);">' + ev.em.replace('T',' ') + '</div>' +
+      '<div style="font-weight:700; font-size:13px; margin:4px 0;">' + nomeTipo(ev.tipo) + '</div>' +
+      '<div style="font-size:11px; color:var(--text-secondary);">' + (ev.detalhe||'') + '</div>' +
+      '<div style="font-size:10px; color:var(--text-muted); margin-top:4px;">' + (ev.usuario||'') + '</div>' +
+      '</div>';
+    if (i < eventos.length - 1){
+      const espera = diffMinutos(ev.em, eventos[i+1].em);
+      html += '<div style="display:flex; align-items:center; justify-content:center; min-width:80px; flex-shrink:0; flex-direction:column; color:var(--text-muted); font-size:11px;">' +
+        '<span style="font-size:22px; line-height:1;">→</span>' +
+        (espera !== null ? '<span>' + minutosLegivel(espera) + '</span>' : '') +
+        '</div>';
+    }
+  });
+  html += '</div>';
+  const total = eventos.length > 1 ? diffMinutos(eventos[0].em, eventos[eventos.length-1].em) : null;
+  html += '<p style="font-size:13px; margin-top:14px;"><strong>Lead time total (do primeiro ao último evento):</strong> ' + (total !== null ? minutosLegivel(total) : '—') + '</p>';
+  el.innerHTML = html;
+}
+document.getElementById('btnVsmBuscar').onclick = renderVsm;
+document.getElementById('vsmBusca').addEventListener('keydown', e => { if (e.key === 'Enter') renderVsm(); });
+
+function montarOee(){
+  const sel = document.getElementById('oeeFiltroProcesso');
+  if (!sel.options.length){
+    sel.innerHTML = ESTACOES_OEE.map(e => '<option value="' + e.id + '">' + e.label + '</option>').join('');
+  }
+  const processoId = sel.value || ESTACOES_OEE[0].id;
+  const processo = ESTACOES_OEE.find(e => e.id === processoId);
+
+  const eventosParada = movimentosAtuais.filter(m => ['parada_inicio','parada_fim','setup_inicio','setup_fim'].includes(m.tipo) && m.moduloId === processoId);
+  const pares = {};
+  eventosParada.forEach(m => {
+    if (!pares[m.pecaCodigo]) pares[m.pecaCodigo] = {};
+    if (m.tipo.endsWith('_inicio')) pares[m.pecaCodigo].inicio = m.em;
+    else pares[m.pecaCodigo].fim = m.em;
+  });
+  let minutosParados = 0;
+  Object.values(pares).forEach(p => {
+    if (p.inicio && p.fim){
+      const min = diffMinutos(p.inicio, p.fim);
+      if (min !== null) minutosParados += min;
+    }
+  });
+
+  const bipagens = movimentosAtuais.filter(m => m.tipo === 'bipagem' && m.detalhe === processo.label).sort((a,b) => a.em.localeCompare(b.em));
+  const totalPecas = bipagens.length;
+
+  const todosEventosProcesso = bipagens.map(m => m.em).concat(eventosParada.map(m => m.em)).sort();
+  let janelaMinutos = 0;
+  if (todosEventosProcesso.length >= 2){
+    janelaMinutos = diffMinutos(todosEventosProcesso[0], todosEventosProcesso[todosEventosProcesso.length-1]) || 0;
+  }
+  const tempoRodando = Math.max(janelaMinutos - minutosParados, 0);
+  const disponibilidade = janelaMinutos > 0 ? (tempoRodando / janelaMinutos) : 0;
+
+  const intervalos = [];
+  for (let i = 1; i < bipagens.length; i++){
+    const min = diffMinutos(bipagens[i-1].em, bipagens[i].em);
+    if (min !== null && min > 0) intervalos.push(min);
+  }
+  const cicloIdeal = intervalos.length ? Math.min(...intervalos) : null;
+  const tempoIdealTotal = cicloIdeal !== null ? cicloIdeal * totalPecas : null;
+  const performance = (tempoIdealTotal !== null && tempoRodando > 0) ? Math.min(tempoIdealTotal / tempoRodando, 1) : (totalPecas > 0 ? 1 : 0);
+
+  const codigosDescartados = new Set(movimentosAtuais.filter(m => m.tipo === 'defeito_descarte').map(m => m.pecaCodigo));
+  let descartadosNessaEtapa = 0;
+  new Set(bipagens.map(m => m.pecaCodigo)).forEach(c => { if (codigosDescartados.has(c)) descartadosNessaEtapa++; });
+  const qualidade = totalPecas > 0 ? (totalPecas - descartadosNessaEtapa) / totalPecas : 1;
+
+  const oee = disponibilidade * performance * qualidade;
+  const corOee = oee >= 0.85 ? 'var(--text-success)' : oee >= 0.6 ? 'var(--fill-warning)' : 'var(--text-danger)';
+
+  const cartoes = [
+    { numero: (oee*100).toFixed(1) + '%', rotulo: 'OEE aproximado — ' + processo.label, grande:true, cor: corOee },
+    { numero: (disponibilidade*100).toFixed(1) + '%', rotulo: 'Disponibilidade' },
+    { numero: (performance*100).toFixed(1) + '%', rotulo: 'Performance' },
+    { numero: (qualidade*100).toFixed(1) + '%', rotulo: 'Qualidade' },
+  ];
+  document.getElementById('cartoesOee').innerHTML = cartoes.map(c =>
+    '<div class="cartao"><div class="numero" style="font-size:' + (c.grande?'26px':'20px') + '; color:' + (c.cor || 'var(--text-primary)') + ';">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
+  ).join('');
+
+  document.getElementById('secaoDetalheOee').innerHTML =
+    '<p style="font-size:12px; margin:0 0 6px;"><strong>Como foi calculado:</strong></p>' +
+    '<ul style="font-size:12px; color:var(--text-secondary); margin:0; padding-left:18px; line-height:1.6;">' +
+    '<li>Janela observada: ' + (janelaMinutos ? minutosLegivel(janelaMinutos) : '—') + ' (do primeiro ao último evento nesse processo, no período selecionado)</li>' +
+    '<li>Tempo parado (paradas + setups): ' + minutosLegivel(minutosParados) + '</li>' +
+    '<li>Peças processadas: ' + totalPecas + (descartadosNessaEtapa ? (' (' + descartadosNessaEtapa + ' descartada(s) depois)') : '') + '</li>' +
+    '<li>Ciclo de referência (mais rápido observado): ' + (cicloIdeal !== null ? minutosLegivel(cicloIdeal) : '— (poucas peças pra comparar)') + ' por peça</li>' +
+    '</ul>';
+}
+document.getElementById('oeeFiltroProcesso').addEventListener('change', montarOee);
+
 function renderKanban(){
+  popularFiltrosKanban();
+  const filtroProjeto = document.getElementById('kanbanFiltroProjeto').value;
+  const filtroModulo = document.getElementById('kanbanFiltroModulo').value;
+  const filtroPeca = document.getElementById('kanbanFiltroPeca').value;
   const el = document.getElementById('colunasKanban');
   el.innerHTML = '';
   ESTACOES_KANBAN.forEach(estacao => {
     const itens = [];
     projetosAtuais.forEach(pr => {
       if (pr.baixado) return;
+      if (filtroProjeto && pr.codigo !== filtroProjeto) return;
       pr.modulos.forEach(mod => {
+        if (filtroModulo && String(mod.id) !== filtroModulo) return;
         if (estacao.tipo === 'peca'){
           mod.pecas.forEach(p => {
+            if (filtroPeca && p.codigo !== filtroPeca) return;
             if (!p.descartada && p.estacaoAtual === estacao.id){
               itens.push({ codigo: p.codigo, desc: p.descricao, contexto: '#' + mod.id + ' ' + mod.nome + ' · ' + (pr.cliente||'') });
             }
           });
         } else {
+          if (filtroPeca && !mod.pecas.some(p => p.codigo === filtroPeca)) return;
           const completaKey = estacao.id === 'pre' ? 'preCompleta' : 'finalCompleta';
           if (mod.fase === estacao.id && !mod[completaKey]){
             itens.push({ codigo: '#' + mod.id, desc: mod.nome, contexto: (pr.codigo||'') + ' · ' + (pr.cliente||'') + ' (' + mod.pecas.length + ' peça(s))' });
@@ -666,14 +925,17 @@ function montarCartoesDefeitos(movimentos){
   const categorias = Object.entries(contagemCategoria).sort((a,b) => b[1]-a[1]);
   const categoriaTopo = categorias[0];
 
+  const indiceQualidade = totalPecas ? (100 - taxaDescarte) : 100;
+
   const cartoes = [
-    { numero: eventosDefeito.length, rotulo: 'eventos de defeito no período', destaque:true },
+    { numero: indiceQualidade.toFixed(1) + '%', rotulo: 'índice de qualidade (peças sem descarte)', destaque:true, grande:true },
+    { numero: eventosDefeito.length, rotulo: 'eventos de defeito no período' },
     { numero: taxaDescarte.toFixed(1) + '%', rotulo: 'taxa de descarte', alerta: taxaDescarte > 0 },
     { numero: taxaRetrabalho.toFixed(1) + '%', rotulo: 'taxa de retrabalho', alerta: taxaRetrabalho > 0 },
     { numero: categoriaTopo ? categoriaTopo[0] : '—', rotulo: 'categoria Ishikawa mais comum' + (categoriaTopo ? ' (' + categoriaTopo[1] + 'x)' : '') },
   ];
   document.getElementById('cartoes').innerHTML = cartoes.map(c =>
-    '<div class="cartao"><div class="numero" style="font-size:20px; color:' + (c.alerta ? 'var(--text-danger)' : c.destaque ? 'var(--brand)' : 'var(--text-primary)') + ';">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
+    '<div class="cartao"><div class="numero" style="font-size:' + (c.grande ? '26px' : '20px') + '; color:' + (c.alerta ? 'var(--text-danger)' : c.destaque ? 'var(--brand)' : 'var(--text-primary)') + ';">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
   ).join('');
 }
 
@@ -722,8 +984,16 @@ async function carregar(){
   }
 }
 document.getElementById('btnAtualizar').onclick = carregar;
-document.getElementById('pontoDe').addEventListener('change', () => { montarCartoes(movimentosAtuais); renderListaDetalhe(); });
-document.getElementById('pontoAte').addEventListener('change', () => { montarCartoes(movimentosAtuais); renderListaDetalhe(); });
+document.getElementById('filtroProcessoAProcesso').addEventListener('change', (e) => {
+  if (!e.target.value) return;
+  const [tipoDe, detalheDe, tipoAte, detalheAte] = e.target.value.split('|');
+  document.getElementById('pontoDe').value = tipoDe + '|' + detalheDe;
+  document.getElementById('pontoAte').value = tipoAte + '|' + detalheAte;
+  montarCartoes(movimentosTempos());
+  renderListaDetalhe();
+});
+document.getElementById('pontoDe').addEventListener('change', () => { montarCartoes(movimentosTempos()); renderListaDetalhe(); });
+document.getElementById('pontoAte').addEventListener('change', () => { montarCartoes(movimentosTempos()); renderListaDetalhe(); });
 
 document.getElementById('btnExportarPdf').onclick = () => window.print();
 
@@ -731,7 +1001,7 @@ document.getElementById('btnExportarExcel').onclick = () => {
   const pontoDe = document.getElementById('pontoDe').value, pontoAte = document.getElementById('pontoAte').value;
   const labelDe = labelPontoAtual('pontoDe'), labelAte = labelPontoAtual('pontoAte');
 
-  const linhasPecas = agruparPorPeca(movimentosAtuais).map(g => {
+  const linhasPecas = agruparPorPeca(movimentosTempos()).map(g => {
     const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
     return {
       'Peça': g.pecaCodigo, 'Descrição': g.pecaDescricao || '', 'Módulo': g.moduloNome || '',
@@ -740,7 +1010,7 @@ document.getElementById('btnExportarExcel').onclick = () => {
       'Tempo': r.minutos !== null ? minutosLegivel(r.minutos) : '', 'Eventos': g.eventos.length
     };
   });
-  const linhasModulos = agruparPorModulo(movimentosAtuais).map(g => {
+  const linhasModulos = agruparPorModulo(movimentosTempos()).map(g => {
     const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
     return {
       'Módulo': '#' + g.moduloId + ' ' + (g.moduloNome||''), 'Cliente/Projeto': (g.clienteCodigo||'') + ' ' + (g.cliente||'') + ' · ' + (g.projeto||''),
@@ -748,7 +1018,7 @@ document.getElementById('btnExportarExcel').onclick = () => {
       'Tempo': r.minutos !== null ? minutosLegivel(r.minutos) : '', 'Eventos': g.eventos.length
     };
   });
-  const linhasProjetos = agruparPorProjeto(movimentosAtuais).map(g => {
+  const linhasProjetos = agruparPorProjeto(movimentosTempos()).map(g => {
     const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
     return {
       'Pedido': g.clienteCodigo, 'Cliente': g.cliente || '', 'Projeto': g.projeto || '',
