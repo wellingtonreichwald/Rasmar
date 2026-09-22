@@ -131,40 +131,40 @@
     .cabecalho .marca img{ height:44px !important; }
   }
 
-  /* etiqueta de código de barras — agora num tamanho maior (80mm x 50mm),
-     mais comum em rolos térmicos de etiqueta de produto/expedição. Se a sua
-     for outro tamanho, ajuste nas configurações de impressão da impressora
-     térmica (tamanho do papel), que a etiqueta se adapta. */
-  @page { size: 80mm 50mm; margin: 2mm; }
+  /* etiqueta de código de barras — aumentada de novo (100mm x 60mm), com o
+     QR code bem maior pra ficar fácil de escanear de longe. Se sua
+     etiqueta for outro tamanho, ajuste nas configurações de impressão da
+     impressora térmica (tamanho do papel), que a etiqueta se adapta. */
+  @page { size: 100mm 60mm; margin: 2mm; }
   @media print{
     body *{ visibility: hidden; }
     #areaEtiquetaImpressao, #areaEtiquetaImpressao *{ visibility: visible; }
     #areaEtiquetaImpressao{
       display: block !important; position: fixed; inset: 0;
-      width: 80mm; height: 50mm; padding: 0; margin: 0;
+      width: 100mm; height: 60mm; padding: 0; margin: 0;
     }
   }
   .etiqueta{
-    width: 76mm; padding: 2.5mm; text-align: center; font-family: var(--font-body);
-    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1mm;
-    border: 0.4mm solid #000; border-radius: 2mm; box-sizing: border-box; height: 46mm;
+    width: 96mm; padding: 3mm; text-align: center; font-family: var(--font-body);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1.2mm;
+    border: 0.4mm solid #000; border-radius: 2mm; box-sizing: border-box; height: 56mm;
   }
   .etiqueta .etiquetaCabecalho{
     width: 100%; display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 0.4mm solid #000; padding-bottom: 1mm; margin-bottom: 0.5mm;
+    border-bottom: 0.4mm solid #000; padding-bottom: 1.2mm; margin-bottom: 0.5mm;
   }
-  .etiqueta .etiquetaLogo{ height: 7mm; }
+  .etiqueta .etiquetaLogo{ height: 8mm; }
   .etiqueta .etiquetaTag{
-    font-size: 9pt; font-weight: 800; letter-spacing: 0.06em; background: #000; color: #fff;
-    padding: 0.7mm 2mm; border-radius: 1.2mm;
+    font-size: 10pt; font-weight: 800; letter-spacing: 0.06em; background: #000; color: #fff;
+    padding: 0.8mm 2.4mm; border-radius: 1.4mm;
   }
-  .etiqueta .etiquetaCorpo{ width: 100%; display: flex; align-items: center; gap: 2mm; }
-  .etiqueta .etiquetaCorpo svg{ flex: 1; min-width: 0; height: auto; max-height: 16mm; }
-  .etiqueta .etiquetaQr{ flex-shrink: 0; width: 14mm; height: 14mm; }
-  .etiqueta .etiquetaQr img, .etiqueta .etiquetaQr canvas, .etiqueta .etiquetaQr table{ width: 14mm !important; height: 14mm !important; }
-  .etiqueta .linha1{ font-size: 13pt; font-weight: 800; margin: 0; line-height: 1.15; }
-  .etiqueta .linha2{ font-size: 9.5pt; margin: 0; line-height: 1.25; color: #333; }
-  .etiqueta .etiquetaRodape{ font-size: 6.5pt; color: #666; margin: auto 0 0; }
+  .etiqueta .etiquetaCorpo{ width: 100%; display: flex; align-items: center; gap: 2.5mm; }
+  .etiqueta .etiquetaCorpo svg{ flex: 1; min-width: 0; height: auto; max-height: 20mm; }
+  .etiqueta .etiquetaQr{ flex-shrink: 0; width: 22mm; height: 22mm; }
+  .etiqueta .etiquetaQr img, .etiqueta .etiquetaQr canvas, .etiqueta .etiquetaQr table{ width: 22mm !important; height: 22mm !important; }
+  .etiqueta .linha1{ font-size: 15pt; font-weight: 800; margin: 0; line-height: 1.15; }
+  .etiqueta .linha2{ font-size: 11pt; margin: 0; line-height: 1.25; color: #333; }
+  .etiqueta .etiquetaRodape{ font-size: 7.5pt; color: #666; margin: auto 0 0; }
 </style>
 </head>
 <body>
@@ -192,32 +192,45 @@
 </div>
 
 <div id="modalAjuda" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.5); z-index:210; align-items:center; justify-content:center; padding:20px; overflow-y:auto;">
-  <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:28px; max-width:620px; width:100%; max-height:85vh; overflow-y:auto; margin:auto;">
+  <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:28px; max-width:640px; width:100%; max-height:85vh; overflow-y:auto; margin:auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
       <h2 style="font-size:18px; margin:0;">Como usar o Rasmar</h2>
       <button id="btnFecharAjuda" style="font-size:12px; padding:5px 10px;">Fechar</button>
     </div>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">1. O fluxo de produção</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Toda peça passa por 5 etapas, nesta ordem: <strong>CNC → Coladeira → Limpeza e Separação → Pré Montagem → Montagem Final</strong>. As três primeiras são por peça individual; as duas últimas são por módulo inteiro (todas as peças já juntas).</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">1. O caminho de uma peça</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Toda peça passa por 5 etapas, sempre nessa ordem: <strong>CNC → Coladeira → Limpeza e Separação → Pré Montagem → Montagem Final</strong>. Nas três primeiras, você bipa peça por peça. Nas duas últimas, o módulo inteiro (todas as peças já juntas) é concluído de uma vez, não peça por peça.</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">2. Bipando peças</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Nas três primeiras etapas, digite ou bipe o código da peça no campo do topo. Ela é marcada como concluída ali. Também dá pra marcar direto pelo checkbox ao lado de cada peça na lista.</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">2. Como bipar</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Digite ou bipe o código da peça no campo do topo da tela e aperte Enter. Aparece na hora um aviso grande e verde confirmando qual peça foi registrada e em qual etapa — não precisa clicar em nada pra confirmar. Se a peça já foi concluída em outro lugar, ou não pertence a essa etapa, o sistema avisa e não deixa duplicar.</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">3. Etiquetas de código de barras</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Cada módulo e cada pedido tem um botão 🖨️ pra imprimir uma etiqueta com código de barras. Bipando a etiqueta de um <strong>módulo</strong> na etapa Pré Montagem, ele é marcado como concluído inteiro. Bipando a etiqueta de um <strong>pedido</strong> na Montagem Final, o pedido é dado como entregue (só funciona se já estiver 100% completo).</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">3. Etiquetas (código de barras e QR code)</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Cada módulo e cada pedido tem um botão 🖨️ pra imprimir uma etiqueta. Bipando a etiqueta de um <strong>módulo</strong> na Pré Montagem, ele é marcado como concluído inteiro. Bipando a etiqueta de um <strong>pedido</strong> na Montagem Final, o pedido é dado como entregue (só funciona se já estiver tudo pronto). A etiqueta também tem um <strong>QR code</strong> — qualquer celular que apontar a câmera pra ele abre o histórico daquele módulo ou pedido na hora, sem precisar de login.</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">4. Quando algo dá defeito</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Clique em "Defeito" na peça (ou "⚠ Defeito no módulo" pro módulo inteiro). Escolha a categoria (método, máquina, mão de obra, material, medição ou meio ambiente — as 6 causas clássicas do diagrama de Ishikawa), escreva uma observação se quiser, e escolha entre <strong>retrabalhar</strong> (volta pra uma etapa escolhida) ou <strong>descartar/recriar</strong> (sai de tudo e volta do zero no CNC).</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">4. Parou a máquina? Registre</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Embaixo do campo de bipar aparece um aviso rápido pra registrar <strong>parada</strong> (quebra, falta de material, falta de energia, etc.) ou <strong>setup</strong> (troca de ferramenta, ajuste de máquina). Escolha o motivo numa lista pronta — não precisa digitar nada na maioria das vezes — e clique em "Finalizar" quando a máquina voltar a rodar. Isso ajuda a empresa a entender onde o tempo está sendo perdido de verdade.</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5. Administração (só admin)</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Criar/editar usuários e suas permissões, configurar setores que cada um pode ver, e a "Zona de risco" pra zerar pedidos, usuários ou o histórico do dashboard quando precisar recomeçar do zero.</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5. Quando uma peça tem defeito</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Clique em "Defeito" na peça (ou "⚠ Defeito no módulo" se o problema for no módulo inteiro). Escolha a causa — método, máquina, mão de obra, material, medição ou meio ambiente — escreva uma observação se quiser, e escolha entre <strong>retrabalhar</strong> (a peça volta pra uma etapa escolhida por você) ou <strong>descartar</strong> (a peça é jogada fora e recriada do zero, voltando pro CNC).</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">6. Dashboard</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Tem duas visões: <strong>Tempos</strong> (quanto tempo cada peça/módulo/pedido levou entre duas etapas escolhidas — útil pra melhoria contínua) e <strong>Defeitos</strong> (lista de tudo que deu defeito, com categoria e observação). Acessível a qualquer usuário logado.</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">6. Administração (só pra quem é admin)</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Criar e editar usuários (login, senha, e-mail, quais etapas cada um pode ver), configurar o <strong>horário de trabalho</strong> da empresa (usado pra calcular tempo útil no dashboard), fazer backup manual dos dados, e a "Zona de risco" pra apagar tudo e recomeçar do zero, se um dia precisar.</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">7. Se a conexão cair</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0;">O ícone 🟢/🟡/🔴 no cabeçalho mostra o status. Se ficar vermelho, a tela trava as ações até reconectar sozinho (evita salvar algo errado sem querer) — suas informações não se perdem, só ficam esperando a conexão voltar.</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">7. O Dashboard — o que cada aba mostra</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 6px;">O Dashboard é onde dá pra ver como a produção está indo. Qualquer usuário logado pode abrir. Tem várias abas:</p>
+    <ul style="font-size:13px; line-height:1.75; margin:0 0 10px; padding-left:20px;">
+      <li><strong>📊 Tempos</strong> — mostra, peça por peça, quanto tempo ela levou em cada etapa, com o tempo entre uma e outra. É como um raio-x do processo, do início ao fim.</li>
+      <li><strong>⚠ Defeitos</strong> — a lista de tudo que deu problema, com a causa e quem registrou. Mostra também um "índice de qualidade" geral.</li>
+      <li><strong>🗂️ Kanban</strong> — mostra o que está em cada etapa <strong>agora mesmo</strong>, em tempo real. Dá pra ver por peça, por módulo ou por pedido inteiro (o padrão é por pedido). Também mostra uma previsão de quando cada pedido deve ficar pronto, calculada pelo histórico.</li>
+      <li><strong>⚙️ OEE</strong> — um número que junta três coisas: quanto tempo a máquina ficou disponível (sem parada), quão rápido ela produziu comparado ao seu melhor ritmo, e quantas peças saíram boas. Quanto mais perto de 100%, melhor.</li>
+      <li><strong>🧭 VSM</strong> — escolha uma peça, módulo ou pedido específico e veja o caminho completo dele, etapa por etapa, com o tempo de espera entre cada uma.</li>
+      <li><strong>🔧 Setups/Paradas</strong> — todas as paradas e setups registrados, com motivo, duração e quem registrou.</li>
+      <li><strong>💡 Conselhos</strong> — o sistema olha os dados e aponta sozinho onde vale a pena focar (etapa mais parada, causa de defeito mais comum, etc.), sem precisar analisar nada manualmente.</li>
+    </ul>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Dá pra exportar qualquer coisa da aba Tempos em PDF ou Excel, e filtrar tudo por período (a data padrão é sempre o dia de hoje, pra não vir uma quantidade enorme de informação de uma vez).</p>
+
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">8. Se a internet cair</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0;">O ícone 🟢/🟡/🔴 no cabeçalho mostra a conexão. Se ficar vermelho, a tela trava as ações até reconectar sozinha — isso é de propósito, pra evitar salvar algo errado sem querer. Nada do que você já fez se perde, só fica esperando a conexão voltar pra confirmar.</p>
   </div>
 </div>
 
@@ -302,6 +315,31 @@
     </div>
 
     <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Horário de trabalho</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Sugestão de horário comercial — usada só pra calcular "tempo útil" no dashboard (separar o que é tempo realmente trabalhado do que é noite/almoço). Não impede ninguém de bipar fora desse horário — trabalho feito fora dele continua contando normalmente, só aparece separado como tempo fora do expediente. Mude à vontade quando precisar.</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:10px;">
+        <div>
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">início do expediente</label>
+          <input id="horarioInicio" type="time" style="width:100%;" />
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">fim do expediente</label>
+          <input id="horarioFim" type="time" style="width:100%;" />
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">início do almoço</label>
+          <input id="horarioAlmocoInicio" type="time" style="width:100%;" />
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">fim do almoço</label>
+          <input id="horarioAlmocoFim" type="time" style="width:100%;" />
+        </div>
+      </div>
+      <button id="btnSalvarHorario" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Salvar horário</button>
+      <p id="statusHorario" style="font-size:12px; margin:8px 0 0; display:none;"></p>
+    </div>
+
+    <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
       <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Backup</p>
       <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px;">O servidor já guarda um backup automático todos os dias às 23:59 (mantidos por 30 dias). Aqui você pode exportar um backup manual agora, ou restaurar um arquivo salvo antes.</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -383,6 +421,13 @@
       <p style="font-weight:600; font-size:14px; margin:0;">Histórico de pedidos concluídos</p>
       <input id="buscaHistorico" type="text" placeholder="buscar por código, cliente ou projeto" style="font-size:13px; min-width:220px;" />
     </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+      <label style="font-size:12px; color:var(--text-muted);">baixado de</label>
+      <input id="historicoPedidosDe" type="date" style="font-size:13px;" />
+      <label style="font-size:12px; color:var(--text-muted);">até</label>
+      <input id="historicoPedidosAte" type="date" style="font-size:13px;" />
+      <span style="font-size:11px; color:var(--text-muted);">(por padrão, só hoje — amplie se precisar de algo mais antigo)</span>
+    </div>
     <div id="listaHistorico" style="max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; font-size:13px;"></div>
   </div>
 </div>
@@ -461,18 +506,21 @@
     </div>
   </div>
 
-  <div id="semiCabecalho" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; padding:8px 14px; background:var(--brand-soft); border-radius:var(--radius); font-size:12px; color:var(--brand-dark);">
+  <div id="semiCabecalho" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:18px; padding:8px 14px; background:var(--brand-soft); border-radius:var(--radius); font-size:12px; color:var(--brand-dark);">
     <span id="semiCabecalhoData"></span>
     <span id="semiCabecalhoMensagem" style="font-style:italic;"></span>
   </div>
 
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; gap:12px; flex-wrap:wrap;">
+  <div style="background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px 16px; margin-bottom:20px; box-shadow:var(--shadow-sm);">
+  <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); margin:0 0 10px;">Etapa de produção</p>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
     <div id="tabs"></div>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <select id="seletorCliente" style="min-width:180px;"></select>
       <button id="btnImportar" style="font-size:13px; padding:8px 14px;">Importar CSV</button>
       <input id="fileInput" type="file" accept=".csv" style="display:none;" />
     </div>
+  </div>
   </div>
 
   <p id="importFeedback" style="font-size:13px; margin:0 0 12px; display:none;"></p>
@@ -558,6 +606,9 @@
 // de verdade na planilha sincronizada (Google Sheets). O array começa vazio
 // e só é preenchido buscando o estado do servidor antes de mostrar o login.
 let usuarios = [];
+// sugestão de horário comercial — editável na Administração; usada só pra
+// calcular "tempo útil" no dashboard, nunca trava bipagem fora dela.
+let configuracaoHorario = { inicio: '08:00', fim: '17:00', almocoInicio: '12:00', almocoFim: '13:00' };
 let usuarioLogadoNome = sessionStorage.getItem('rasmar_usuario') || null;
 // logs e movimentos só crescem (nunca são sobrescritos) — cada sincronização
 // manda só as entradas NOVAS desde a última vez, que a planilha vai
@@ -1521,7 +1572,7 @@ function imprimirEtiqueta(codigo, opcoes){
     qrDiv.className = 'etiquetaQr';
     corpo.appendChild(qrDiv);
     div.appendChild(corpo);
-    new QRCode(qrDiv, { text: opcoes.urlConsulta, width: 90, height: 90, correctLevel: QRCode.CorrectLevel.M });
+    new QRCode(qrDiv, { text: opcoes.urlConsulta, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M });
   } else {
     div.appendChild(corpo);
   }
@@ -2346,7 +2397,7 @@ function buscarEstadoServidor(){
 // sendo o retrato completo de cada vez.
 function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios){
   return new Promise((resolve, reject) => {
-    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos };
+    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, configuracaoHorario };
     if (confirmarZerarTudo) corpo.confirmarZerarTudo = true;
     if (confirmarZerarUsuarios) corpo.confirmarZerarUsuarios = true;
     let iframe = document.getElementById('rasmarSyncFrame');
@@ -2398,6 +2449,7 @@ async function carregarDoServidorAgora_lancaErro(){
   projetos = dados.projetos;
   if (dados.proximoNumeroPedido) proximoNumeroPedido = dados.proximoNumeroPedido;
   if (Array.isArray(dados.usuarios)) usuarios = dados.usuarios;
+  if (dados.configuracaoHorario && typeof dados.configuracaoHorario === 'object') configuracaoHorario = dados.configuracaoHorario;
   if (usuarioLogadoNome && !getUsuarioLogado()){
     usuarioLogadoNome = null;
     sessionStorage.removeItem('rasmar_usuario');
@@ -2748,9 +2800,10 @@ function dataOntemBrasilia(){
 function verificarResumoDiario(){
   const u = getUsuarioLogado();
   if (!u || !u.admin || !syncUrl) return;
-  const chave = 'rasmar_resumo_visto_' + dataHojeBrasilia();
-  if (localStorage.getItem(chave)) return; // já mostrou hoje nesse navegador
-  localStorage.setItem(chave, '1');
+  const hoje = dataHojeBrasilia();
+  if (u.ultimoResumoVisto === hoje) return; // já mostrou hoje pra esse usuário, em qualquer aparelho
+  u.ultimoResumoVisto = hoje;
+  agendarSincronizacaoRapida(); // grava no servidor, vale pra qualquer computador/celular que esse usuário usar
   montarResumoDia();
 }
 const TIPOS_DEFEITO_RESUMO = ['defeito_descarte','defeito_retrabalho','defeito_modulo_recriacao','defeito_modulo_retrabalho'];
@@ -2814,7 +2867,7 @@ async function montarResumoDia(){
 }
 document.getElementById('btnFecharResumoDia').onclick = () => { document.getElementById('modalResumoDia').style.display = 'none'; };
 
-document.getElementById('btnLoginEntrar').onclick = () => {
+document.getElementById('btnLoginEntrar').onclick = async () => {
   const usuario = document.getElementById('loginUsuario').value.trim();
   const senha = document.getElementById('loginSenha').value;
   const encontrado = usuarios.find(u => u.usuario === usuario && u.senha === senha);
@@ -2829,10 +2882,11 @@ document.getElementById('btnLoginEntrar').onclick = () => {
   sessionStorage.setItem('rasmar_usuario', usuarioLogadoNome);
   registrarLog('login');
   mostrarApp();
+  // busca a versão mais fresca do servidor ANTES de marcar o resumo do dia
+  // como visto — senão essa leitura, que roda em paralelo, pode sobrescrever
+  // a marcação antes dela ser salva (as duas mexem no mesmo array de usuários).
+  if (syncUrl) await carregarDoServidorAgora();
   verificarResumoDiario();
-  // busca a versão mais fresca da planilha bem na hora do login — não espera
-  // o próximo ciclo automático, pra já entrar vendo o que há de mais atual.
-  if (syncUrl) carregarDoServidorAgora();
 };
 document.getElementById('loginSenha').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnLoginEntrar').click(); });
 
@@ -2858,23 +2912,47 @@ document.getElementById('btnAbrirAdmin').onclick = () => {
   document.getElementById('telaAdmin').style.display = 'block';
   cancelarEdicaoUsuario();
   renderListaUsuarios();
+  document.getElementById('horarioInicio').value = configuracaoHorario.inicio;
+  document.getElementById('horarioFim').value = configuracaoHorario.fim;
+  document.getElementById('horarioAlmocoInicio').value = configuracaoHorario.almocoInicio;
+  document.getElementById('horarioAlmocoFim').value = configuracaoHorario.almocoFim;
 };
 document.getElementById('btnFecharAdmin').onclick = () => { document.getElementById('telaAdmin').style.display = 'none'; };
+
+document.getElementById('btnSalvarHorario').onclick = () => {
+  const inicio = document.getElementById('horarioInicio').value;
+  const fim = document.getElementById('horarioFim').value;
+  const almocoInicio = document.getElementById('horarioAlmocoInicio').value;
+  const almocoFim = document.getElementById('horarioAlmocoFim').value;
+  const status = document.getElementById('statusHorario');
+  if (!inicio || !fim || !almocoInicio || !almocoFim){
+    status.style.display = 'block'; status.style.color = 'var(--text-danger)';
+    status.textContent = 'preencha os 4 horários';
+    return;
+  }
+  configuracaoHorario = { inicio, fim, almocoInicio, almocoFim };
+  registrarLog('atualizou o horário de trabalho (' + inicio + '–' + fim + ', almoço ' + almocoInicio + '–' + almocoFim + ')');
+  agendarSincronizacaoRapida();
+  status.style.display = 'block'; status.style.color = 'var(--text-success)';
+  status.textContent = 'horário salvo — já vale pro dashboard de todo mundo';
+};
 
 document.getElementById('btnAbrirHistorico').onclick = () => {
   document.getElementById('blocoMenuAdmin').style.display = 'none';
   document.getElementById('telaHistorico').style.display = 'block';
   renderListaLogs();
   renderListaHistorico();
-  // já busca o histórico de todos os usuários (últimos 30 dias) na hora de
-  // abrir, em vez de exigir um clique manual em "Buscar logs" — assim o
-  // admin já vê tudo, não só o que aconteceu nesta sessão/computador.
-  const hoje = new Date();
-  const trintaDiasAtras = new Date(hoje.getTime() - 30*24*60*60*1000);
-  const paraISO = d => d.toISOString().slice(0,10);
-  document.getElementById('periodoDe').value = paraISO(trintaDiasAtras);
-  document.getElementById('periodoAte').value = paraISO(hoje);
+  // busca o histórico de todos os usuários já na hora de abrir, em vez de
+  // exigir um clique manual em "Buscar logs" — por padrão só do dia de
+  // hoje, pra não vir uma quantidade enorme de logs de uma vez; dá pra
+  // ampliar o período manualmente se precisar de algo mais antigo.
+  const hoje = dataHojeBrasilia();
+  document.getElementById('periodoDe').value = hoje;
+  document.getElementById('periodoAte').value = hoje;
   document.getElementById('btnBuscarPeriodo').click();
+  document.getElementById('historicoPedidosDe').value = hoje;
+  document.getElementById('historicoPedidosAte').value = hoje;
+  renderListaHistorico();
 };
 document.getElementById('btnFecharHistorico').onclick = () => { document.getElementById('telaHistorico').style.display = 'none'; };
 
@@ -3475,11 +3553,25 @@ document.getElementById('btnApagarPeriodo').onclick = async () => {
 function renderListaHistorico(){
   const el = document.getElementById('listaHistorico');
   const termo = document.getElementById('buscaHistorico').value.trim().toLowerCase();
-  const baixados = projetos.filter(pr => pr.baixado).filter(pr =>
-    !termo || pr.codigo.toLowerCase().includes(termo) || pr.cliente.toLowerCase().includes(termo) || pr.projeto.toLowerCase().includes(termo)
-  );
+  const de = document.getElementById('historicoPedidosDe').value;
+  const ate = document.getElementById('historicoPedidosAte').value;
+  const baixados = projetos.filter(pr => pr.baixado).filter(pr => {
+    if (!termo && !de && !ate) return true;
+    const dataBaixa = (pr.baixadoEm || '').slice(0,10); // "dd/mm hh:mm" -> não dá pra comparar direto, usa parsearComoBrasilia se precisar
+    const passaTermo = !termo || pr.codigo.toLowerCase().includes(termo) || pr.cliente.toLowerCase().includes(termo) || pr.projeto.toLowerCase().includes(termo);
+    return passaTermo;
+  }).filter(pr => {
+    if (!de && !ate) return true;
+    // baixadoEm está no formato "dd/mm hh:mm" (formatarDataHora) — refaz
+    // pra AAAA-MM-DD comparável usando o ano atual de Brasília.
+    const m = (pr.baixadoEm || '').match(/^(\d{2})\/(\d{2})/);
+    if (!m) return true;
+    const anoAtual = dataHojeBrasilia().slice(0,4);
+    const dataISO = anoAtual + '-' + m[2] + '-' + m[1];
+    return (!de || dataISO >= de) && (!ate || dataISO <= ate);
+  });
   if (baixados.length === 0){
-    el.innerHTML = '<p style="color:var(--text-muted); margin:4px;">nenhum pedido concluído encontrado</p>';
+    el.innerHTML = '<p style="color:var(--text-muted); margin:4px;">nenhum pedido concluído encontrado nesse período</p>';
     return;
   }
   el.innerHTML = '';
@@ -3503,6 +3595,8 @@ function renderListaHistorico(){
   });
 }
 document.getElementById('buscaHistorico').addEventListener('input', renderListaHistorico);
+document.getElementById('historicoPedidosDe').addEventListener('change', renderListaHistorico);
+document.getElementById('historicoPedidosAte').addEventListener('change', renderListaHistorico);
 
 document.getElementById('btnCriarPrimeiroAdmin').onclick = () => {
   const usuario = document.getElementById('primeiroAdminUsuario').value.trim();
