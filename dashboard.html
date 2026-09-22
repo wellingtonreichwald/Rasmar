@@ -169,8 +169,15 @@
       <select id="filtroProcessoAProcesso">
         <option value="">personalizado (escolha abaixo)</option>
         <option value="bipagem|CNC|bipagem|Coladeira">CNC → Coladeira</option>
+        <option value="bipagem|CNC|bipagem|Limpeza e Separação">CNC → Limpeza e Separação</option>
+        <option value="bipagem|CNC|conclusao_modulo|Pré Montagem">CNC → Pré Montagem</option>
+        <option value="bipagem|CNC|conclusao_modulo|Montagem Final">CNC → Montagem Final</option>
         <option value="bipagem|Coladeira|bipagem|Limpeza e Separação">Coladeira → Limpeza e Separação</option>
-        <option value="bipagem|CNC|bipagem|Limpeza e Separação">CNC → Limpeza (peça completa)</option>
+        <option value="bipagem|Coladeira|conclusao_modulo|Pré Montagem">Coladeira → Pré Montagem</option>
+        <option value="bipagem|Coladeira|conclusao_modulo|Montagem Final">Coladeira → Montagem Final</option>
+        <option value="bipagem|Limpeza e Separação|conclusao_modulo|Pré Montagem">Limpeza e Separação → Pré Montagem</option>
+        <option value="bipagem|Limpeza e Separação|conclusao_modulo|Montagem Final">Limpeza e Separação → Montagem Final</option>
+        <option value="conclusao_modulo|Pré Montagem|conclusao_modulo|Montagem Final">Pré Montagem → Montagem Final</option>
       </select>
       <label style="font-size:12px; color:var(--text-muted);">calcular tempo de</label>
       <select id="pontoDe"></select>
@@ -347,10 +354,11 @@ function listarPontos(movimentos){
   });
   movimentos.forEach(m => {
     if (m.tipo === 'bipagem') return;
-    const valor = m.tipo + '|';
+    if (TIPOS_PARADA_SETUP.includes(m.tipo) || TIPOS_DEFEITO.includes(m.tipo)) return; // paradas/setups e defeitos têm abas próprias, não entram aqui
+    const valor = m.tipo + '|' + (m.detalhe || '');
     if (vistos.has(valor)) return;
     vistos.add(valor);
-    pontos.push({ valor, label: nomeTipo(m.tipo) });
+    pontos.push({ valor, label: nomeTipo(m.tipo) + (m.detalhe ? ' — ' + m.detalhe : '') });
   });
   return pontos;
 }
@@ -372,7 +380,10 @@ function encontrarPonto(eventosOrdenados, pontoValor, apartirIndice){
   const tipo = pontoValor.slice(0, i2), detalhe = pontoValor.slice(i2+1);
   for (let i = apartirIndice; i < eventosOrdenados.length; i++){
     const ev = eventosOrdenados[i];
-    if (ev.tipo === tipo && (tipo !== 'bipagem' || ev.detalhe === detalhe)) return { ev, indice: i };
+    // compara o detalhe sempre que o ponto pedir um específico — antes só
+    // comparava pra bipagem, o que fazia "concluído em Pré Montagem" e
+    // "concluído em Montagem Final" caírem no mesmo ponto por engano.
+    if (ev.tipo === tipo && (!detalhe || ev.detalhe === detalhe)) return { ev, indice: i };
   }
   return null;
 }
@@ -423,10 +434,15 @@ function minutosLegivel(totalMinFloat){
 // os pontos manualmente toda vez.
 const TRANSICOES_PROCESSO = [
   { label: 'CNC → Coladeira', de: 'bipagem|CNC', ate: 'bipagem|Coladeira', nivel: 'peca' },
+  { label: 'CNC → Limpeza e Separação', de: 'bipagem|CNC', ate: 'bipagem|Limpeza e Separação', nivel: 'peca' },
+  { label: 'CNC → Pré Montagem', de: 'bipagem|CNC', ate: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
+  { label: 'CNC → Montagem Final', de: 'bipagem|CNC', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' },
   { label: 'Coladeira → Limpeza e Separação', de: 'bipagem|Coladeira', ate: 'bipagem|Limpeza e Separação', nivel: 'peca' },
+  { label: 'Coladeira → Pré Montagem', de: 'bipagem|Coladeira', ate: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
+  { label: 'Coladeira → Montagem Final', de: 'bipagem|Coladeira', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' },
   { label: 'Limpeza e Separação → Pré Montagem', de: 'bipagem|Limpeza e Separação', ate: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
-  { label: 'Pré Montagem → Montagem Final', de: 'conclusao_modulo|Pré Montagem', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' },
-  { label: 'CNC → Limpeza (peça completa)', de: 'bipagem|CNC', ate: 'bipagem|Limpeza e Separação', nivel: 'peca' }
+  { label: 'Limpeza e Separação → Montagem Final', de: 'bipagem|Limpeza e Separação', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' },
+  { label: 'Pré Montagem → Montagem Final', de: 'conclusao_modulo|Pré Montagem', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' }
 ];
 function montarTempoMedioProcesso(){
   const movimentos = movimentosTempos();
@@ -445,16 +461,26 @@ function montarTempoMedioProcesso(){
 }
 
 function montarCartoes(movimentos){
-  const porPeca = agruparPorPeca(movimentos);
   const pontoDe = document.getElementById('pontoDe').value;
   const pontoAte = document.getElementById('pontoAte').value;
   const labelDe = document.getElementById('pontoDe').selectedOptions[0]?.textContent || '';
   const labelAte = document.getElementById('pontoAte').selectedOptions[0]?.textContent || '';
 
-  const temposIntervalo = []; // { pecaCodigo, pecaDescricao, minutos }
-  porPeca.forEach(g => {
+  // se um dos pontos escolhidos for por módulo (Pré Montagem/Montagem
+  // Final), agrupa por módulo em vez de por peça — senão o cálculo nunca
+  // encontra esses eventos (peça não carrega evento de conclusão de módulo).
+  const usaModulo = pontoDe.startsWith('conclusao_modulo') || pontoAte.startsWith('conclusao_modulo');
+  const porPeca = agruparPorPeca(movimentos);
+  const grupos = usaModulo ? agruparPorModulo(movimentos) : porPeca;
+
+  const temposIntervalo = []; // { chave, rotulo, minutos }
+  grupos.forEach(g => {
     const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
-    if (r.minutos !== null) temposIntervalo.push({ pecaCodigo: g.pecaCodigo, pecaDescricao: g.pecaDescricao, minutos: r.minutos });
+    if (r.minutos !== null) temposIntervalo.push({
+      chave: usaModulo ? ('#' + g.moduloId) : g.pecaCodigo,
+      rotulo: usaModulo ? ('#' + g.moduloId + ' ' + (g.moduloNome||'')) : g.pecaCodigo,
+      minutos: r.minutos
+    });
   });
   temposIntervalo.sort((a,b) => a.minutos - b.minutos);
   const maisRapida = temposIntervalo[0];
@@ -468,11 +494,12 @@ function montarCartoes(movimentos){
 
   const modulosUnicos = agruparPorModulo(movimentos).length;
   const projetosUnicos = agruparPorProjeto(movimentos).length;
+  const rotuloItem = usaModulo ? 'módulo' : 'peça';
 
   const cartoes = [
     { numero: mediaLegivel(temposIntervalo.map(t=>t.minutos)), rotulo: 'tempo médio: ' + labelDe + ' → ' + labelAte, destaque:true },
-    { numero: maisLenta ? minutosLegivel(maisLenta.minutos) : '—', rotulo: 'peça mais lenta: ' + (maisLenta ? maisLenta.pecaCodigo : '—'), alerta:true },
-    { numero: maisRapida ? minutosLegivel(maisRapida.minutos) : '—', rotulo: 'peça mais rápida: ' + (maisRapida ? maisRapida.pecaCodigo : '—') },
+    { numero: maisLenta ? minutosLegivel(maisLenta.minutos) : '—', rotulo: rotuloItem + ' mais lenta(o): ' + (maisLenta ? maisLenta.rotulo : '—'), alerta:true },
+    { numero: maisRapida ? minutosLegivel(maisRapida.minutos) : '—', rotulo: rotuloItem + ' mais rápida(o): ' + (maisRapida ? maisRapida.rotulo : '—') },
     { numero: taxaDescarte.toFixed(1) + '%', rotulo: 'taxa de descarte por defeito', alerta: taxaDescarte > 0 },
     { numero: taxaRetrabalho.toFixed(1) + '%', rotulo: 'taxa de retrabalho por defeito', alerta: taxaRetrabalho > 0 },
     { numero: totalPecas, rotulo: 'peças com movimento' },
@@ -1052,7 +1079,7 @@ async function carregar(){
     ]);
     movimentosAtuais = Array.isArray(dados.movimentos) ? dados.movimentos : [];
     projetosAtuais = Array.isArray(estado.projetos) ? estado.projetos : [];
-    popularSelectsDePontos(movimentosAtuais);
+    popularSelectsDePontos(movimentosTempos());
     aplicarModo();
     document.getElementById('statusCarregando').textContent = movimentosAtuais.length + ' evento(s) carregado(s)';
   } catch (err) {
@@ -1065,6 +1092,14 @@ document.getElementById('filtroProcessoAProcesso').addEventListener('change', (e
   const [tipoDe, detalheDe, tipoAte, detalheAte] = e.target.value.split('|');
   document.getElementById('pontoDe').value = tipoDe + '|' + detalheDe;
   document.getElementById('pontoAte').value = tipoAte + '|' + detalheAte;
+  // Pré Montagem e Montagem Final são por módulo, não por peça — troca pra
+  // aba "Por módulo" sozinho quando a combinação escolhida envolve uma
+  // delas, senão a tabela "Por peça" fica vazia sem explicação nenhuma.
+  if (tipoDe === 'conclusao_modulo' || tipoAte === 'conclusao_modulo'){
+    abaAtiva = 'modulos';
+    ['abaPecas','abaModulos','abaProjetos'].forEach(x => document.getElementById(x).classList.remove('ativa'));
+    document.getElementById('abaModulos').classList.add('ativa');
+  }
   montarCartoes(movimentosTempos());
   renderListaDetalhe();
 });
