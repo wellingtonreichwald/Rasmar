@@ -180,6 +180,17 @@
   </div>
 </div>
 
+<div id="modalResumoDia" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.5); z-index:215; align-items:center; justify-content:center; padding:20px; overflow-y:auto;">
+  <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:26px; max-width:560px; width:100%; margin:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <h2 style="font-size:18px; margin:0;">👋 Bom te ver hoje</h2>
+      <button id="btnFecharResumoDia" style="font-size:12px; padding:5px 10px;">Fechar</button>
+    </div>
+    <p id="resumoDiaData" style="font-size:12px; color:var(--text-muted); margin:0 0 16px;"></p>
+    <div id="resumoDiaConteudo"><p class="tagMuted" style="font-size:13px; color:var(--text-muted);">carregando resumo...</p></div>
+  </div>
+</div>
+
 <div id="modalAjuda" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.5); z-index:210; align-items:center; justify-content:center; padding:20px; overflow-y:auto;">
   <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:28px; max-width:620px; width:100%; max-height:85vh; overflow-y:auto; margin:auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -471,6 +482,13 @@
     <input id="scanInput" type="text" placeholder="digite ou bipe um código, ex: ROD23157222B" style="flex:1; border:none; background:transparent; box-shadow:none;" />
   </div>
   <div id="barraParadaSetup" style="margin-bottom:8px;"></div>
+  <div id="confirmacaoBipagem" style="display:none; align-items:center; gap:12px; background:var(--brand-soft); border:1px solid var(--brand2); border-radius:var(--radius); padding:12px 16px; margin-bottom:8px;">
+    <span id="confirmacaoBipagemIcone" style="font-size:26px; line-height:1;">✅</span>
+    <div>
+      <p id="confirmacaoBipagemCodigo" style="font-weight:800; font-size:16px; margin:0;"></p>
+      <p id="confirmacaoBipagemDetalhe" style="font-size:12px; color:var(--text-secondary); margin:1px 0 0;"></p>
+    </div>
+  </div>
   <p id="avisoModulo" style="font-size:13px; color:var(--text-muted); margin:0 0 12px; display:none;">nesta etapa a conclusão é por módulo inteiro, não por peça — bipe a etiqueta do módulo/pedido acima, ou use o botão dentro de cada módulo abaixo.</p>
 
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem;">
@@ -1951,6 +1969,19 @@ function renderProjetos(){
 
 function renderTudo(){ renderTabs(); renderFiltro(); renderProjetos(); renderBarraParadaSetup(); }
 
+let timeoutConfirmacaoBipagem = null;
+function mostrarConfirmacaoBipagem(codigo, descricao, detalhe, tipo){
+  clearTimeout(timeoutConfirmacaoBipagem);
+  const el = document.getElementById('confirmacaoBipagem');
+  document.getElementById('confirmacaoBipagemIcone').textContent = tipo === 'aviso' ? '📦' : '✅';
+  document.getElementById('confirmacaoBipagemCodigo').textContent = codigo + (descricao ? ' — ' + descricao : '');
+  document.getElementById('confirmacaoBipagemDetalhe').textContent = detalhe;
+  el.style.borderColor = tipo === 'aviso' ? 'var(--fill-warning)' : 'var(--brand2)';
+  el.style.background = tipo === 'aviso' ? '#fdf1da' : 'var(--brand-soft)';
+  el.style.display = 'flex';
+  timeoutConfirmacaoBipagem = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
 function showFeedback(msg, isError, mostrarLink){
   const el = document.getElementById('feedback');
   el.innerHTML = '';
@@ -2079,12 +2110,12 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
       peca[station.field] = formatarDataHora(new Date());
       registrarLog('bipou ' + peca.descricao + ' (' + peca.codigo + ') em ' + station.label);
       registrarMovimento('bipagem', { pecaCodigo: peca.codigo, pecaDescricao: peca.descricao, moduloId: modDaPeca.id, moduloNome: modDaPeca.nome, clienteCodigo: prDaPeca.codigo, cliente: prDaPeca.cliente, projeto: prDaPeca.projeto, detalhe: station.label });
-      let msg = peca.descricao + ' registrada na etapa ' + station.label;
-      if (todasCompletas(pecasNaEstacao(modDaPeca, station.id), station.field) && moduloUnidoEm(modDaPeca, station.id)){
-        if (station.id === 'limpeza') msg += ' — módulo completo, escolha o destino';
-        else msg += ' — módulo completo, envie pra próxima etapa';
+      const moduloCompletouAgora = todasCompletas(pecasNaEstacao(modDaPeca, station.id), station.field) && moduloUnidoEm(modDaPeca, station.id);
+      let detalheConfirmacao = station.label + ' · módulo #' + modDaPeca.id + ' ' + modDaPeca.nome;
+      if (moduloCompletouAgora){
+        detalheConfirmacao += (station.id === 'limpeza' ? ' — módulo completo, escolha o destino' : ' — módulo completo, envie pra próxima etapa');
       }
-      showFeedback(msg, false);
+      mostrarConfirmacaoBipagem(peca.codigo, peca.descricao, detalheConfirmacao, moduloCompletouAgora ? 'aviso' : 'ok');
       renderProjetos();
     }
     e.target.value = '';
@@ -2266,7 +2297,7 @@ function atualizarStatusSync(msg, tipo){
 // o Google Apps Script não manda os cabeçalhos de CORS que fetch()/XHR
 // exigem — por isso lemos via JSONP (uma tag <script> com callback, que não
 // esbarra nessa regra do navegador) em vez de fetch() comum.
-function buscarEstadoServidor(){
+function buscarNoServidorComParams(params){
   return new Promise((resolve, reject) => {
     const nomeCallback = 'rasmarCb_' + Date.now() + '_' + Math.floor(Math.random()*100000);
     const script = document.createElement('script');
@@ -2295,10 +2326,15 @@ function buscarEstadoServidor(){
       limpar();
       reject(new Error('não consegui carregar os dados do servidor'));
     };
+    const query = new URLSearchParams(Object.assign({ callback: nomeCallback, _: Date.now() }, params || {})).toString();
     const separador = syncUrl.includes('?') ? '&' : '?';
-    script.src = syncUrl + separador + 'callback=' + nomeCallback + '&_=' + Date.now();
+    script.src = syncUrl + separador + query;
     document.body.appendChild(script);
+    return;
   });
+}
+function buscarEstadoServidor(){
+  return buscarNoServidorComParams({});
 }
 
 // escreve via um formulário comum enviado pra um iframe oculto — formulários
@@ -2669,6 +2705,7 @@ async function iniciarApp(){
   // sessão já ativa (mesma aba) e o usuário ainda existe depois de carregar
   if (usuarioLogadoNome && getUsuarioLogado()){
     mostrarApp();
+    verificarResumoDiario();
     return;
   }
   usuarioLogadoNome = null;
@@ -2701,6 +2738,82 @@ function mostrarApp(){
   renderSeletor();
 }
 
+// ---------- resumo do dia (só admin, uma vez por dia) ----------
+function dataHojeBrasilia(){
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+}
+function dataOntemBrasilia(){
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(Date.now() - 24*60*60*1000));
+}
+function verificarResumoDiario(){
+  const u = getUsuarioLogado();
+  if (!u || !u.admin || !syncUrl) return;
+  const chave = 'rasmar_resumo_visto_' + dataHojeBrasilia();
+  if (localStorage.getItem(chave)) return; // já mostrou hoje nesse navegador
+  localStorage.setItem(chave, '1');
+  montarResumoDia();
+}
+const TIPOS_DEFEITO_RESUMO = ['defeito_descarte','defeito_retrabalho','defeito_modulo_recriacao','defeito_modulo_retrabalho'];
+async function montarResumoDia(){
+  const modal = document.getElementById('modalResumoDia');
+  const hoje = dataHojeBrasilia();
+  const ontem = dataOntemBrasilia();
+  const paraBR = d => d.split('-').reverse().join('/');
+  document.getElementById('resumoDiaData').textContent = 'ontem (' + paraBR(ontem) + ') e hoje (' + paraBR(hoje) + ') até agora';
+  document.getElementById('resumoDiaConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-muted);">carregando resumo...</p>';
+  modal.style.display = 'flex';
+  try {
+    const dados = await buscarNoServidorComParams({ acao: 'movimentos', de: ontem, ate: hoje });
+    const movs = Array.isArray(dados.movimentos) ? dados.movimentos : [];
+    const movsOntem = movs.filter(m => (m.em||'').slice(0,10) === ontem);
+    const movsHoje = movs.filter(m => (m.em||'').slice(0,10) === hoje);
+
+    function resumirPeriodo(lista){
+      return {
+        pecasBipadas: new Set(lista.filter(m => m.tipo === 'bipagem').map(m => m.pecaCodigo)).size,
+        modulosConcluidos: lista.filter(m => m.tipo === 'conclusao_modulo' || m.tipo === 'conclusao_forcada_modulo').length,
+        pedidosEntregues: lista.filter(m => m.tipo === 'baixa_pedido').length,
+        defeitos: lista.filter(m => TIPOS_DEFEITO_RESUMO.includes(m.tipo)).length
+      };
+    }
+    const rOntem = resumirPeriodo(movsOntem);
+    const rHoje = resumirPeriodo(movsHoje);
+    const linha = r => r.pecasBipadas + ' peça(s) bipada(s) · ' + r.modulosConcluidos + ' módulo(s) concluído(s) · ' + r.pedidosEntregues + ' pedido(s) entregue(s) · ' + r.defeitos + ' defeito(s)';
+
+    // situação atual (agora mesmo), olhando o estado já carregado localmente
+    const contagemEtapas = {};
+    stations.forEach(s => { contagemEtapas[s.id] = 0; });
+    projetos.forEach(pr => {
+      if (pr.baixado) return;
+      pr.modulos.forEach(mod => {
+        if (mod.fase === 'peca'){
+          mod.pecas.forEach(p => { if (!p.descartada) contagemEtapas[p.estacaoAtual] = (contagemEtapas[p.estacaoAtual]||0) + 1; });
+        } else {
+          const completaKey = mod.fase === 'pre' ? 'preCompleta' : 'finalCompleta';
+          if (!mod[completaKey]) contagemEtapas[mod.fase] = (contagemEtapas[mod.fase]||0) + 1;
+        }
+      });
+    });
+
+    document.getElementById('resumoDiaConteudo').innerHTML =
+      '<div style="background:var(--surface-1); border-radius:8px; padding:12px 14px; margin-bottom:10px;">' +
+        '<p style="font-weight:700; font-size:13px; margin:0 0 6px;">📅 Ontem</p>' +
+        '<p style="font-size:13px; margin:0;">' + linha(rOntem) + '</p>' +
+      '</div>' +
+      '<div style="background:var(--brand-soft); border-radius:8px; padding:12px 14px; margin-bottom:10px;">' +
+        '<p style="font-weight:700; font-size:13px; margin:0 0 6px;">☀️ Hoje (até agora)</p>' +
+        '<p style="font-size:13px; margin:0;">' + linha(rHoje) + '</p>' +
+      '</div>' +
+      '<div style="background:var(--surface-1); border-radius:8px; padding:12px 14px;">' +
+        '<p style="font-weight:700; font-size:13px; margin:0 0 8px;">📍 Onde as coisas estão agora mesmo</p>' +
+        '<p style="font-size:12px; margin:0;">' + stations.map(s => s.label + ': <strong>' + (contagemEtapas[s.id]||0) + '</strong>').join(' · ') + '</p>' +
+      '</div>';
+  } catch (err) {
+    document.getElementById('resumoDiaConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-danger);">não consegui carregar o resumo agora (' + err.message + ')</p>';
+  }
+}
+document.getElementById('btnFecharResumoDia').onclick = () => { document.getElementById('modalResumoDia').style.display = 'none'; };
+
 document.getElementById('btnLoginEntrar').onclick = () => {
   const usuario = document.getElementById('loginUsuario').value.trim();
   const senha = document.getElementById('loginSenha').value;
@@ -2716,6 +2829,7 @@ document.getElementById('btnLoginEntrar').onclick = () => {
   sessionStorage.setItem('rasmar_usuario', usuarioLogadoNome);
   registrarLog('login');
   mostrarApp();
+  verificarResumoDiario();
   // busca a versão mais fresca da planilha bem na hora do login — não espera
   // o próximo ciclo automático, pra já entrar vendo o que há de mais atual.
   if (syncUrl) carregarDoServidorAgora();
