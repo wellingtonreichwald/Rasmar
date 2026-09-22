@@ -163,27 +163,6 @@
       <input id="filtroDe" type="date" />
       <label style="font-size:12px; color:var(--text-muted);">até</label>
       <input id="filtroAte" type="date" />
-      <span id="filtroPontosWrap" style="display:contents;">
-      <span style="width:1px; height:20px; background:var(--border-strong); margin:0 4px;"></span>
-      <label style="font-size:12px; color:var(--text-muted);">processo a processo</label>
-      <select id="filtroProcessoAProcesso">
-        <option value="">personalizado (escolha abaixo)</option>
-        <option value="bipagem|CNC|bipagem|Coladeira">CNC → Coladeira</option>
-        <option value="bipagem|CNC|bipagem|Limpeza e Separação">CNC → Limpeza e Separação</option>
-        <option value="bipagem|CNC|conclusao_modulo|Pré Montagem">CNC → Pré Montagem</option>
-        <option value="bipagem|CNC|conclusao_modulo|Montagem Final">CNC → Montagem Final</option>
-        <option value="bipagem|Coladeira|bipagem|Limpeza e Separação">Coladeira → Limpeza e Separação</option>
-        <option value="bipagem|Coladeira|conclusao_modulo|Pré Montagem">Coladeira → Pré Montagem</option>
-        <option value="bipagem|Coladeira|conclusao_modulo|Montagem Final">Coladeira → Montagem Final</option>
-        <option value="bipagem|Limpeza e Separação|conclusao_modulo|Pré Montagem">Limpeza e Separação → Pré Montagem</option>
-        <option value="bipagem|Limpeza e Separação|conclusao_modulo|Montagem Final">Limpeza e Separação → Montagem Final</option>
-        <option value="conclusao_modulo|Pré Montagem|conclusao_modulo|Montagem Final">Pré Montagem → Montagem Final</option>
-      </select>
-      <label style="font-size:12px; color:var(--text-muted);">calcular tempo de</label>
-      <select id="pontoDe"></select>
-      <label style="font-size:12px; color:var(--text-muted);">até</label>
-      <select id="pontoAte"></select>
-      </span>
       <button id="btnAtualizar" style="background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700; box-shadow:0 3px 10px rgba(18,105,90,0.3);">Atualizar</button>
       <span id="statusCarregando" style="font-size:12px; color:var(--text-muted);"></span>
     </div>
@@ -208,6 +187,31 @@
       </div>
 
       <div class="secao ocultarNaImpressao" id="detalheLinhaDoTempo" style="display:none;"></div>
+
+      <details class="secao ocultarNaImpressao" style="padding:12px 14px;">
+        <summary style="cursor:pointer; font-size:13px; font-weight:600;">🔍 Comparar dois pontos específicos (opcional)</summary>
+        <div class="filtros" style="margin-top:10px; padding:0;">
+          <label style="font-size:12px; color:var(--text-muted);">processo a processo</label>
+          <select id="filtroProcessoAProcesso">
+            <option value="">personalizado (escolha abaixo)</option>
+            <option value="bipagem|CNC|bipagem|Coladeira">CNC → Coladeira</option>
+            <option value="bipagem|CNC|bipagem|Limpeza e Separação">CNC → Limpeza e Separação</option>
+            <option value="bipagem|CNC|conclusao_modulo|Pré Montagem">CNC → Pré Montagem</option>
+            <option value="bipagem|CNC|conclusao_modulo|Montagem Final">CNC → Montagem Final</option>
+            <option value="bipagem|Coladeira|bipagem|Limpeza e Separação">Coladeira → Limpeza e Separação</option>
+            <option value="bipagem|Coladeira|conclusao_modulo|Pré Montagem">Coladeira → Pré Montagem</option>
+            <option value="bipagem|Coladeira|conclusao_modulo|Montagem Final">Coladeira → Montagem Final</option>
+            <option value="bipagem|Limpeza e Separação|conclusao_modulo|Pré Montagem">Limpeza e Separação → Pré Montagem</option>
+            <option value="bipagem|Limpeza e Separação|conclusao_modulo|Montagem Final">Limpeza e Separação → Montagem Final</option>
+            <option value="conclusao_modulo|Pré Montagem|conclusao_modulo|Montagem Final">Pré Montagem → Montagem Final</option>
+          </select>
+          <label style="font-size:12px; color:var(--text-muted);">ou escolha manualmente: de</label>
+          <select id="pontoDe"></select>
+          <label style="font-size:12px; color:var(--text-muted);">até</label>
+          <select id="pontoAte"></select>
+        </div>
+        <p id="resultadoComparacao" style="font-size:13px; margin:10px 0 0;"></p>
+      </details>
     </div>
 
     <div id="secaoDefeitos" style="display:none;">
@@ -231,10 +235,14 @@
     </div>
 
     <div id="secaoOee" style="display:none;">
-      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">OEE aproximado — Disponibilidade × Performance × Qualidade. Como o sistema não tem um "tempo de ciclo ideal" nem uma jornada de trabalho cadastrada, os cálculos usam premissas explicadas abaixo de cada indicador. Use como referência de tendência, não como valor absoluto de auditoria.</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">OEE aproximado — Disponibilidade × Performance × Qualidade. Como o sistema não tem um "tempo de ciclo ideal" cadastrado, a Performance usa o ciclo mais rápido observado como referência. Use como indicador de tendência.</p>
       <div class="filtros ocultarNaImpressao" style="margin-bottom:12px;">
         <label style="font-size:12px; color:var(--text-muted);">processo</label>
         <select id="oeeFiltroProcesso"></select>
+        <span style="width:1px; height:20px; background:var(--border-strong); margin:0 4px;"></span>
+        <label style="font-size:12px; color:var(--text-muted);">tempo disponível por dia (minutos)</label>
+        <input id="oeeTempoDisponivel" type="text" inputmode="numeric" placeholder="ex: 480" style="width:90px;" />
+        <button id="btnSalvarTempoDisponivel" style="font-size:12px; padding:5px 10px;">Salvar</button>
       </div>
       <div class="cartoes" id="cartoesOee"></div>
       <div class="secao" id="secaoDetalheOee" style="padding:12px 14px; margin-top:14px;"></div>
@@ -461,49 +469,42 @@ function montarTempoMedioProcesso(){
 }
 
 function montarCartoes(movimentos){
-  const pontoDe = document.getElementById('pontoDe').value;
-  const pontoAte = document.getElementById('pontoAte').value;
-  const labelDe = document.getElementById('pontoDe').selectedOptions[0]?.textContent || '';
-  const labelAte = document.getElementById('pontoAte').selectedOptions[0]?.textContent || '';
-
-  // se um dos pontos escolhidos for por módulo (Pré Montagem/Montagem
-  // Final), agrupa por módulo em vez de por peça — senão o cálculo nunca
-  // encontra esses eventos (peça não carrega evento de conclusão de módulo).
-  const usaModulo = pontoDe.startsWith('conclusao_modulo') || pontoAte.startsWith('conclusao_modulo');
   const porPeca = agruparPorPeca(movimentos);
-  const grupos = usaModulo ? agruparPorModulo(movimentos) : porPeca;
+  const porModulo = agruparPorModulo(movimentos);
+  const moduloPorChave = {};
+  porModulo.forEach(m => { moduloPorChave[(m.clienteCodigo||'—') + '#' + m.moduloId] = m; });
 
-  const temposIntervalo = []; // { chave, rotulo, minutos }
-  grupos.forEach(g => {
-    const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
-    if (r.minutos !== null) temposIntervalo.push({
-      chave: usaModulo ? ('#' + g.moduloId) : g.pecaCodigo,
-      rotulo: usaModulo ? ('#' + g.moduloId + ' ' + (g.moduloNome||'')) : g.pecaCodigo,
-      minutos: r.minutos
-    });
+  // lead time completo (CNC até Montagem Final) por peça, cruzando com o
+  // módulo dela pra pegar as datas de Pré Montagem/Montagem Final — é o
+  // indicador principal, sem precisar escolher ponto nenhum na tela.
+  const leadTimes = []; // { pecaCodigo, minutos }
+  porPeca.forEach(g => {
+    const mod = moduloPorChave[(g.clienteCodigo||'—') + '#' + g.moduloId];
+    const datas = PONTOS_FIXOS.map(p => acharDataPonto(p.nivel === 'modulo' ? (mod ? mod.eventos : []) : g.eventos, p.valor)).filter(d => d);
+    if (datas.length >= 2){
+      const minutos = diffMinutos(datas[0], datas[datas.length-1]);
+      if (minutos !== null) leadTimes.push({ pecaCodigo: g.pecaCodigo, pecaDescricao: g.pecaDescricao, minutos });
+    }
   });
-  temposIntervalo.sort((a,b) => a.minutos - b.minutos);
-  const maisRapida = temposIntervalo[0];
-  const maisLenta = temposIntervalo[temposIntervalo.length-1];
+  leadTimes.sort((a,b) => a.minutos - b.minutos);
+  const maisRapida = leadTimes[0];
+  const maisLenta = leadTimes[leadTimes.length-1];
 
   const totalPecas = porPeca.length;
   const totalDescartadas = movimentos.filter(m => m.tipo === 'defeito_descarte').map(m=>m.pecaCodigo);
   const totalRetrabalhos = movimentos.filter(m => m.tipo === 'defeito_retrabalho').map(m=>m.pecaCodigo);
   const taxaDescarte = totalPecas ? (new Set(totalDescartadas).size / totalPecas * 100) : 0;
   const taxaRetrabalho = totalPecas ? (new Set(totalRetrabalhos).size / totalPecas * 100) : 0;
-
-  const modulosUnicos = agruparPorModulo(movimentos).length;
   const projetosUnicos = agruparPorProjeto(movimentos).length;
-  const rotuloItem = usaModulo ? 'módulo' : 'peça';
 
   const cartoes = [
-    { numero: mediaLegivel(temposIntervalo.map(t=>t.minutos)), rotulo: 'tempo médio: ' + labelDe + ' → ' + labelAte, destaque:true },
-    { numero: maisLenta ? minutosLegivel(maisLenta.minutos) : '—', rotulo: rotuloItem + ' mais lenta(o): ' + (maisLenta ? maisLenta.rotulo : '—'), alerta:true },
-    { numero: maisRapida ? minutosLegivel(maisRapida.minutos) : '—', rotulo: rotuloItem + ' mais rápida(o): ' + (maisRapida ? maisRapida.rotulo : '—') },
+    { numero: mediaLegivel(leadTimes.map(t=>t.minutos)), rotulo: 'lead time médio (CNC → Montagem Final)', destaque:true },
+    { numero: maisLenta ? minutosLegivel(maisLenta.minutos) : '—', rotulo: 'peça mais lenta: ' + (maisLenta ? maisLenta.pecaCodigo : '—'), alerta:true },
+    { numero: maisRapida ? minutosLegivel(maisRapida.minutos) : '—', rotulo: 'peça mais rápida: ' + (maisRapida ? maisRapida.pecaCodigo : '—') },
     { numero: taxaDescarte.toFixed(1) + '%', rotulo: 'taxa de descarte por defeito', alerta: taxaDescarte > 0 },
     { numero: taxaRetrabalho.toFixed(1) + '%', rotulo: 'taxa de retrabalho por defeito', alerta: taxaRetrabalho > 0 },
     { numero: totalPecas, rotulo: 'peças com movimento' },
-    { numero: modulosUnicos, rotulo: 'módulos com movimento' },
+    { numero: porModulo.length, rotulo: 'módulos com movimento' },
     { numero: projetosUnicos, rotulo: 'pedidos com movimento' }
   ];
   document.getElementById('cartoes').innerHTML = cartoes.map(c =>
@@ -592,56 +593,76 @@ function labelPontoAtual(id){
   return document.getElementById(id).selectedOptions[0]?.textContent || '';
 }
 
-function renderTabelaPecas(grupos){
-  const pontoDe = document.getElementById('pontoDe').value, pontoAte = document.getElementById('pontoAte').value;
+// os 5 pontos fixos do processo, na ordem — usados pra montar a tabela de
+// "ponto a ponto" de uma vez só, sem precisar escolher pares manualmente.
+// Pré Montagem/Montagem Final não vêm de "bipagem" (são conclusão de
+// módulo inteiro), por isso os rótulos aqui já são só o nome da etapa.
+const PONTOS_FIXOS = [
+  { label: 'CNC', valor: 'bipagem|CNC', nivel: 'peca' },
+  { label: 'Coladeira', valor: 'bipagem|Coladeira', nivel: 'peca' },
+  { label: 'Limpeza e Separação', valor: 'bipagem|Limpeza e Separação', nivel: 'peca' },
+  { label: 'Pré Montagem', valor: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
+  { label: 'Montagem Final', valor: 'conclusao_modulo|Montagem Final', nivel: 'modulo' }
+];
+function acharDataPonto(eventos, pontoValor){
+  const achado = encontrarPonto(ordenarPorData(eventos), pontoValor, 0);
+  return achado ? achado.ev.em : null;
+}
+
+function renderTabelaPecas(grupos, porModulo){
+  const moduloPorChave = {};
+  (porModulo||[]).forEach(m => { moduloPorChave[(m.clienteCodigo||'—') + '#' + m.moduloId] = m; });
   const linhas = grupos.map(g => {
-    const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
+    const mod = moduloPorChave[(g.clienteCodigo||'—') + '#' + g.moduloId];
+    const datas = PONTOS_FIXOS.map(p => acharDataPonto(p.nivel === 'modulo' ? (mod ? mod.eventos : []) : g.eventos, p.valor));
+    const validas = datas.filter(d => d);
+    const leadTime = validas.length >= 2 ? diffMinutos(validas[0], validas[validas.length-1]) : null;
     return '<tr>' +
       '<td>' + g.pecaCodigo + '<br><span class="tagMuted">' + (g.pecaDescricao||'') + '</span></td>' +
       '<td>#' + (g.moduloId||'—') + ' ' + (g.moduloNome||'') + '</td>' +
       '<td>' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + '<br><span class="tagMuted">' + (g.projeto||'') + '</span></td>' +
-      '<td>' + (r.de ? r.de.replace('T',' ') : '—') + '</td>' +
-      '<td>' + (r.ate ? r.ate.replace('T',' ') : '—') + '</td>' +
-      '<td class="delta">' + (r.minutos !== null ? minutosLegivel(r.minutos) : '—') + '</td>' +
+      datas.map(d => '<td style="white-space:nowrap; font-size:11px;">' + (d ? d.replace('T',' ') : '<span class="tagMuted">—</span>') + '</td>').join('') +
+      '<td class="delta">' + (leadTime !== null ? minutosLegivel(leadTime) : '—') + '</td>' +
       '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
     '</tr>';
   }).join('');
-  return '<table><thead><tr><th>peça</th><th>módulo</th><th>cliente/projeto</th><th>' + labelPontoAtual('pontoDe') + '</th><th>' + labelPontoAtual('pontoAte') + '</th><th>tempo</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
+  return '<table><thead><tr><th>peça</th><th>módulo</th><th>cliente/projeto</th>' + PONTOS_FIXOS.map(p=>'<th>'+p.label+'</th>').join('') + '<th>lead time</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
 }
 
 function renderTabelaModulos(grupos){
-  const pontoDe = document.getElementById('pontoDe').value, pontoAte = document.getElementById('pontoAte').value;
   const linhas = grupos.map(g => {
-    const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
+    const datas = PONTOS_FIXOS.map(p => acharDataPonto(g.eventos, p.valor));
+    const validas = datas.filter(d => d);
+    const leadTime = validas.length >= 2 ? diffMinutos(validas[0], validas[validas.length-1]) : null;
     return '<tr>' +
       '<td>#' + g.moduloId + ' ' + (g.moduloNome||'') + '</td>' +
       '<td>' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + '<br><span class="tagMuted">' + (g.projeto||'') + '</span></td>' +
       '<td>' + g.totalPecas + '</td>' +
-      '<td>' + (r.de ? r.de.replace('T',' ') : '—') + '</td>' +
-      '<td>' + (r.ate ? r.ate.replace('T',' ') : '—') + '</td>' +
-      '<td class="delta">' + (r.minutos !== null ? minutosLegivel(r.minutos) : '—') + '</td>' +
+      datas.map(d => '<td style="white-space:nowrap; font-size:11px;">' + (d ? d.replace('T',' ') : '<span class="tagMuted">—</span>') + '</td>').join('') +
+      '<td class="delta">' + (leadTime !== null ? minutosLegivel(leadTime) : '—') + '</td>' +
       '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
     '</tr>';
   }).join('');
-  return '<table><thead><tr><th>módulo</th><th>cliente/projeto</th><th>peças</th><th>' + labelPontoAtual('pontoDe') + '</th><th>' + labelPontoAtual('pontoAte') + '</th><th>tempo</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
+  return '<table><thead><tr><th>módulo</th><th>cliente/projeto</th><th>peças</th>' + PONTOS_FIXOS.map(p=>'<th>'+p.label+'</th>').join('') + '<th>lead time</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
 }
 
 function renderTabelaProjetos(grupos){
-  const pontoDe = document.getElementById('pontoDe').value, pontoAte = document.getElementById('pontoAte').value;
   const linhas = grupos.map(g => {
-    const r = tempoEntrePontos(g.eventos, pontoDe, pontoAte);
+    const ordenados = ordenarPorData(g.eventos);
+    const primeiro = ordenados[0], ultimo = ordenados[ordenados.length-1];
+    const leadTime = (primeiro && ultimo && primeiro !== ultimo) ? diffMinutos(primeiro.em, ultimo.em) : null;
     return '<tr>' +
       '<td>' + g.clienteCodigo + '<br><span class="tagMuted">' + (g.cliente||'') + '</span></td>' +
       '<td>' + (g.projeto||'') + '</td>' +
       '<td>' + g.totalModulos + '</td>' +
       '<td>' + g.totalPecas + '</td>' +
-      '<td>' + (r.de ? r.de.replace('T',' ') : '—') + '</td>' +
-      '<td>' + (r.ate ? r.ate.replace('T',' ') : '—') + '</td>' +
-      '<td class="delta">' + (r.minutos !== null ? minutosLegivel(r.minutos) : '—') + '</td>' +
+      '<td style="white-space:nowrap; font-size:12px;">' + (primeiro ? primeiro.em.replace('T',' ') : '—') + '</td>' +
+      '<td style="white-space:nowrap; font-size:12px;">' + (ultimo ? ultimo.em.replace('T',' ') : '—') + '</td>' +
+      '<td class="delta">' + (leadTime !== null ? minutosLegivel(leadTime) : '—') + '</td>' +
       '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
     '</tr>';
   }).join('');
-  return '<table><thead><tr><th>pedido</th><th>projeto</th><th>módulos</th><th>peças</th><th>' + labelPontoAtual('pontoDe') + '</th><th>' + labelPontoAtual('pontoAte') + '</th><th>tempo</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
+  return '<table><thead><tr><th>pedido</th><th>projeto</th><th>módulos</th><th>peças</th><th>início</th><th>último evento</th><th>lead time</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
 }
 
 function renderListaDetalhe(){
@@ -668,7 +689,7 @@ function renderListaDetalhe(){
   ultimosGrupos = grupos;
 
   if (!grupos.length){ el.innerHTML = '<p class="tagMuted">nada encontrado</p>'; return; }
-  el.innerHTML = '<div class="tabela-wrap">' + renderFn(grupos) + '</div>';
+  el.innerHTML = '<div class="tabela-wrap">' + (abaAtiva === 'pecas' ? renderFn(grupos, agruparPorModulo(movimentosTempos())) : renderFn(grupos)) + '</div>';
 }
 
 document.getElementById('buscaDetalhe').addEventListener('input', renderListaDetalhe);
@@ -700,7 +721,6 @@ function aplicarModo(){
   document.getElementById('secaoOee').style.display = modoAtivo === 'oee' ? 'block' : 'none';
   document.getElementById('secaoVsm').style.display = modoAtivo === 'vsm' ? 'block' : 'none';
   document.getElementById('secaoSetups').style.display = modoAtivo === 'setups' ? 'block' : 'none';
-  document.getElementById('filtroPontosWrap').style.display = modoAtivo === 'tempos' ? 'contents' : 'none';
   document.getElementById('cartoes').style.display = (modoAtivo === 'kanban' || modoAtivo === 'oee' || modoAtivo === 'vsm' || modoAtivo === 'setups') ? 'none' : 'grid';
   if (modoAtivo === 'tempos'){ montarCartoes(movimentosTempos()); renderListaDetalhe(); montarTempoMedioProcesso(); }
   else if (modoAtivo === 'defeitos'){ montarCartoesDefeitos(movimentosAtuais); renderListaDefeitos(); }
@@ -883,6 +903,18 @@ function renderListaSetups(){
 }
 document.getElementById('buscaSetups').addEventListener('input', renderListaSetups);
 
+function tempoDisponivelPorDiaSalvo(){
+  const v = parseFloat(localStorage.getItem('rasmar_oee_tempo_disponivel') || '480');
+  return (!v || v <= 0) ? 480 : v;
+}
+function diasNoPeriodoSelecionado(){
+  const de = document.getElementById('filtroDe').value;
+  const ate = document.getElementById('filtroAte').value;
+  if (!de || !ate) return 1; // sem período escolhido, assume 1 dia (o padrão cadastrado)
+  const dias = Math.round((new Date(ate + 'T00:00:00') - new Date(de + 'T00:00:00')) / 86400000) + 1;
+  return Math.max(dias, 1);
+}
+
 function montarOee(){
   const sel = document.getElementById('oeeFiltroProcesso');
   if (!sel.options.length){
@@ -890,6 +922,8 @@ function montarOee(){
   }
   const processoId = sel.value || ESTACOES_OEE[0].id;
   const processo = ESTACOES_OEE.find(e => e.id === processoId);
+  const tempoDisponivelInput = document.getElementById('oeeTempoDisponivel');
+  if (!tempoDisponivelInput.value) tempoDisponivelInput.value = tempoDisponivelPorDiaSalvo();
 
   const eventosParada = movimentosAtuais.filter(m => ['parada_inicio','parada_fim','setup_inicio','setup_fim'].includes(m.tipo) && m.moduloId === processoId);
   const pares = {};
@@ -909,13 +943,15 @@ function montarOee(){
   const bipagens = movimentosAtuais.filter(m => m.tipo === 'bipagem' && m.detalhe === processo.label).sort((a,b) => a.em.localeCompare(b.em));
   const totalPecas = bipagens.length;
 
-  const todosEventosProcesso = bipagens.map(m => m.em).concat(eventosParada.map(m => m.em)).sort();
-  let janelaMinutos = 0;
-  if (todosEventosProcesso.length >= 2){
-    janelaMinutos = diffMinutos(todosEventosProcesso[0], todosEventosProcesso[todosEventosProcesso.length-1]) || 0;
-  }
-  const tempoRodando = Math.max(janelaMinutos - minutosParados, 0);
-  const disponibilidade = janelaMinutos > 0 ? (tempoRodando / janelaMinutos) : 0;
+  // Disponibilidade agora usa o tempo disponível cadastrado (editável) x
+  // quantidade de dias do período escolhido, em vez de adivinhar pela
+  // janela entre o primeiro e o último evento — mais correto e sob seu
+  // controle.
+  const tempoDisponivelPorDia = tempoDisponivelPorDiaSalvo();
+  const totalDias = diasNoPeriodoSelecionado();
+  const tempoDisponivelTotal = tempoDisponivelPorDia * totalDias;
+  const tempoRodando = Math.max(tempoDisponivelTotal - minutosParados, 0);
+  const disponibilidade = tempoDisponivelTotal > 0 ? (tempoRodando / tempoDisponivelTotal) : 0;
 
   const intervalos = [];
   for (let i = 1; i < bipagens.length; i++){
@@ -947,13 +983,19 @@ function montarOee(){
   document.getElementById('secaoDetalheOee').innerHTML =
     '<p style="font-size:12px; margin:0 0 6px;"><strong>Como foi calculado:</strong></p>' +
     '<ul style="font-size:12px; color:var(--text-secondary); margin:0; padding-left:18px; line-height:1.6;">' +
-    '<li>Janela observada: ' + (janelaMinutos ? minutosLegivel(janelaMinutos) : '—') + ' (do primeiro ao último evento nesse processo, no período selecionado)</li>' +
+    '<li>Tempo disponível: ' + minutosLegivel(tempoDisponivelPorDia) + '/dia × ' + totalDias + ' dia(s) no período = ' + minutosLegivel(tempoDisponivelTotal) + '</li>' +
     '<li>Tempo parado (paradas + setups): ' + minutosLegivel(minutosParados) + '</li>' +
     '<li>Peças processadas: ' + totalPecas + (descartadosNessaEtapa ? (' (' + descartadosNessaEtapa + ' descartada(s) depois)') : '') + '</li>' +
     '<li>Ciclo de referência (mais rápido observado): ' + (cicloIdeal !== null ? minutosLegivel(cicloIdeal) : '— (poucas peças pra comparar)') + ' por peça</li>' +
     '</ul>';
 }
 document.getElementById('oeeFiltroProcesso').addEventListener('change', montarOee);
+document.getElementById('btnSalvarTempoDisponivel').onclick = () => {
+  const v = parseFloat(document.getElementById('oeeTempoDisponivel').value.replace(',', '.'));
+  if (!v || v <= 0){ window.alert('digite um valor válido em minutos, maior que zero'); return; }
+  localStorage.setItem('rasmar_oee_tempo_disponivel', String(v));
+  montarOee();
+};
 
 function renderKanban(){
   popularFiltrosKanban();
@@ -1087,24 +1129,28 @@ async function carregar(){
   }
 }
 document.getElementById('btnAtualizar').onclick = carregar;
+function calcularComparacaoPontos(){
+  const pontoDe = document.getElementById('pontoDe').value;
+  const pontoAte = document.getElementById('pontoAte').value;
+  const el = document.getElementById('resultadoComparacao');
+  if (!pontoDe || !pontoAte){ el.textContent = ''; return; }
+  const usaModulo = pontoDe.startsWith('conclusao_modulo') || pontoAte.startsWith('conclusao_modulo');
+  const grupos = usaModulo ? agruparPorModulo(movimentosTempos()) : agruparPorPeca(movimentosTempos());
+  const tempos = grupos.map(g => tempoEntrePontos(g.eventos, pontoDe, pontoAte).minutos).filter(m => m !== null);
+  const labelDe = document.getElementById('pontoDe').selectedOptions[0]?.textContent || '';
+  const labelAte = document.getElementById('pontoAte').selectedOptions[0]?.textContent || '';
+  if (!tempos.length){ el.textContent = 'sem dados suficientes pra calcular esse intervalo no período selecionado.'; return; }
+  el.innerHTML = '<strong>' + labelDe + ' → ' + labelAte + ':</strong> tempo médio ' + mediaLegivel(tempos) + ' (' + tempos.length + ' amostra(s))';
+}
 document.getElementById('filtroProcessoAProcesso').addEventListener('change', (e) => {
   if (!e.target.value) return;
   const [tipoDe, detalheDe, tipoAte, detalheAte] = e.target.value.split('|');
   document.getElementById('pontoDe').value = tipoDe + '|' + detalheDe;
   document.getElementById('pontoAte').value = tipoAte + '|' + detalheAte;
-  // Pré Montagem e Montagem Final são por módulo, não por peça — troca pra
-  // aba "Por módulo" sozinho quando a combinação escolhida envolve uma
-  // delas, senão a tabela "Por peça" fica vazia sem explicação nenhuma.
-  if (tipoDe === 'conclusao_modulo' || tipoAte === 'conclusao_modulo'){
-    abaAtiva = 'modulos';
-    ['abaPecas','abaModulos','abaProjetos'].forEach(x => document.getElementById(x).classList.remove('ativa'));
-    document.getElementById('abaModulos').classList.add('ativa');
-  }
-  montarCartoes(movimentosTempos());
-  renderListaDetalhe();
+  calcularComparacaoPontos();
 });
-document.getElementById('pontoDe').addEventListener('change', () => { montarCartoes(movimentosTempos()); renderListaDetalhe(); });
-document.getElementById('pontoAte').addEventListener('change', () => { montarCartoes(movimentosTempos()); renderListaDetalhe(); });
+document.getElementById('pontoDe').addEventListener('change', calcularComparacaoPontos);
+document.getElementById('pontoAte').addEventListener('change', calcularComparacaoPontos);
 
 document.getElementById('btnExportarPdf').onclick = () => window.print();
 
