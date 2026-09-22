@@ -609,6 +609,24 @@ function acharDataPonto(eventos, pontoValor){
   return achado ? achado.ev.em : null;
 }
 
+// mostra a data de cada etapa e, embaixo, quanto tempo passou desde a
+// etapa anterior que teve data registrada — assim dá pra ver de cara o
+// intervalo entre cada uma, não só a data seca.
+function renderColunasPontos(datas){
+  let ultimaValida = null;
+  return datas.map(d => {
+    let deltaTexto = '';
+    if (d){
+      if (ultimaValida){
+        const min = diffMinutos(ultimaValida, d);
+        if (min !== null) deltaTexto = '<br><span style="color:var(--brand); font-weight:700;">+' + minutosLegivel(min) + '</span>';
+      }
+      ultimaValida = d;
+    }
+    return '<td style="white-space:nowrap; font-size:11px;">' + (d ? d.replace('T',' ') + deltaTexto : '<span class="tagMuted">—</span>') + '</td>';
+  }).join('');
+}
+
 function renderTabelaPecas(grupos, porModulo){
   const moduloPorChave = {};
   (porModulo||[]).forEach(m => { moduloPorChave[(m.clienteCodigo||'—') + '#' + m.moduloId] = m; });
@@ -621,7 +639,7 @@ function renderTabelaPecas(grupos, porModulo){
       '<td>' + g.pecaCodigo + '<br><span class="tagMuted">' + (g.pecaDescricao||'') + '</span></td>' +
       '<td>#' + (g.moduloId||'—') + ' ' + (g.moduloNome||'') + '</td>' +
       '<td>' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + '<br><span class="tagMuted">' + (g.projeto||'') + '</span></td>' +
-      datas.map(d => '<td style="white-space:nowrap; font-size:11px;">' + (d ? d.replace('T',' ') : '<span class="tagMuted">—</span>') + '</td>').join('') +
+      renderColunasPontos(datas) +
       '<td class="delta">' + (leadTime !== null ? minutosLegivel(leadTime) : '—') + '</td>' +
       '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
     '</tr>';
@@ -638,7 +656,7 @@ function renderTabelaModulos(grupos){
       '<td>#' + g.moduloId + ' ' + (g.moduloNome||'') + '</td>' +
       '<td>' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + '<br><span class="tagMuted">' + (g.projeto||'') + '</span></td>' +
       '<td>' + g.totalPecas + '</td>' +
-      datas.map(d => '<td style="white-space:nowrap; font-size:11px;">' + (d ? d.replace('T',' ') : '<span class="tagMuted">—</span>') + '</td>').join('') +
+      renderColunasPontos(datas) +
       '<td class="delta">' + (leadTime !== null ? minutosLegivel(leadTime) : '—') + '</td>' +
       '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
     '</tr>';
