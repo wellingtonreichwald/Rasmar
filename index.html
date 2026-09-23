@@ -340,6 +340,32 @@
     </div>
 
     <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Etapas / processos de produção</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">A ordem abaixo é a ordem real da linha de produção. Adicionar uma etapa nova afeta tudo que depende dela — abas de bipagem, envio de módulo, etiquetas e o dashboard.</p>
+      <div id="listaEstacoesAdmin" style="margin-bottom:14px;"></div>
+      <p style="font-weight:600; font-size:12px; margin:14px 0 8px;">Adicionar nova etapa</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:10px;">
+        <div>
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">nome da etapa</label>
+          <input id="novaEstacaoNome" type="text" placeholder="ex: Pintura" style="width:100%;" />
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">tipo</label>
+          <select id="novaEstacaoTipo" style="width:100%;">
+            <option value="peca">por peça (como CNC, Coladeira...)</option>
+            <option value="modulo">por módulo inteiro (como Pré Montagem, Montagem Final)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">posição: logo depois de</label>
+          <select id="novaEstacaoDepoisDe" style="width:100%;"></select>
+        </div>
+      </div>
+      <button id="btnAdicionarEstacao" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Adicionar etapa</button>
+      <p id="statusEstacoes" style="font-size:12px; margin:8px 0 0; display:none;"></p>
+    </div>
+
+    <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
       <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Backup</p>
       <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px;">O servidor já guarda um backup automático todos os dias às 23:59 (mantidos por 30 dias). Aqui você pode exportar um backup manual agora, ou restaurar um arquivo salvo antes.</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -695,14 +721,33 @@ function registrarMovimento(tipo, detalhe){
 
 // ---------- modelo das estações ----------
 // 3 primeiras rastreiam por peça (sequenciais); as 2 últimas são escolha manual por módulo inteiro.
-const stations = [
+let stations = [
   {id:'cnc',      label:'CNC',                  type:'peca',   field:'cnc_em'},
   {id:'coladeira',label:'Coladeira',             type:'peca',   field:'coladeira_em'},
   {id:'limpeza',  label:'Limpeza e Separação',   type:'peca',   field:'limpeza_em'},
-  {id:'pre',      label:'Pré Montagem',          type:'modulo', destinoKey:'pre'},
-  {id:'final',    label:'Montagem Final',        type:'modulo', destinoKey:'final'}
+  {id:'pre',      label:'Pré Montagem',          type:'modulo', completaField:'preCompleta',  completaEmField:'preCompletaEm'},
+  {id:'final',    label:'Montagem Final',        type:'modulo', completaField:'finalCompleta', completaEmField:'finalCompletaEm'}
 ];
-const PECA_STATIONS = stations.filter(s => s.type === 'peca');
+// funções auxiliares — sempre usar essas em vez de filtrar "stations" na
+// mão, porque agora as etapas podem mudar (o admin pode adicionar novas).
+function estacoesPeca(){ return stations.filter(s => s.type === 'peca'); }
+function estacoesModulo(){ return stations.filter(s => s.type === 'modulo'); }
+function primeiraEstacaoModulo(){ return estacoesModulo()[0]; }
+function ultimaEstacaoModulo(){ const ms = estacoesModulo(); return ms[ms.length-1]; }
+function proximaEstacaoModulo(station){
+  const ms = estacoesModulo();
+  const idx = ms.findIndex(s => s.id === station.id);
+  return (idx >= 0 && idx < ms.length - 1) ? ms[idx+1] : null;
+}
+// gera um id/nome de campo únicos a partir do rótulo digitado pelo admin —
+// usado só na hora de criar uma etapa nova.
+function slugificarEstacao(label){
+  const base = label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'etapa';
+  let candidato = base, n = 2;
+  while (stations.some(s => s.id === candidato)){ candidato = base + '_' + n; n++; }
+  return candidato;
+}
+// (estacoesPeca() agora é a função estacoesPeca(), sempre atualizada)
 
 // logo da marcenaria — uma única cópia guardada aqui, usada no cabeçalho,
 // na tela de login e nas etiquetas impressas, sem duplicar o arquivo.
@@ -753,16 +798,18 @@ setInterval(atualizarSemiCabecalho, 1000);
 const COL_ID = 0, COL_PRODUTO = 1, COL_DESCRICAO = 10, COL_CLIENTE = 18, COL_PROJETO = 19, COL_NESTING = 22;
 
 function novaPeca(codigo, descricao){
-  return {codigo, descricao, cnc_em:null, coladeira_em:null, limpeza_em:null, descartada:false, descartadaEm:null, estacaoAtual:'cnc'};
+  const peca = {codigo, descricao, descartada:false, descartadaEm:null, estacaoAtual: estacoesPeca()[0] ? estacoesPeca()[0].id : ''};
+  estacoesPeca().forEach(s => { peca[s.field] = null; });
+  return peca;
 }
 function novoModulo(id, nome, pecasRaw){
-  return {
+  const mod = {
     id, nome, aberto:false,
     pecas: pecasRaw.map(p => novaPeca(p.codigo, p.descricao)),
-    fase: 'peca',           // 'peca' (ainda passando por cnc/coladeira/limpeza) | 'pre' | 'final'
-    preCompleta:false, preCompletaEm:null,
-    finalCompleta:false, finalCompletaEm:null
+    fase: 'peca'           // 'peca' (ainda passando pelas etapas de peça) | id de uma etapa de módulo
   };
+  estacoesModulo().forEach(s => { mod[s.completaField] = false; mod[s.completaEmField] = null; });
+  return mod;
 }
 let proximoNumeroPedido = 1;
 function proximoCodigoPedido(){
@@ -800,28 +847,28 @@ function todasCompletas(pecas, field){ return pecas.length > 0 && pecas.every(p 
 
 function isConcluidoNaEstacao(mod, station){
   if (station.type === 'peca') return todasCompletas(pecasNaEstacao(mod, station.id), station.field);
-  if (station.destinoKey === 'pre') return mod.preCompleta;
-  if (station.destinoKey === 'final') return mod.finalCompleta;
-  return false;
+  return !!mod[station.completaField];
 }
 
-// se o módulo tem alguma presença (peça ou, nas etapas finais, o módulo
+// se o módulo tem alguma presença (peça ou, nas etapas de módulo, o módulo
 // inteiro) nesta estação agora — decide em quais quadros ele aparece.
 // Um módulo em fase de peça pode aparecer em MAIS DE UMA estação ao mesmo
 // tempo, quando suas peças estão espalhadas (enviadas individualmente).
 function moduloTemPresencaEm(mod, station){
   if (mod.fase !== 'peca'){
     if (station.type !== 'modulo') return false;
-    if (station.destinoKey === 'final') return mod.fase === 'final' && !mod.finalCompleta;
-    if (station.destinoKey === 'pre') return mod.fase === 'pre';
-    return false;
+    if (mod.fase !== station.id) return false;
+    const ultima = ultimaEstacaoModulo();
+    if (ultima && ultima.id === station.id) return !mod[station.completaField];
+    return true;
   }
   if (station.type !== 'peca') return false;
   return pecasNaEstacao(mod, station.id).length > 0;
 }
 
 function moduloTerminalCompleto(mod){
-  return mod.fase === 'final' && mod.finalCompleta;
+  const ultima = ultimaEstacaoModulo();
+  return !!(ultima && mod.fase === ultima.id && mod[ultima.completaField]);
 }
 
 function pedidoCompleto(pr){
@@ -843,7 +890,7 @@ function contagemPecasPedido(pr){
     }
     pecasAtivas(mod).forEach(p => {
       total++;
-      if (PECA_STATIONS.every(s => p[s.field])) feitas++;
+      if (estacoesPeca().every(s => p[s.field])) feitas++;
     });
   });
   return {total, feitas};
@@ -914,7 +961,7 @@ function renderTabs(){
   const ehModulo = estacaoAtual().type === 'modulo';
   document.getElementById('barraBipagem').style.display = 'flex';
   document.getElementById('scanInput').placeholder = ehModulo
-    ? (estacaoAtual().id === 'pre' ? 'bipe a etiqueta do módulo pra marcar concluído' : 'bipe a etiqueta do pedido pra confirmar a entrega')
+    ? ((ultimaEstacaoModulo() && estacaoAtual().id === ultimaEstacaoModulo().id) ? 'bipe a etiqueta do pedido pra confirmar a entrega' : 'bipe a etiqueta do módulo pra marcar concluído')
     : 'digite ou bipe um código, ex: ROD23157222B';
   document.getElementById('btnCadastroManual').style.display = (!ehModulo && temPermissao('cadastrarManual')) ? 'inline-block' : 'none';
   document.getElementById('avisoModulo').style.display = ehModulo ? 'block' : 'none';
@@ -992,10 +1039,11 @@ function concluirPedidoMacro(pr){
   );
   if (!ok) return;
   const agora = formatarDataHora(new Date());
+  const ultima = ultimaEstacaoModulo();
   pr.modulos.forEach(mod => {
-    mod.fase = 'final';
-    mod.finalCompleta = true;
-    mod.finalCompletaEm = agora;
+    mod.fase = ultima.id;
+    mod[ultima.completaField] = true;
+    mod[ultima.completaEmField] = agora;
   });
   registrarLog('concluiu o pedido inteiro ' + pr.codigo + ' · ' + pr.cliente + ' (' + totalModulos + ' módulos)' + (pulaBipagem && !pedidoProntoParaConcluirMacro(pr) ? ' sem bipar todas as peças' : ''));
   registrarMovimento('conclusao_pedido_macro', { clienteCodigo: pr.codigo, cliente: pr.cliente, projeto: pr.projeto, detalhe: totalModulos + ' módulos' });
@@ -1049,8 +1097,8 @@ function registrarDefeito(peca, categoria, acao, observacao){
 // afeta só esta peça — o resto do módulo continua onde estava.
 function reenviarParaRetrabalho(mod, peca, stationId, categoria, observacao){
   registrarDefeito(peca, categoria, 'retrabalho → ' + stations.find(s=>s.id===stationId).label, observacao);
-  const idx = PECA_STATIONS.findIndex(s => s.id === stationId);
-  PECA_STATIONS.forEach((s, i) => { if (i >= idx) peca[s.field] = null; });
+  const idx = estacoesPeca().findIndex(s => s.id === stationId);
+  estacoesPeca().forEach((s, i) => { if (i >= idx) peca[s.field] = null; });
   peca.estacaoAtual = stationId;
   const obsTexto = observacao ? (' — obs: ' + observacao) : '';
   registrarLog('retrabalho (' + categoria + ') na peça ' + peca.codigo + ' — voltou para ' + stations.find(s=>s.id===stationId).label + obsTexto);
@@ -1065,16 +1113,17 @@ function reenviarParaRetrabalho(mod, peca, stationId, categoria, observacao){
 // (porque as outras peças se juntaram e foram enviadas), essa recriação traz
 // o módulo de volta pra fase de peça — ele vai aparecer dividido entre o CNC
 // (essa peça) e onde as outras estavam.
+function resetarFasesModulo(mod){
+  mod.fase = 'peca';
+  estacoesModulo().forEach(s => { mod[s.completaField] = false; mod[s.completaEmField] = null; });
+}
+
 function recriarPecaNoCNC(mod, peca){
   peca.descartada = false;
   peca.descartadaEm = null;
-  PECA_STATIONS.forEach(s => { peca[s.field] = null; });
-  peca.estacaoAtual = 'cnc';
-  if (mod.fase !== 'peca'){
-    mod.fase = 'peca';
-    mod.preCompleta = false; mod.preCompletaEm = null;
-    mod.finalCompleta = false; mod.finalCompletaEm = null;
-  }
+  estacoesPeca().forEach(s => { peca[s.field] = null; });
+  peca.estacaoAtual = estacoesPeca()[0] ? estacoesPeca()[0].id : '';
+  if (mod.fase !== 'peca') resetarFasesModulo(mod);
   registrarLog('recriou a peça ' + peca.codigo + ' no CNC');
   registrarMovimento('recriacao_peca', { pecaCodigo: peca.codigo, pecaDescricao: peca.descricao, moduloId: mod.id, moduloNome: mod.nome, detalhe: 'voltou pro CNC' });
   showFeedback('peça ' + peca.codigo + ' recriada — voltou para o CNC', false);
@@ -1109,12 +1158,10 @@ function recriarModuloNoCNC(mod, categoria, observacao){
   registrarDefeitoModulo(mod, categoria, 'recriação do módulo inteiro no CNC', observacao);
   mod.pecas.forEach(p => {
     p.descartada = false; p.descartadaEm = null;
-    PECA_STATIONS.forEach(s => { p[s.field] = null; });
-    p.estacaoAtual = 'cnc';
+    estacoesPeca().forEach(s => { p[s.field] = null; });
+    p.estacaoAtual = estacoesPeca()[0] ? estacoesPeca()[0].id : '';
   });
-  mod.fase = 'peca';
-  mod.preCompleta = false; mod.preCompletaEm = null;
-  mod.finalCompleta = false; mod.finalCompletaEm = null;
+  resetarFasesModulo(mod);
   const obsTexto = observacao ? (' — obs: ' + observacao) : '';
   registrarLog('recriou o módulo #' + mod.id + ' (' + mod.nome + ') inteiro no CNC por defeito (' + categoria + ')' + obsTexto);
   registrarMovimento('defeito_modulo_recriacao', { moduloId: mod.id, moduloNome: mod.nome, detalhe: categoria + obsTexto });
@@ -1124,15 +1171,13 @@ function recriarModuloNoCNC(mod, categoria, observacao){
 
 function retrabalharModuloInteiro(mod, stationId, categoria, observacao){
   registrarDefeitoModulo(mod, categoria, 'retrabalho do módulo inteiro → ' + stations.find(s=>s.id===stationId).label, observacao);
-  const idx = PECA_STATIONS.findIndex(s => s.id === stationId);
+  const idx = estacoesPeca().findIndex(s => s.id === stationId);
   mod.pecas.forEach(p => {
     if (p.descartada) return;
-    PECA_STATIONS.forEach((s, i) => { if (i >= idx) p[s.field] = null; });
+    estacoesPeca().forEach((s, i) => { if (i >= idx) p[s.field] = null; });
     p.estacaoAtual = stationId;
   });
-  mod.fase = 'peca';
-  mod.preCompleta = false; mod.preCompletaEm = null;
-  mod.finalCompleta = false; mod.finalCompletaEm = null;
+  resetarFasesModulo(mod);
   const obsTexto = observacao ? (' — obs: ' + observacao) : '';
   registrarLog('retrabalho do módulo #' + mod.id + ' (' + mod.nome + ') inteiro (' + categoria + ') — voltou para ' + stations.find(s=>s.id===stationId).label + obsTexto);
   registrarMovimento('defeito_modulo_retrabalho', { moduloId: mod.id, moduloNome: mod.nome, detalhe: categoria + ' → ' + stations.find(s=>s.id===stationId).label + obsTexto });
@@ -1203,7 +1248,7 @@ function renderPainelDefeitoModulo(mod){
   painelRetrabalho.style.alignItems = 'center';
   const sel = document.createElement('select');
   sel.style.fontSize = '12px'; sel.style.padding = '4px 6px';
-  PECA_STATIONS.forEach(s => {
+  estacoesPeca().forEach(s => {
     const opt = document.createElement('option');
     opt.value = s.id; opt.textContent = 'Reenviar para ' + s.label;
     sel.appendChild(opt);
@@ -1290,7 +1335,7 @@ function renderPainelDefeito(mod, peca){
   painelRetrabalho.style.alignItems = 'center';
   const sel = document.createElement('select');
   sel.style.fontSize = '12px'; sel.style.padding = '4px 6px';
-  PECA_STATIONS.forEach(s => {
+  estacoesPeca().forEach(s => {
     const opt = document.createElement('option');
     opt.value = s.id; opt.textContent = 'Reenviar para ' + s.label;
     sel.appendChild(opt);
@@ -1319,8 +1364,9 @@ function renderPainelDefeito(mod, peca){
 // (independente de estarem todas na mesma estação agora) — a partir daí,
 // qualquer uma delas pode ser o clique que manda o módulo inteiro pra lá.
 function podeEnviarIndividualPara(mod, peca, destinoId){
-  if (destinoId === 'pre' || destinoId === 'final'){
-    return pecasAtivas(mod).every(p => PECA_STATIONS.every(s => p[s.field]));
+  const destino = stations.find(s => s.id === destinoId);
+  if (destino && destino.type === 'modulo'){
+    return pecasAtivas(mod).every(p => estacoesPeca().every(s => p[s.field]));
   }
   return true;
 }
@@ -1331,9 +1377,8 @@ function renderEnvioPecaIndividual(mod, peca, stationIdAtual){
   const sel = document.createElement('select');
   sel.style.fontSize = '11px'; sel.style.padding = '2px 4px';
   const opcoes = [
-    ...PECA_STATIONS.filter(s => s.id !== stationIdAtual),
-    {id:'pre', label:'Pré Montagem'},
-    {id:'final', label:'Montagem Final'}
+    ...estacoesPeca().filter(s => s.id !== stationIdAtual),
+    ...estacoesModulo()
   ].filter(s => podeEnviarIndividualPara(mod, peca, s.id));
   opcoes.forEach(s => {
     const opt = document.createElement('option');
@@ -1344,8 +1389,8 @@ function renderEnvioPecaIndividual(mod, peca, stationIdAtual){
   btn.textContent = 'Enviar';
   btn.style.fontSize = '11px'; btn.style.padding = '2px 8px'; btn.style.color = 'var(--text-accent)';
   btn.onclick = () => {
-    const destino = stations.find(s => s.id === sel.value) || opcoes.find(o=>o.id===sel.value);
-    if (sel.value === 'pre' || sel.value === 'final') mod.fase = sel.value;
+    const destino = stations.find(s => s.id === sel.value);
+    if (destino && destino.type === 'modulo') mod.fase = sel.value;
     else peca.estacaoAtual = sel.value;
     registrarLog('enviou a peça ' + peca.codigo + ' individualmente para ' + (destino ? destino.label : sel.value));
     registrarMovimento('envio_individual', { pecaCodigo: peca.codigo, pecaDescricao: peca.descricao, moduloId: mod.id, moduloNome: mod.nome, detalhe: 'para ' + (destino ? destino.label : sel.value) });
@@ -1432,7 +1477,7 @@ function moverModuloPara(mod, destinoId){
   if (s.type === 'peca'){
     pecasAtivas(mod).forEach(p => { p.estacaoAtual = s.id; });
   } else {
-    mod.fase = s.destinoKey;
+    mod.fase = s.id;
   }
   return s;
 }
@@ -1479,7 +1524,7 @@ function renderEnvioProntosProjeto(pr, station){
   label.textContent = 'projeto pronto (' + prontos.length + '):';
   frag.appendChild(label);
   destinosPrincipais(station.id).forEach(id => {
-    const s = stations.find(x => (x.type==='peca' ? x.id : x.destinoKey) === id);
+    const s = stations.find(x => x.id === id);
     const btn = document.createElement('button');
     btn.textContent = '→ ' + s.label;
     btn.style.fontSize = '12px'; btn.style.padding = '4px 10px'; btn.style.fontWeight = '500';
@@ -1505,7 +1550,7 @@ function renderPainelOutroSetorProjeto(pr, station, prontos){
   label.textContent = 'enviar os ' + prontos.length + ' módulo(s) pronto(s) para:';
   const principais = destinosPrincipais(station.id);
   const outros = stations.filter(s => {
-    const id = s.type==='peca' ? s.id : s.destinoKey;
+    const id = s.id;
     return id !== station.id && !principais.includes(id);
   });
   const sel = document.createElement('select');
@@ -1626,8 +1671,8 @@ function marcarModuloConcluidoForcado(mod, station){
   } else {
     // Pré Montagem / Montagem Final: a conclusão aqui não é por peça, é uma
     // marcação direta no módulo (mesmo campo que o checkbox normal usa).
-    const completaKey = station.destinoKey === 'pre' ? 'preCompleta' : 'finalCompleta';
-    const completaEmKey = station.destinoKey === 'pre' ? 'preCompletaEm' : 'finalCompletaEm';
+    const completaKey = station.completaField;
+    const completaEmKey = station.completaEmField;
     mod[completaKey] = true;
     mod[completaEmKey] = agora;
   }
@@ -1701,11 +1746,21 @@ function renderPainelDescartadasProjeto(pr){
 // no caso comum, sem o funcionário ter que pensar nem abrir o módulo.
 // Etapas sem sequência natural única (limpeza pode ir pra pré ou final)
 // mostram as duas como principais.
-const PROXIMO_PADRAO = {cnc:'coladeira', coladeira:'limpeza', pre:'final'};
-
+// pra qualquer estação, calcula o(s) destino(s) principais de envio a
+// partir da ORDEM de verdade das etapas (não mais um mapa fixo) — assim
+// funciona automaticamente com etapas novas que o admin adicionar.
 function destinosPrincipais(stationIdAtual){
-  const padraoId = PROXIMO_PADRAO[stationIdAtual];
-  return padraoId ? [padraoId] : ['pre', 'final'];
+  const station = stations.find(s => s.id === stationIdAtual);
+  if (!station) return [];
+  if (station.type === 'peca'){
+    const ps = estacoesPeca();
+    const idx = ps.findIndex(s => s.id === stationIdAtual);
+    if (idx >= 0 && idx < ps.length - 1) return [ps[idx+1].id];
+    // última etapa de peça -> os destinos possíveis são as etapas de módulo
+    return estacoesModulo().map(s => s.id);
+  }
+  const prox = proximaEstacaoModulo(station);
+  return prox ? [prox.id] : [];
 }
 
 // botões compactos de envio — vão no próprio cabeçalho do módulo, sempre visíveis
@@ -1714,7 +1769,7 @@ function renderBotoesEnvioCompactos(mod, stationIdAtual){
   const frag = document.createElement('span');
   frag.style.display = 'flex'; frag.style.gap = '6px';
   destinosPrincipais(stationIdAtual).forEach(id => {
-    const s = stations.find(x => (x.type==='peca' ? x.id : x.destinoKey) === id);
+    const s = stations.find(x => x.id === id);
     const btn = document.createElement('button');
     btn.textContent = '→ ' + s.label;
     btn.style.fontSize = '12px'; btn.style.padding = '4px 10px'; btn.style.fontWeight = '500';
@@ -1748,7 +1803,7 @@ function renderPainelOutroSetor(mod, stationIdAtual){
   label.textContent = 'enviar para:';
   const principais = destinosPrincipais(stationIdAtual);
   const outros = stations.filter(s => {
-    const id = s.type==='peca' ? s.id : s.destinoKey;
+    const id = s.id;
     return id !== stationIdAtual && !principais.includes(id);
   });
   const sel = document.createElement('select');
@@ -1771,8 +1826,8 @@ function renderConclusaoModulo(mod, station){
   const wrap = document.createElement('div');
   wrap.style.display = 'flex'; wrap.style.alignItems = 'center'; wrap.style.gap = '10px';
   wrap.style.padding = '10px 14px';
-  const completaKey = station.destinoKey === 'pre' ? 'preCompleta' : 'finalCompleta';
-  const completaEmKey = station.destinoKey === 'pre' ? 'preCompletaEm' : 'finalCompletaEm';
+  const completaKey = station.completaField;
+  const completaEmKey = station.completaEmField;
   const chk = document.createElement('input');
   chk.type = 'checkbox';
   chk.checked = !!mod[completaKey];
@@ -1892,7 +1947,7 @@ function renderModuloCard(pr, mod, station){
     const acoes = document.createElement('span');
     acoes.style.display = 'flex'; acoes.style.gap = '8px'; acoes.style.alignItems = 'center';
     const concluidoAqui = isConcluidoNaEstacao(mod, station);
-    if (concluidoAqui && station.destinoKey === 'pre'){
+    if (concluidoAqui && proximaEstacaoModulo(station)){
       acoes.appendChild(renderBotoesEnvioCompactos(mod, station.id));
       acoes.appendChild(renderBotaoOutroSetorToggle(mod));
     }
@@ -1903,7 +1958,7 @@ function renderModuloCard(pr, mod, station){
     header.appendChild(acoes);
     modWrap.appendChild(header);
     if (mod._defeitoAberto) modWrap.appendChild(renderPainelDefeitoModulo(mod));
-    if (concluidoAqui && station.destinoKey === 'pre' && mod._outroAberto){
+    if (concluidoAqui && proximaEstacaoModulo(station) && mod._outroAberto){
       modWrap.appendChild(renderPainelOutroSetor(mod, station.id));
     }
     if (mod.aberto){
@@ -2003,7 +2058,7 @@ function renderProjetos(){
   // chance de gerar a baixa — senão o projeto some antes desse clique.
   const comModulosAqui = lista.filter(pr =>
     pr.modulos.some(m => moduloTemPresencaEm(m, station)) ||
-    (station.destinoKey === 'final' && pedidoCompleto(pr) && !pr.baixado) ||
+    (ultimaEstacaoModulo() && ultimaEstacaoModulo().id === station.id && pedidoCompleto(pr) && !pr.baixado) ||
     // se todas as peças ativas de um módulo foram descartadas, ele não tem
     // presença em etapa nenhuma — mas o pedido ainda precisa aparecer numa
     // etapa de peça pra dar acesso ao botão "recriar no CNC" das descartadas.
@@ -2163,8 +2218,9 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
       registrarMovimento('bipagem', { pecaCodigo: peca.codigo, pecaDescricao: peca.descricao, moduloId: modDaPeca.id, moduloNome: modDaPeca.nome, clienteCodigo: prDaPeca.codigo, cliente: prDaPeca.cliente, projeto: prDaPeca.projeto, detalhe: station.label });
       const moduloCompletouAgora = todasCompletas(pecasNaEstacao(modDaPeca, station.id), station.field) && moduloUnidoEm(modDaPeca, station.id);
       let detalheConfirmacao = station.label + ' · módulo #' + modDaPeca.id + ' ' + modDaPeca.nome;
+      const ehUltimaPeca = estacoesPeca()[estacoesPeca().length-1] && estacoesPeca()[estacoesPeca().length-1].id === station.id;
       if (moduloCompletouAgora){
-        detalheConfirmacao += (station.id === 'limpeza' ? ' — módulo completo, escolha o destino' : ' — módulo completo, envie pra próxima etapa');
+        detalheConfirmacao += (ehUltimaPeca ? ' — módulo completo, escolha o destino' : ' — módulo completo, envie pra próxima etapa');
       }
       mostrarConfirmacaoBipagem(peca.codigo, peca.descricao, detalheConfirmacao, moduloCompletouAgora ? 'aviso' : 'ok');
       renderProjetos();
@@ -2180,8 +2236,9 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
   for (const pr of projetos){
     const modAlvo = pr.modulos.find(m => codigoEtiquetaModulo(pr, m) === codigo);
     if (modAlvo){
-      if (station.id !== 'pre'){
-        showFeedback('etiqueta de módulo (#' + modAlvo.id + ' ' + modAlvo.nome + ') só pode ser bipada na etapa Pré Montagem — vá pra essa aba antes de bipar', true);
+      const primeiraMod = primeiraEstacaoModulo();
+      if (!primeiraMod || station.id !== primeiraMod.id){
+        showFeedback('etiqueta de módulo (#' + modAlvo.id + ' ' + modAlvo.nome + ') só pode ser bipada na etapa ' + (primeiraMod ? primeiraMod.label : '—') + ' — vá pra essa aba antes de bipar', true);
       } else if (!moduloTemPresencaEm(modAlvo, station)){
         showFeedback('módulo #' + modAlvo.id + ' (' + modAlvo.nome + ') não está na etapa ' + station.label + ' agora', true);
       } else if (isConcluidoNaEstacao(modAlvo, station)){
@@ -2199,8 +2256,9 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
   // só faz sentido bipar isso na etapa de Montagem Final (a última).
   const prAlvo = projetos.find(pr => pr.codigo === codigo);
   if (prAlvo){
-    if (station.id !== 'final'){
-      showFeedback('etiqueta do pedido (' + prAlvo.codigo + ') só pode ser bipada na etapa Montagem Final — vá pra essa aba antes de bipar', true);
+    const ultimaMod = ultimaEstacaoModulo();
+    if (!ultimaMod || station.id !== ultimaMod.id){
+      showFeedback('etiqueta do pedido (' + prAlvo.codigo + ') só pode ser bipada na etapa ' + (ultimaMod ? ultimaMod.label : '—') + ' — vá pra essa aba antes de bipar', true);
     } else if (prAlvo.baixado){
       showFeedback('pedido ' + prAlvo.codigo + ' já foi baixado em ' + prAlvo.baixadoEm, true);
     } else if (!pedidoCompleto(prAlvo)){
@@ -2397,7 +2455,7 @@ function buscarEstadoServidor(){
 // sendo o retrato completo de cada vez.
 function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios){
   return new Promise((resolve, reject) => {
-    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, configuracaoHorario };
+    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, configuracaoHorario, estacoes: stations };
     if (confirmarZerarTudo) corpo.confirmarZerarTudo = true;
     if (confirmarZerarUsuarios) corpo.confirmarZerarUsuarios = true;
     let iframe = document.getElementById('rasmarSyncFrame');
@@ -2450,6 +2508,7 @@ async function carregarDoServidorAgora_lancaErro(){
   if (dados.proximoNumeroPedido) proximoNumeroPedido = dados.proximoNumeroPedido;
   if (Array.isArray(dados.usuarios)) usuarios = dados.usuarios;
   if (dados.configuracaoHorario && typeof dados.configuracaoHorario === 'object') configuracaoHorario = dados.configuracaoHorario;
+  if (Array.isArray(dados.estacoes) && dados.estacoes.length) stations = dados.estacoes;
   if (usuarioLogadoNome && !getUsuarioLogado()){
     usuarioLogadoNome = null;
     sessionStorage.removeItem('rasmar_usuario');
@@ -2842,8 +2901,8 @@ async function montarResumoDia(){
         if (mod.fase === 'peca'){
           mod.pecas.forEach(p => { if (!p.descartada) contagemEtapas[p.estacaoAtual] = (contagemEtapas[p.estacaoAtual]||0) + 1; });
         } else {
-          const completaKey = mod.fase === 'pre' ? 'preCompleta' : 'finalCompleta';
-          if (!mod[completaKey]) contagemEtapas[mod.fase] = (contagemEtapas[mod.fase]||0) + 1;
+          const estacaoDoMod = stations.find(s => s.id === mod.fase);
+          if (estacaoDoMod && !mod[estacaoDoMod.completaField]) contagemEtapas[mod.fase] = (contagemEtapas[mod.fase]||0) + 1;
         }
       });
     });
@@ -2916,6 +2975,7 @@ document.getElementById('btnAbrirAdmin').onclick = () => {
   document.getElementById('horarioFim').value = configuracaoHorario.fim;
   document.getElementById('horarioAlmocoInicio').value = configuracaoHorario.almocoInicio;
   document.getElementById('horarioAlmocoFim').value = configuracaoHorario.almocoFim;
+  renderListaEstacoesAdmin();
 };
 document.getElementById('btnFecharAdmin').onclick = () => { document.getElementById('telaAdmin').style.display = 'none'; };
 
@@ -2935,6 +2995,88 @@ document.getElementById('btnSalvarHorario').onclick = () => {
   agendarSincronizacaoRapida();
   status.style.display = 'block'; status.style.color = 'var(--text-success)';
   status.textContent = 'horário salvo — já vale pro dashboard de todo mundo';
+};
+
+// ---------- etapas/processos customizáveis ----------
+function algumaPecaOuModuloUsaEstacao(stationId){
+  const station = stations.find(s => s.id === stationId);
+  if (!station) return false;
+  return projetos.some(pr => pr.modulos.some(mod => {
+    if (station.type === 'peca') return mod.pecas.some(p => p[station.field] || p.estacaoAtual === stationId);
+    return mod.fase === stationId || !!mod[station.completaField];
+  }));
+}
+
+function renderListaEstacoesAdmin(){
+  const el = document.getElementById('listaEstacoesAdmin');
+  el.innerHTML = '';
+  stations.forEach((s, i) => {
+    const linha = document.createElement('div');
+    linha.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-bottom:1px solid var(--border); font-size:13px;';
+    const nome = document.createElement('span');
+    nome.innerHTML = (i+1) + '. <strong>' + s.label + '</strong> <span style="font-size:11px; color:var(--text-muted);">(' + (s.type === 'peca' ? 'por peça' : 'por módulo') + ')</span>';
+    const acoes = document.createElement('span');
+    acoes.style.cssText = 'display:flex; gap:4px;';
+    const btnCima = document.createElement('button');
+    btnCima.textContent = '↑'; btnCima.title = 'mover pra cima (só dentro do mesmo tipo)';
+    btnCima.style.cssText = 'font-size:12px; padding:3px 8px;';
+    btnCima.disabled = i === 0 || stations[i-1].type !== s.type;
+    btnCima.onclick = () => { [stations[i-1], stations[i]] = [stations[i], stations[i-1]]; salvarEstacoes('reordenou as etapas'); };
+    const btnBaixo = document.createElement('button');
+    btnBaixo.textContent = '↓'; btnBaixo.title = 'mover pra baixo (só dentro do mesmo tipo)';
+    btnBaixo.style.cssText = 'font-size:12px; padding:3px 8px;';
+    btnBaixo.disabled = i === stations.length-1 || stations[i+1].type !== s.type;
+    btnBaixo.onclick = () => { [stations[i+1], stations[i]] = [stations[i], stations[i+1]]; salvarEstacoes('reordenou as etapas'); };
+    acoes.appendChild(btnCima); acoes.appendChild(btnBaixo);
+    if (stations.length > 1 && !algumaPecaOuModuloUsaEstacao(s.id)){
+      const btnRemover = document.createElement('button');
+      btnRemover.textContent = 'remover'; btnRemover.style.cssText = 'font-size:12px; padding:3px 8px; color:var(--text-danger);';
+      btnRemover.onclick = () => {
+        if (!window.confirm('Remover a etapa "' + s.label + '"? Ela não tem peça/módulo usando ela agora, então é seguro.')) return;
+        stations = stations.filter(x => x.id !== s.id);
+        salvarEstacoes('removeu a etapa ' + s.label);
+      };
+      acoes.appendChild(btnRemover);
+    }
+    linha.appendChild(nome); linha.appendChild(acoes);
+    el.appendChild(linha);
+  });
+  const selDepois = document.getElementById('novaEstacaoDepoisDe');
+  selDepois.innerHTML = '<option value="">no início de tudo</option>' + stations.map(s => '<option value="' + s.id + '">' + s.label + '</option>').join('');
+  if (stations.length) selDepois.value = stations[stations.length-1].id;
+}
+
+function salvarEstacoes(logMsg){
+  registrarLog(logMsg);
+  agendarSincronizacaoRapida();
+  renderTabs();
+  renderListaEstacoesAdmin();
+  renderProjetos();
+  const status = document.getElementById('statusEstacoes');
+  status.style.display = 'block'; status.style.color = 'var(--text-success)';
+  status.textContent = 'etapas salvas — já valem pro app e pro dashboard de todo mundo';
+}
+
+document.getElementById('btnAdicionarEstacao').onclick = () => {
+  const nome = document.getElementById('novaEstacaoNome').value.trim();
+  const tipo = document.getElementById('novaEstacaoTipo').value;
+  const depoisDeId = document.getElementById('novaEstacaoDepoisDe').value;
+  const status = document.getElementById('statusEstacoes');
+  if (!nome){ status.style.display = 'block'; status.style.color = 'var(--text-danger)'; status.textContent = 'digite um nome pra etapa'; return; }
+  const id = slugificarEstacao(nome);
+  const nova = tipo === 'peca'
+    ? { id, label: nome, type: 'peca', field: 'campo_' + id + '_em' }
+    : { id, label: nome, type: 'modulo', completaField: 'completa_' + id, completaEmField: 'completaEm_' + id };
+  // já cria os campos correspondentes nas peças/módulos que já existem, senão
+  // fica undefined em vez de null (o que quebraria as checagens de "vazio")
+  projetos.forEach(pr => pr.modulos.forEach(mod => {
+    if (tipo === 'peca') mod.pecas.forEach(p => { p[nova.field] = null; });
+    else { mod[nova.completaField] = false; mod[nova.completaEmField] = null; }
+  }));
+  const idx = depoisDeId ? stations.findIndex(s => s.id === depoisDeId) : -1;
+  stations.splice(idx + 1, 0, nova);
+  document.getElementById('novaEstacaoNome').value = '';
+  salvarEstacoes('criou a etapa "' + nome + '" (' + (tipo === 'peca' ? 'por peça' : 'por módulo') + ')');
 };
 
 document.getElementById('btnAbrirHistorico').onclick = () => {
@@ -3586,8 +3728,9 @@ function renderListaHistorico(){
     bloco.appendChild(resumo);
     const detalhe = document.createElement('div');
     detalhe.style.padding = '8px 4px 4px 16px'; detalhe.style.fontSize = '12px'; detalhe.style.color = 'var(--text-secondary)';
+    const ultimaMod = ultimaEstacaoModulo();
     detalhe.innerHTML = pr.modulos.map(mod =>
-      '<div style="margin-bottom:4px;"><strong>#' + mod.id + ' ' + mod.nome + '</strong> — concluído em ' + (mod.finalCompletaEm || '—') +
+      '<div style="margin-bottom:4px;"><strong>#' + mod.id + ' ' + mod.nome + '</strong> — concluído em ' + ((ultimaMod && mod[ultimaMod.completaEmField]) || '—') +
       ' (' + mod.pecas.length + ' peça(s))</div>'
     ).join('');
     bloco.appendChild(detalhe);

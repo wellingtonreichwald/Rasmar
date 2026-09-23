@@ -191,20 +191,7 @@
         <div id="tempoMedioProcessoLista"></div>
       </div>
 
-      <div class="abas ocultarNaImpressao">
-        <button id="abaPecas" class="ativa">Por peça</button>
-        <button id="abaModulos">Por módulo</button>
-        <button id="abaProjetos">Por projeto/cliente</button>
-      </div>
-
-      <div class="secao" id="secaoDetalhe" style="padding:12px 14px;">
-        <input id="buscaDetalhe" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar nessa lista..." style="margin-bottom:8px;" />
-        <div id="listaDetalhe"></div>
-      </div>
-
-      <div class="secao ocultarNaImpressao" id="detalheLinhaDoTempo" style="display:none;"></div>
-
-      <details class="secao ocultarNaImpressao" style="padding:12px 14px;">
+      <details class="secao ocultarNaImpressao" style="padding:12px 14px; margin-bottom:14px;">
         <summary style="cursor:pointer; font-size:13px; font-weight:600;">🔍 Comparar dois pontos específicos (opcional)</summary>
         <div class="filtros" style="margin-top:10px; padding:0;">
           <label style="font-size:12px; color:var(--text-muted);">processo a processo</label>
@@ -228,9 +215,27 @@
         </div>
         <p id="resultadoComparacao" style="font-size:13px; margin:10px 0 0;"></p>
       </details>
+
+      <div class="abas ocultarNaImpressao">
+        <button id="abaPecas" class="ativa">Por peça</button>
+        <button id="abaModulos">Por módulo</button>
+        <button id="abaProjetos">Por projeto/cliente</button>
+      </div>
+
+      <div class="secao" id="secaoDetalhe" style="padding:12px 14px;">
+        <input id="buscaDetalhe" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar nessa lista..." style="margin-bottom:8px;" />
+        <div id="listaDetalhe"></div>
+      </div>
+
+      <div class="secao ocultarNaImpressao" id="detalheLinhaDoTempo" style="display:none;"></div>
     </div>
 
     <div id="secaoDefeitos" style="display:none;">
+      <div class="secao" id="secaoIshikawa" style="padding:16px; margin-bottom:14px;">
+        <h3 style="font-size:13px; margin:0 0 4px;">Diagrama de Ishikawa — causa e sub-causa</h3>
+        <p style="font-size:11px; color:var(--text-muted); margin:0 0 10px;">Cada "espinha" é uma categoria de causa; os ramos menores são as observações mais repetidas dentro dela (sub-causas). Quanto mais grossa/escura a espinha, mais defeitos vieram dali.</p>
+        <div id="diagramaIshikawa" style="overflow-x:auto;"></div>
+      </div>
       <div class="secao" id="secaoDetalheDefeitos" style="padding:12px 14px;">
         <input id="buscaDefeitos" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar por peça, módulo, categoria..." style="margin-bottom:8px;" />
         <div id="listaDefeitos"></div>
@@ -407,7 +412,53 @@ function diffLegivel(de, ate){
 // ---------- "pontos" genéricos (tipo de evento, ou bipagem numa etapa
 // específica) — usados nos seletores "calcular tempo de / até", pra não
 // travar só no CNC→Coladeira→Limpeza fixo. ----------
-const ORDEM_ETAPAS_PECA = ['CNC', 'Coladeira', 'Limpeza e Separação', 'Pré Montagem', 'Montagem Final'];
+// as 5 etapas padrão de fábrica — se o servidor tiver uma lista salva
+// (o admin criou etapas novas), ela substitui essa assim que carrega.
+let estacoesConfig = [
+  { id: 'cnc', label: 'CNC', type: 'peca' },
+  { id: 'coladeira', label: 'Coladeira', type: 'peca' },
+  { id: 'limpeza', label: 'Limpeza e Separação', type: 'peca' },
+  { id: 'pre', label: 'Pré Montagem', type: 'modulo' },
+  { id: 'final', label: 'Montagem Final', type: 'modulo' }
+];
+// todas as estruturas abaixo eram fixas (5 etapas hardcoded) — agora são
+// recalculadas a partir de estacoesConfig sempre que ela mudar, então uma
+// etapa nova criada pelo admin aparece automaticamente em tudo: tabela de
+// tempos, Kanban, OEE, VSM e o "tempo médio de cada processo".
+let PONTOS_FIXOS = [];
+let ORDEM_ETAPAS_PECA = [];
+let TRANSICOES_PROCESSO = [];
+let ESTACOES_KANBAN = [];
+let ESTACOES_OEE = [];
+let ORDEM_ESTACOES_KANBAN = [];
+function regenerarEstruturasEstacoes(){
+  PONTOS_FIXOS = estacoesConfig.map(s => ({
+    id: s.id, label: s.label,
+    valor: (s.type === 'peca' ? 'bipagem|' : 'conclusao_modulo|') + s.label,
+    nivel: s.type === 'peca' ? 'peca' : 'modulo'
+  }));
+  ORDEM_ETAPAS_PECA = estacoesConfig.map(s => s.label);
+  ESTACOES_KANBAN = estacoesConfig.map(s => ({ id: s.id, label: s.label, tipo: s.type }));
+  ESTACOES_OEE = estacoesConfig.filter(s => s.type === 'peca').map(s => ({ id: s.id, label: s.label }));
+  ORDEM_ESTACOES_KANBAN = estacoesConfig.map(s => s.id);
+  TRANSICOES_PROCESSO = [];
+  for (let i = 0; i < PONTOS_FIXOS.length; i++){
+    for (let j = i+1; j < PONTOS_FIXOS.length; j++){
+      const de = PONTOS_FIXOS[i], ate = PONTOS_FIXOS[j];
+      TRANSICOES_PROCESSO.push({
+        label: de.label + ' → ' + ate.label, de: de.valor, ate: ate.valor,
+        nivel: (de.nivel === 'modulo' || ate.nivel === 'modulo') ? 'modulo' : 'peca'
+      });
+    }
+  }
+}
+regenerarEstruturasEstacoes();
+// acha o nome do campo de "completa" de uma etapa de módulo pelo id dela —
+// os dados vêm do index.html, que usa esse mesmo nome de campo dinâmico.
+function nomeCampoCompletaModulo(estacaoId){
+  const s = estacoesConfig.find(x => x.id === estacaoId);
+  return s ? (s.completaField || (estacaoId === 'pre' ? 'preCompleta' : 'finalCompleta')) : null;
+}
 
 function listarPontos(movimentos){
   const vistos = new Set();
@@ -484,6 +535,11 @@ function horarioParaMinutos(hhmm){
   const partes = String(hhmm||'').split(':');
   return (Number(partes[0])||0) * 60 + (Number(partes[1])||0);
 }
+function agoraComoBrasiliaNaive(){
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).formatToParts(new Date());
+  const obter = t => partes.find(p => p.type === t).value;
+  return obter('year') + '-' + obter('month') + '-' + obter('day') + 'T' + obter('hour') + ':' + obter('minute') + ':' + obter('second');
+}
 function partesDataHora(iso){
   const m = String(iso||'').match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
   if (!m) return null;
@@ -541,21 +597,8 @@ function minutosLegivel(totalMinFloat){
 }
 
 // ---------- indicadores (cartões) ----------
-// tabela de tempo médio entre cada processo consecutivo — visão rápida de
-// Kaizen pra ver de cara qual etapa está mais lenta, sem precisar escolher
-// os pontos manualmente toda vez.
-const TRANSICOES_PROCESSO = [
-  { label: 'CNC → Coladeira', de: 'bipagem|CNC', ate: 'bipagem|Coladeira', nivel: 'peca' },
-  { label: 'CNC → Limpeza e Separação', de: 'bipagem|CNC', ate: 'bipagem|Limpeza e Separação', nivel: 'peca' },
-  { label: 'CNC → Pré Montagem', de: 'bipagem|CNC', ate: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
-  { label: 'CNC → Montagem Final', de: 'bipagem|CNC', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' },
-  { label: 'Coladeira → Limpeza e Separação', de: 'bipagem|Coladeira', ate: 'bipagem|Limpeza e Separação', nivel: 'peca' },
-  { label: 'Coladeira → Pré Montagem', de: 'bipagem|Coladeira', ate: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
-  { label: 'Coladeira → Montagem Final', de: 'bipagem|Coladeira', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' },
-  { label: 'Limpeza e Separação → Pré Montagem', de: 'bipagem|Limpeza e Separação', ate: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
-  { label: 'Limpeza e Separação → Montagem Final', de: 'bipagem|Limpeza e Separação', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' },
-  { label: 'Pré Montagem → Montagem Final', de: 'conclusao_modulo|Pré Montagem', ate: 'conclusao_modulo|Montagem Final', nivel: 'modulo' }
-];
+// (TRANSICOES_PROCESSO agora é gerada dinamicamente lá em cima, junto com
+// as outras estruturas de etapas — veja regenerarEstruturasEstacoes())
 function montarTempoMedioProcesso(){
   const movimentos = movimentosTempos();
   const porPeca = agruparPorPeca(movimentos);
@@ -691,17 +734,7 @@ function labelPontoAtual(id){
   return document.getElementById(id).selectedOptions[0]?.textContent || '';
 }
 
-// os 5 pontos fixos do processo, na ordem — usados pra montar a tabela de
-// "ponto a ponto" de uma vez só, sem precisar escolher pares manualmente.
-// Pré Montagem/Montagem Final não vêm de "bipagem" (são conclusão de
-// módulo inteiro), por isso os rótulos aqui já são só o nome da etapa.
-const PONTOS_FIXOS = [
-  { label: 'CNC', valor: 'bipagem|CNC', nivel: 'peca' },
-  { label: 'Coladeira', valor: 'bipagem|Coladeira', nivel: 'peca' },
-  { label: 'Limpeza e Separação', valor: 'bipagem|Limpeza e Separação', nivel: 'peca' },
-  { label: 'Pré Montagem', valor: 'conclusao_modulo|Pré Montagem', nivel: 'modulo' },
-  { label: 'Montagem Final', valor: 'conclusao_modulo|Montagem Final', nivel: 'modulo' }
-];
+// (PONTOS_FIXOS agora é gerado dinamicamente lá em cima — veja regenerarEstruturasEstacoes())
 function acharDataPonto(eventos, pontoValor){
   const achado = encontrarPonto(ordenarPorData(eventos), pontoValor, 0);
   return achado ? achado.ev.em : null;
@@ -860,7 +893,7 @@ function aplicarModo(){
   document.getElementById('secaoConselhos').style.display = modoAtivo === 'conselhos' ? 'block' : 'none';
   document.getElementById('cartoes').style.display = (modoAtivo === 'kanban' || modoAtivo === 'oee' || modoAtivo === 'vsm' || modoAtivo === 'setups' || modoAtivo === 'conselhos') ? 'none' : 'grid';
   if (modoAtivo === 'tempos'){ montarCartoes(movimentosTempos()); renderListaDetalhe(); montarTempoMedioProcesso(); }
-  else if (modoAtivo === 'defeitos'){ montarCartoesDefeitos(movimentosAtuais); renderListaDefeitos(); }
+  else if (modoAtivo === 'defeitos'){ montarCartoesDefeitos(movimentosAtuais); renderListaDefeitos(); montarIshikawa(movimentosAtuais); }
   else if (modoAtivo === 'kanban'){ renderKanban(); }
   else if (modoAtivo === 'oee'){ montarOee(); }
   else if (modoAtivo === 'setups'){ montarSetups(); }
@@ -875,14 +908,7 @@ document.getElementById('modoVsm').onclick = () => { modoAtivo = 'vsm'; aplicarM
 document.getElementById('modoSetups').onclick = () => { modoAtivo = 'setups'; aplicarModo(); };
 document.getElementById('modoConselhos').onclick = () => { modoAtivo = 'conselhos'; aplicarModo(); };
 
-const ESTACOES_KANBAN = [
-  {id:'cnc', label:'CNC', tipo:'peca'},
-  {id:'coladeira', label:'Coladeira', tipo:'peca'},
-  {id:'limpeza', label:'Limpeza e Separação', tipo:'peca'},
-  {id:'pre', label:'Pré Montagem', tipo:'modulo'},
-  {id:'final', label:'Montagem Final', tipo:'modulo'}
-];
-
+// (ESTACOES_KANBAN agora é gerada dinamicamente lá em cima)
 function popularFiltrosKanban(){
   const selProjeto = document.getElementById('kanbanFiltroProjeto');
   const selModulo = document.getElementById('kanbanFiltroModulo');
@@ -933,13 +959,7 @@ document.getElementById('kanbanFiltroPeca').addEventListener('change', renderKan
 document.getElementById('kanbanGranularidade').addEventListener('change', renderKanban);
 
 // ---------- OEE aproximado (Disponibilidade × Performance × Qualidade) ----------
-const ESTACOES_OEE = [
-  {id:'cnc', label:'CNC'},
-  {id:'coladeira', label:'Coladeira'},
-  {id:'limpeza', label:'Limpeza e Separação'},
-  {id:'pre', label:'Pré Montagem'},
-  {id:'final', label:'Montagem Final'}
-];
+// (ESTACOES_OEE agora é gerada dinamicamente lá em cima — só as de tipo peça)
 // ---------- VSM (mapa do fluxo de valor) de um item específico ----------
 function popularVsmCodigos(){
   const tipo = document.getElementById('vsmTipo').value;
@@ -1010,25 +1030,62 @@ function renderVsm(){
   }
   const eventos = resultado.eventos;
   let html = '<p style="font-size:13px; margin:0 0 14px;">Encontrado como <strong>' + resultado.tipo + '</strong>: ' + resultado.rotulo + ' — ' + eventos.length + ' evento(s) no período</p>';
-  html += '<div style="display:flex; align-items:stretch; overflow-x:auto; gap:0; padding-bottom:10px;">';
-  eventos.forEach((ev, i) => {
-    html += '<div style="min-width:170px; flex-shrink:0; background:var(--surface-1); border:1px solid var(--border-strong); border-radius:8px; padding:10px;">' +
-      '<div style="font-size:11px; color:var(--text-muted);">' + ev.em.replace('T',' ') + '</div>' +
-      '<div style="font-weight:700; font-size:13px; margin:4px 0;">' + nomeTipo(ev.tipo) + '</div>' +
-      '<div style="font-size:11px; color:var(--text-secondary);">' + (ev.detalhe||'') + '</div>' +
-      '<div style="font-size:10px; color:var(--text-muted); margin-top:4px;">' + (ev.usuario||'') + '</div>' +
-      '</div>';
-    if (i < eventos.length - 1){
-      const espera = diffMinutos(ev.em, eventos[i+1].em);
-      html += '<div style="display:flex; align-items:center; justify-content:center; min-width:80px; flex-shrink:0; flex-direction:column; color:var(--text-muted); font-size:11px;">' +
-        '<span style="font-size:22px; line-height:1;">→</span>' +
-        (espera !== null ? '<span>' + minutosLegivel(espera) + '</span>' : '') +
+
+  if (tipo === 'modulo'){
+    // módulo: as 5 etapas do processo, uma caixa por etapa — não um
+    // evento por peça bipada, senão um módulo com 10 peças viraria uma
+    // lista enorme e difícil de ler.
+    const datas = PONTOS_FIXOS.map(p => acharDataPonto(eventos, p.valor));
+    const validas = datas.filter(d => d);
+    const leadTime = validas.length >= 2 ? diffMinutos(validas[0], validas[validas.length-1]) : null;
+    const leadTimeUtil = validas.length >= 2 ? calcularMinutosUteis(validas[0], validas[validas.length-1]) : null;
+    html += renderFluxoVisual(datas);
+    html += leadTime !== null ? '<p style="font-size:13px; margin-top:14px;"><strong>Lead time total:</strong> ' + minutosLegivel(leadTime) + ' corrido' + (leadTimeUtil !== null ? ' <span class="tagMuted">(' + minutosLegivel(leadTimeUtil) + ' útil, dentro do expediente)</span>' : '') + '</p>' : '';
+  } else if (tipo === 'pedido'){
+    // pedido: só início (primeiro evento de qualquer peça/módulo dele) e
+    // situação atual ou entrega — não todos os registros de peça por peça.
+    const primeiro = eventos[0];
+    const entrega = eventos.find(ev => ev.tipo === 'baixa_pedido');
+    const ultimo = entrega || eventos[eventos.length-1];
+    const total = eventos.length > 1 ? diffMinutos(primeiro.em, ultimo.em) : null;
+    const totalUtil = eventos.length > 1 ? calcularMinutosUteis(primeiro.em, ultimo.em) : null;
+    html += '<div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">' +
+      '<div style="min-width:180px; background:var(--surface-1); border:1px solid var(--border-strong); border-radius:8px; padding:14px;">' +
+        '<div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em;">Início</div>' +
+        '<div style="font-weight:700; font-size:14px; margin:4px 0;">' + primeiro.em.replace('T',' ') + '</div>' +
+        '<div style="font-size:11px; color:var(--text-secondary);">' + nomeTipo(primeiro.tipo) + (primeiro.detalhe ? ' — ' + primeiro.detalhe : '') + '</div>' +
+      '</div>' +
+      '<span style="font-size:26px; color:var(--border-strong);">→</span>' +
+      '<div style="min-width:180px; background:var(--surface-1); border:1px solid var(--border-strong); border-radius:8px; padding:14px;">' +
+        '<div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em;">' + (entrega ? 'Entrega' : 'Situação atual (ainda em andamento)') + '</div>' +
+        '<div style="font-weight:700; font-size:14px; margin:4px 0;">' + ultimo.em.replace('T',' ') + '</div>' +
+        '<div style="font-size:11px; color:var(--text-secondary);">' + nomeTipo(ultimo.tipo) + (ultimo.detalhe ? ' — ' + ultimo.detalhe : '') + '</div>' +
+      '</div>' +
+    '</div>';
+    html += total !== null ? '<p style="font-size:13px; margin-top:16px;"><strong>Lead time total:</strong> ' + minutosLegivel(total) + ' corrido' + (totalUtil !== null ? ' <span class="tagMuted">(' + minutosLegivel(totalUtil) + ' útil, dentro do expediente)</span>' : '') + '</p>' : '';
+  } else {
+    // peça: uma peça só tem poucos eventos (uma bipagem por etapa), então
+    // listar cada um continua claro e vale a pena mostrar todos.
+    html += '<div style="display:flex; align-items:stretch; overflow-x:auto; gap:0; padding-bottom:10px;">';
+    eventos.forEach((ev, i) => {
+      html += '<div style="min-width:170px; flex-shrink:0; background:var(--surface-1); border:1px solid var(--border-strong); border-radius:8px; padding:10px;">' +
+        '<div style="font-size:11px; color:var(--text-muted);">' + ev.em.replace('T',' ') + '</div>' +
+        '<div style="font-weight:700; font-size:13px; margin:4px 0;">' + nomeTipo(ev.tipo) + '</div>' +
+        '<div style="font-size:11px; color:var(--text-secondary);">' + (ev.detalhe||'') + '</div>' +
+        '<div style="font-size:10px; color:var(--text-muted); margin-top:4px;">' + (ev.usuario||'') + '</div>' +
         '</div>';
-    }
-  });
-  html += '</div>';
-  const total = eventos.length > 1 ? diffMinutos(eventos[0].em, eventos[eventos.length-1].em) : null;
-  html += '<p style="font-size:13px; margin-top:14px;"><strong>Lead time total (do primeiro ao último evento):</strong> ' + (total !== null ? minutosLegivel(total) : '—') + '</p>';
+      if (i < eventos.length - 1){
+        const espera = diffMinutos(ev.em, eventos[i+1].em);
+        html += '<div style="display:flex; align-items:center; justify-content:center; min-width:80px; flex-shrink:0; flex-direction:column; color:var(--text-muted); font-size:11px;">' +
+          '<span style="font-size:22px; line-height:1;">→</span>' +
+          (espera !== null ? '<span>' + minutosLegivel(espera) + '</span>' : '') +
+          '</div>';
+      }
+    });
+    html += '</div>';
+    const total = eventos.length > 1 ? diffMinutos(eventos[0].em, eventos[eventos.length-1].em) : null;
+    html += '<p style="font-size:13px; margin-top:14px;"><strong>Lead time total (do primeiro ao último evento):</strong> ' + (total !== null ? minutosLegivel(total) : '—') + '</p>';
+  }
   el.innerHTML = html;
 }
 document.getElementById('vsmCodigo').addEventListener('change', renderVsm);
@@ -1084,8 +1141,7 @@ function renderConselhos(){
       if (mod.fase === 'peca'){
         mod.pecas.forEach(p => { if (!p.descartada) contagemAtual[p.estacaoAtual] = (contagemAtual[p.estacaoAtual]||0) + 1; });
       } else {
-        const ck = mod.fase === 'pre' ? 'preCompleta' : 'finalCompleta';
-        if (!mod[ck]) contagemAtual[mod.fase] = (contagemAtual[mod.fase]||0) + 1;
+        if (!mod[nomeCampoCompletaModulo(mod.fase)]) contagemAtual[mod.fase] = (contagemAtual[mod.fase]||0) + 1;
       }
     });
   });
@@ -1114,6 +1170,72 @@ function renderConselhos(){
       texto: 'Não tem peça nem módulo ativo em nenhuma etapa neste momento, mas existem pedidos ainda não entregues — bom momento pra planejar a próxima leva ou adiantar cadastros.' });
   }
 
+  // 6) o que priorizar agora — cruza a previsão de entrega (já calculada
+  // pelo histórico) com os pedidos em andamento, pra apontar tanto o mais
+  // perto de terminar (ganho rápido) quanto o mais parado esperando.
+  const medias = calcularMediasTransicoesConsecutivas();
+  const pedidosComPrevisao = projetosAtuais.filter(pr => !pr.baixado).map(pr => {
+    const minutosRestantes = estimarMinutosRestantes(pr, medias);
+    const todosEventosPedido = movimentosAtuais.filter(m => m.clienteCodigo === pr.codigo);
+    const primeiroEvento = ordenarPorData(todosEventosPedido)[0];
+    const minutosParado = primeiroEvento ? diffMinutos(primeiroEvento.em, agoraComoBrasiliaNaive()) : null;
+    return { pr, minutosRestantes, minutosParado };
+  });
+  const comPrevisao = pedidosComPrevisao.filter(x => x.minutosRestantes !== null).sort((a,b) => a.minutosRestantes - b.minutosRestantes);
+  const maisAntigo = pedidosComPrevisao.filter(x => x.minutosParado !== null).sort((a,b) => b.minutosParado - a.minutosParado)[0];
+  if (comPrevisao.length || maisAntigo){
+    const opcoes = [];
+    if (comPrevisao.length){
+      const c = comPrevisao[0];
+      opcoes.push('Ganho rápido: <strong>' + c.pr.codigo + ' (' + (c.pr.cliente||'') + ')</strong> está a só ~' + minutosLegivel(c.minutosRestantes) + ' de terminar — finalize esse primeiro pra liberar espaço e fechar mais um pedido hoje.');
+    }
+    if (maisAntigo && (!comPrevisao.length || maisAntigo.pr.codigo !== comPrevisao[0].pr.codigo)){
+      opcoes.push('Evitar atraso: <strong>' + maisAntigo.pr.codigo + ' (' + (maisAntigo.pr.cliente||'') + ')</strong> é o que está esperando há mais tempo (desde ' + minutosLegivel(maisAntigo.minutosParado) + ' atrás) — se ninguém tocar nele logo, o atraso só cresce.');
+    }
+    if (opcoes.length){
+      conselhos.push({ icone:'🎯', cor:'var(--brand)', titulo: 'O que priorizar agora', texto: '', opcoes });
+    }
+  }
+
+  // 7) capacidade livre — etapas sem nada esperando agora, onde dá pra
+  // adiantar trabalho sem gerar fila.
+  const etapasLivres = Object.entries(contagemAtual).filter(([,n]) => n === 0).map(([id]) => (ESTACOES_KANBAN.find(e=>e.id===id)||{}).label || id);
+  if (etapasLivres.length && totalEmAndamento > 0){
+    conselhos.push({ icone:'🟢', cor:'var(--text-success)', titulo: 'Capacidade livre agora',
+      texto: (etapasLivres.length > 1 ? 'As etapas ' : 'A etapa ') + etapasLivres.join(', ') + (etapasLivres.length > 1 ? ' estão' : ' está') + ' sem nada esperando — se tiver material ou peças prontas pra avançar, é o momento de empurrar mais trabalho pra lá, sem gerar fila.' });
+  }
+
+  // 8) quanto ainda dá pra produzir hoje, no ritmo atual, usando o horário
+  // de trabalho configurado e o ciclo médio já observado no CNC.
+  const bipagensCNC = movimentosTempos().filter(m => m.tipo === 'bipagem' && m.detalhe === 'CNC').sort((a,b) => a.em.localeCompare(b.em));
+  if (bipagensCNC.length >= 2){
+    const intervalos = [];
+    for (let i = 1; i < bipagensCNC.length; i++){
+      const min = diffMinutos(bipagensCNC[i-1].em, bipagensCNC[i].em);
+      if (min !== null && min > 0 && min < 240) intervalos.push(min); // ignora buracos gigantes (fim de expediente etc.)
+    }
+    if (intervalos.length){
+      const cicloMedio = intervalos.reduce((a,b)=>a+b,0) / intervalos.length;
+      // usa o horário de Brasília de verdade, não o fuso do navegador de
+      // quem está vendo a tela — senão a conta sai errada dependendo de
+      // onde a pessoa está.
+      const agoraBrasilia = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+      const [horaAgora, minAgora] = agoraBrasilia.split(':').map(Number);
+      const minutosAgora = horaAgora*60 + minAgora;
+      const fimExpediente = horarioParaMinutos(configuracaoHorario.fim);
+      const almocoInicio = horarioParaMinutos(configuracaoHorario.almocoInicio);
+      const almocoFim = horarioParaMinutos(configuracaoHorario.almocoFim);
+      let minutosRestantesHoje = 0;
+      if (minutosAgora < almocoInicio) minutosRestantesHoje += almocoInicio - Math.max(minutosAgora, 0);
+      if (minutosAgora < fimExpediente) minutosRestantesHoje += fimExpediente - Math.max(minutosAgora, almocoFim);
+      if (minutosRestantesHoje > 0){
+        const pecasEstimadas = Math.floor(minutosRestantesHoje / cicloMedio);
+        conselhos.push({ icone:'📈', cor:'var(--brand)', titulo: 'Estimativa pra hoje',
+          texto: 'No ritmo médio observado no CNC (~' + minutosLegivel(cicloMedio) + ' por peça) e com ' + minutosLegivel(minutosRestantesHoje) + ' restantes de expediente hoje, dá pra estimar em torno de <strong>' + pecasEstimadas + ' peça(s)</strong> ainda entrando no CNC até o fim do dia, se o ritmo se mantiver.' });
+      }
+    }
+  }
+
   if (!conselhos.length){
     conselhos.push({ icone:'✅', cor:'var(--text-success)', titulo: 'Nada crítico chamando atenção agora',
       texto: 'Com os dados desse período, não achei nenhum ponto fora do esperado. Continue registrando bipagens, paradas e defeitos — quanto mais dado, mais precisos ficam os conselhos.' });
@@ -1122,7 +1244,8 @@ function renderConselhos(){
   document.getElementById('listaConselhos').innerHTML = conselhos.map(c =>
     '<div class="secao" style="padding:14px 16px; margin-bottom:10px; border-left:4px solid ' + c.cor + ';">' +
       '<p style="font-weight:700; font-size:14px; margin:0 0 6px;">' + c.icone + ' ' + c.titulo + '</p>' +
-      '<p style="font-size:13px; color:var(--text-secondary); margin:0;">' + c.texto + '</p>' +
+      (c.texto ? '<p style="font-size:13px; color:var(--text-secondary); margin:0;">' + c.texto + '</p>' : '') +
+      (c.opcoes ? '<ul style="font-size:13px; color:var(--text-secondary); margin:6px 0 0; padding-left:18px; line-height:1.6;">' + c.opcoes.map(o => '<li>' + o + '</li>').join('') + '</ul>' : '') +
     '</div>'
   ).join('');
 }
@@ -1286,7 +1409,7 @@ document.getElementById('btnSalvarTempoDisponivel').onclick = () => {
 };
 
 // ---------- previsão de entrega (automática, sem precisar clicar em nada) ----------
-const ORDEM_ESTACOES_KANBAN = ['cnc','coladeira','limpeza','pre','final'];
+// (ORDEM_ESTACOES_KANBAN agora é gerada dinamicamente lá em cima)
 function calcularMediasTransicoesConsecutivas(){
   const movs = movimentosTempos();
   const porPeca = agruparPorPeca(movs);
@@ -1310,8 +1433,7 @@ function estimarMinutosRestantes(pr, medias){
         if (idx >= 0 && (indiceMinimo === null || idx < indiceMinimo)) indiceMinimo = idx;
       });
     } else {
-      const completaKey = mod.fase === 'pre' ? 'preCompleta' : 'finalCompleta';
-      if (!mod[completaKey]){
+      if (!mod[nomeCampoCompletaModulo(mod.fase)]){
         const idx = ORDEM_ESTACOES_KANBAN.indexOf(mod.fase);
         if (idx >= 0 && (indiceMinimo === null || idx < indiceMinimo)) indiceMinimo = idx;
       }
@@ -1379,8 +1501,7 @@ function renderKanban(){
           });
         } else {
           if (filtroPeca && !mod.pecas.some(p => p.codigo === filtroPeca)) return;
-          const completaKey = estacao.id === 'pre' ? 'preCompleta' : 'finalCompleta';
-          if (mod.fase === estacao.id && !mod[completaKey]){
+          if (mod.fase === estacao.id && !mod[nomeCampoCompletaModulo(estacao.id)]){
             brutos.push({ prCodigo: pr.codigo, prCliente: pr.cliente, modId: mod.id, modNome: mod.nome, pecaCodigo: null, pecaDesc: null, totalPecasModulo: mod.pecas.length });
           }
         }
@@ -1434,6 +1555,66 @@ function renderKanban(){
 
 const TIPOS_DEFEITO = ['defeito_descarte', 'defeito_retrabalho', 'defeito_modulo_recriacao', 'defeito_modulo_retrabalho'];
 const TIPOS_PARADA_SETUP = ['parada_inicio', 'parada_fim', 'setup_inicio', 'setup_fim'];
+
+function extrairSubCausa(detalhe){
+  const m = String(detalhe||'').match(/— obs: (.+)$/);
+  return m ? m[1].trim() : null;
+}
+function montarIshikawa(movimentos){
+  const CATEGORIAS = ['Método', 'Máquina', 'Mão de obra', 'Material', 'Medição', 'Meio ambiente'];
+  const eventosDefeito = movimentos.filter(m => TIPOS_DEFEITO.includes(m.tipo));
+  const porCategoria = {};
+  CATEGORIAS.forEach(c => { porCategoria[c] = { total: 0, subcausas: {} }; });
+  eventosDefeito.forEach(m => {
+    const cat = (m.detalhe||'').split(' — ')[0].split(' → ')[0].trim();
+    if (!porCategoria[cat]) return; // categoria fora da lista padrão do Ishikawa, não entra no diagrama
+    porCategoria[cat].total++;
+    const sub = extrairSubCausa(m.detalhe);
+    if (sub){
+      const chave = sub.toLowerCase();
+      if (!porCategoria[cat].subcausas[chave]) porCategoria[cat].subcausas[chave] = { texto: sub, n: 0 };
+      porCategoria[cat].subcausas[chave].n++;
+    }
+  });
+  const maxTotal = Math.max(1, ...CATEGORIAS.map(c => porCategoria[c].total));
+
+  const larguraSvg = 940, alturaSvg = 480, spineY = 240, spineXIni = 90, spineXFim = 760;
+  const escapar = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let svg = '<svg viewBox="0 0 ' + larguraSvg + ' ' + alturaSvg + '" width="100%" style="min-width:820px; font-family:var(--font-body);">';
+  svg += '<line x1="' + spineXIni + '" y1="' + spineY + '" x2="' + spineXFim + '" y2="' + spineY + '" stroke="#333" stroke-width="3" />';
+  svg += '<polygon points="' + spineXFim + ',' + (spineY-11) + ' ' + (spineXFim+24) + ',' + spineY + ' ' + spineXFim + ',' + (spineY+11) + '" fill="#333" />';
+  svg += '<rect x="' + (spineXFim+22) + '" y="' + (spineY-32) + '" width="140" height="64" rx="10" fill="#12695a" />';
+  svg += '<text x="' + (spineXFim+92) + '" y="' + (spineY+6) + '" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">Defeitos</text>';
+
+  const xSlots = [220, 400, 580];
+  CATEGORIAS.forEach((cat, i) => {
+    const cima = i % 2 === 0;
+    const xSlot = xSlots[Math.floor(i/2)];
+    const yPontaOsso = cima ? 60 : 420;
+    const xSpinePonto = xSlot + 90;
+    const dado = porCategoria[cat];
+    const grossura = 2 + Math.round((dado.total / maxTotal) * 7);
+    const cor = dado.total > 0 ? '#c0392b' : '#aaa';
+
+    svg += '<line x1="' + xSlot + '" y1="' + yPontaOsso + '" x2="' + xSpinePonto + '" y2="' + spineY + '" stroke="' + cor + '" stroke-width="' + grossura + '" stroke-linecap="round" />';
+    svg += '<text x="' + xSlot + '" y="' + (cima ? yPontaOsso - 30 : yPontaOsso + 42) + '" text-anchor="middle" font-size="13" font-weight="700" fill="#222">' + escapar(cat) + '</text>';
+    svg += '<text x="' + xSlot + '" y="' + (cima ? yPontaOsso - 14 : yPontaOsso + 58) + '" text-anchor="middle" font-size="11" fill="' + cor + '" font-weight="600">' + dado.total + ' evento(s)</text>';
+
+    const subs = Object.values(dado.subcausas).sort((a,b) => b.n - a.n).slice(0, 3);
+    subs.forEach((s, si) => {
+      const t = (si+1) / (subs.length+1);
+      const bx = xSlot + (xSpinePonto - xSlot) * t;
+      const by = yPontaOsso + (spineY - yPontaOsso) * t;
+      const perp = cima ? -1 : 1;
+      const tx = bx + 20, ty = by + perp*16;
+      svg += '<line x1="' + bx + '" y1="' + by + '" x2="' + tx + '" y2="' + ty + '" stroke="#999" stroke-width="1.5" />';
+      const textoCurto = s.texto.length > 24 ? s.texto.slice(0,22) + '…' : s.texto;
+      svg += '<text x="' + (tx+4) + '" y="' + (ty + perp*3) + '" font-size="10.5" fill="#555">' + escapar(textoCurto) + ' (' + s.n + 'x)</text>';
+    });
+  });
+  svg += '</svg>';
+  document.getElementById('diagramaIshikawa').innerHTML = svg;
+}
 
 function montarCartoesDefeitos(movimentos){
   const porPeca = agruparPorPeca(movimentos);
@@ -1505,6 +1686,7 @@ async function carregar(){
     movimentosAtuais = Array.isArray(dados.movimentos) ? dados.movimentos : [];
     projetosAtuais = Array.isArray(estado.projetos) ? estado.projetos : [];
     if (estado.configuracaoHorario && typeof estado.configuracaoHorario === 'object') configuracaoHorario = estado.configuracaoHorario;
+    if (Array.isArray(estado.estacoes) && estado.estacoes.length){ estacoesConfig = estado.estacoes; regenerarEstruturasEstacoes(); }
     popularSelectsDePontos(movimentosTempos());
     aplicarModo();
     document.getElementById('statusCarregando').textContent = movimentosAtuais.length + ' evento(s) carregado(s)';
