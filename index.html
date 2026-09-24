@@ -3180,7 +3180,14 @@ function renderBotaoCicloModulo(mod, station){
   const ativo = cicloAtivoModulo(mod);
   if (ativo){
     el.style.color = 'var(--text-accent)';
-    el.textContent = '⏱ ciclo em andamento — ' + tempoDecorridoLegivel(ativo.inicio) + ' (fecha ao concluir)';
+    const texto = document.createElement('span');
+    texto.textContent = '⏱ ciclo em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
+    const btnFim = document.createElement('button');
+    btnFim.textContent = 'Encerrar';
+    btnFim.title = 'Encerra o cronômetro agora, sem precisar concluir o módulo — útil se você iniciou por engano ou precisa parar antes de terminar.';
+    btnFim.style.cssText = 'font-size:11px; padding:3px 9px; color:var(--text-danger);';
+    btnFim.onclick = (e) => { e.stopPropagation(); fecharCicloModuloSeAtivo(mod, station); renderProjetos(); };
+    el.appendChild(texto); el.appendChild(btnFim);
   } else {
     const btn = document.createElement('button');
     btn.textContent = '▶ Iniciar tempo de ciclo';
@@ -3220,7 +3227,14 @@ function renderBotaoCicloProjeto(pr){
   const ativo = cicloAtivoProjeto(pr);
   if (ativo){
     el.style.color = 'var(--text-accent)';
-    el.textContent = '⏱ ciclo em andamento — ' + tempoDecorridoLegivel(ativo.inicio) + ' (fecha na entrega)';
+    const texto = document.createElement('span');
+    texto.textContent = '⏱ ciclo em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
+    const btnFim = document.createElement('button');
+    btnFim.textContent = 'Encerrar';
+    btnFim.title = 'Encerra o cronômetro agora, sem precisar dar baixa no pedido — útil se você iniciou por engano ou precisa parar antes de terminar.';
+    btnFim.style.cssText = 'font-size:11px; padding:3px 9px; color:var(--text-danger);';
+    btnFim.onclick = (e) => { e.stopPropagation(); fecharCicloProjetoSeAtivo(pr); renderProjetos(); };
+    el.appendChild(texto); el.appendChild(btnFim);
   } else {
     const btn = document.createElement('button');
     btn.textContent = '▶ Iniciar tempo de ciclo do pedido';

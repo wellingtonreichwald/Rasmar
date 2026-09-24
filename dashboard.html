@@ -217,6 +217,13 @@
     <div class="cartoes" id="cartoes"></div>
 
     <div id="secaoTempos">
+      <div class="abas ocultarNaImpressao" style="margin-bottom:14px;">
+        <button id="subModoLeadTime" class="ativa">⏱ Lead Time</button>
+        <button id="subModoCiclo">🔄 Tempo de Ciclo</button>
+      </div>
+      <p id="explicacaoSubModo" style="font-size:12px; color:var(--text-muted); margin:0 0 12px;">Lead time é o tempo total, do início ao fim de cada etapa — inclui fila de espera. Tempo de ciclo é só o tempo realmente trabalhado (cronômetro que alguém iniciou e encerrou). A diferença entre os dois é quanto tempo ficou parado esperando.</p>
+
+      <div id="secaoLeadTime">
       <div class="secao" id="secaoTempoMedioProcesso" style="padding:12px 14px; margin-bottom:14px;">
         <h3 style="font-size:13px; margin:0 0 10px;">Tempo médio de cada processo (Kaizen)</h3>
         <div id="tempoMedioProcessoLista"></div>
@@ -259,6 +266,20 @@
       </div>
 
       <div class="secao ocultarNaImpressao" id="detalheLinhaDoTempo" style="display:none;"></div>
+      </div>
+
+      <div id="secaoTempoCiclo" style="display:none;">
+        <div class="cartoes" id="cartoesCiclo"></div>
+        <div class="abas ocultarNaImpressao">
+          <button id="abaCicloModulos" class="ativa">Por módulo</button>
+          <button id="abaCicloPedidos">Por pedido</button>
+          <button id="abaCicloPecas">Por peça (lotes de corte)</button>
+        </div>
+        <div class="secao" id="secaoDetalheCiclo" style="padding:12px 14px;">
+          <input id="buscaCiclo" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar nessa lista..." style="margin-bottom:8px;" />
+          <div id="listaCiclo"></div>
+        </div>
+      </div>
     </div>
 
     <div id="secaoDefeitos" style="display:none;">
@@ -630,6 +651,107 @@ function minutosLegivel(totalMinFloat){
 // ---------- indicadores (cartões) ----------
 // (TRANSICOES_PROCESSO agora é gerada dinamicamente lá em cima, junto com
 // as outras estruturas de etapas — veja regenerarEstruturasEstacoes())
+// ---------- tempo de ciclo (separado do lead time — só o tempo realmente
+// trabalhado, medido pelos cronômetros de iniciar/encerrar) ----------
+function paresCiclo(){
+  const eventos = movimentosAtuais.filter(m => (m.tipo === 'ciclo_inicio' || m.tipo === 'ciclo_fim') && String(m.pecaCodigo||'').startsWith('cic_'));
+  const pares = {};
+  eventos.forEach(m => {
+    if (!pares[m.pecaCodigo]) pares[m.pecaCodigo] = { cicloId: m.pecaCodigo, moduloId: m.moduloId, moduloNome: m.moduloNome, clienteCodigo: m.clienteCodigo, cliente: m.cliente, projeto: m.projeto, detalhe: m.detalhe, usuario: m.usuario };
+    if (m.tipo === 'ciclo_inicio'){ pares[m.pecaCodigo].inicio = m.em; }
+    else { pares[m.pecaCodigo].fim = m.em; pares[m.pecaCodigo].usuario = m.usuario || pares[m.pecaCodigo].usuario; }
+  });
+  return Object.values(pares).map(p => ({ ...p, minutos: (p.inicio && p.fim) ? diffMinutos(p.inicio, p.fim) : null }));
+}
+function ciclosPorModulo(){ return paresCiclo().filter(p => p.moduloId && p.minutos !== null); }
+function ciclosPorPedido(){ return paresCiclo().filter(p => !p.moduloId && p.detalhe === 'pedido inteiro' && p.minutos !== null); }
+function ciclosPorPeca(){
+  return movimentosAtuais.filter(m => m.tipo === 'ciclo_peca_estimado').map(m => {
+    const partes = (m.detalhe||'').split('|');
+    return {
+      pecaCodigo: m.pecaCodigo, pecaDescricao: m.pecaDescricao, moduloId: m.moduloId, moduloNome: m.moduloNome,
+      clienteCodigo: m.clienteCodigo, cliente: m.cliente, projeto: m.projeto, usuario: m.usuario, em: m.em,
+      estacao: partes[0] || '', minutos: parseFloat(partes[1]) || null, areaM2: parseFloat(partes[2]) || null
+    };
+  });
+}
+function montarCartoesCiclo(){
+  const cModulos = ciclosPorModulo();
+  const cPedidos = ciclosPorPedido();
+  const cPecas = ciclosPorPeca();
+  const cartoes = [
+    { numero: mediaLegivel(cModulos.map(c=>c.minutos)), rotulo: 'tempo de ciclo médio — módulo (' + cModulos.length + ' registro(s))', destaque:true },
+    { numero: mediaLegivel(cPedidos.map(c=>c.minutos)), rotulo: 'tempo de ciclo médio — pedido inteiro (' + cPedidos.length + ' registro(s))' },
+    { numero: mediaLegivel(cPecas.map(c=>c.minutos)), rotulo: 'tempo de ciclo médio — peça, por lote de corte (' + cPecas.length + ' registro(s))' }
+  ];
+  const pecasComArea = cPecas.filter(c => c.areaM2 > 0 && c.minutos > 0);
+  if (pecasComArea.length){
+    const areaTotal = pecasComArea.reduce((a,c)=>a+c.areaM2,0);
+    const minutosTotal = pecasComArea.reduce((a,c)=>a+c.minutos,0);
+    const m2PorHora = minutosTotal > 0 ? (areaTotal / (minutosTotal/60)) : 0;
+    cartoes.push({ numero: m2PorHora.toFixed(2) + ' m²/h', rotulo: 'ritmo médio de corte (rateado por área)' });
+  }
+  document.getElementById('cartoesCiclo').innerHTML = cartoes.map(c =>
+    '<div class="cartao"><div class="numero" style="font-size:' + (c.destaque?'22px':'20px') + '; color:' + (c.destaque ? 'var(--brand)' : 'var(--text-primary)') + ';">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
+  ).join('');
+}
+let abaCicloAtiva = 'modulos';
+function renderListaCiclo(){
+  const termo = document.getElementById('buscaCiclo').value.trim().toLowerCase();
+  const el = document.getElementById('listaCiclo');
+  if (abaCicloAtiva === 'modulos'){
+    let dados = ciclosPorModulo();
+    if (termo) dados = dados.filter(d => ((d.moduloNome||'')+(d.cliente||'')+(d.projeto||'')).toLowerCase().includes(termo));
+    dados.sort((a,b) => (b.fim||'').localeCompare(a.fim||''));
+    if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
+    const linhas = dados.map(d => '<tr><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + (d.clienteCodigo||'') + ' ' + (d.cliente||'') + '</td><td>' + d.detalhe + '</td><td style="white-space:nowrap;">' + (d.fim||'').replace('T',' ') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td>' + (d.usuario||'') + '</td></tr>').join('');
+    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>módulo</th><th>cliente</th><th>etapa</th><th>quando terminou</th><th>tempo de ciclo</th><th>usuário</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+  } else if (abaCicloAtiva === 'pedidos'){
+    let dados = ciclosPorPedido();
+    if (termo) dados = dados.filter(d => ((d.clienteCodigo||'')+(d.cliente||'')+(d.projeto||'')).toLowerCase().includes(termo));
+    dados.sort((a,b) => (b.fim||'').localeCompare(a.fim||''));
+    if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
+    const linhas = dados.map(d => '<tr><td>' + d.clienteCodigo + '</td><td>' + (d.cliente||'') + ' · ' + (d.projeto||'') + '</td><td style="white-space:nowrap;">' + (d.fim||'').replace('T',' ') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td>' + (d.usuario||'') + '</td></tr>').join('');
+    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>pedido</th><th>cliente/projeto</th><th>quando terminou</th><th>tempo de ciclo</th><th>usuário</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+  } else {
+    let dados = ciclosPorPeca();
+    if (termo) dados = dados.filter(d => ((d.pecaCodigo||'')+(d.moduloNome||'')+(d.cliente||'')).toLowerCase().includes(termo));
+    dados.sort((a,b) => (b.em||'').localeCompare(a.em||''));
+    if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
+    const linhas = dados.map(d => '<tr><td>' + d.pecaCodigo + (d.pecaDescricao ? ' — ' + d.pecaDescricao : '') + '</td><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + d.estacao + '</td><td>' + (d.areaM2 ? d.areaM2.toFixed(4) + ' m²' : '—') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td style="white-space:nowrap;">' + (d.em||'').replace('T',' ') + '</td></tr>').join('');
+    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>peça</th><th>módulo</th><th>etapa</th><th>área</th><th>tempo rateado</th><th>quando</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+  }
+}
+document.getElementById('buscaCiclo').addEventListener('input', renderListaCiclo);
+['abaCicloModulos','abaCicloPedidos','abaCicloPecas'].forEach((id, i) => {
+  document.getElementById(id).onclick = () => {
+    abaCicloAtiva = ['modulos','pedidos','pecas'][i];
+    ['abaCicloModulos','abaCicloPedidos','abaCicloPecas'].forEach(x => document.getElementById(x).classList.remove('ativa'));
+    document.getElementById(id).classList.add('ativa');
+    document.getElementById('buscaCiclo').value = '';
+    renderListaCiclo();
+  };
+});
+let subModoTempos = 'leadtime';
+document.getElementById('subModoLeadTime').onclick = () => {
+  subModoTempos = 'leadtime';
+  document.getElementById('subModoLeadTime').classList.add('ativa');
+  document.getElementById('subModoCiclo').classList.remove('ativa');
+  document.getElementById('secaoLeadTime').style.display = 'block';
+  document.getElementById('secaoTempoCiclo').style.display = 'none';
+  document.getElementById('cartoes').style.display = 'grid';
+};
+document.getElementById('subModoCiclo').onclick = () => {
+  subModoTempos = 'ciclo';
+  document.getElementById('subModoCiclo').classList.add('ativa');
+  document.getElementById('subModoLeadTime').classList.remove('ativa');
+  document.getElementById('secaoLeadTime').style.display = 'none';
+  document.getElementById('secaoTempoCiclo').style.display = 'block';
+  document.getElementById('cartoes').style.display = 'none';
+  montarCartoesCiclo();
+  renderListaCiclo();
+};
+
 function montarTempoMedioProcesso(){
   const movimentos = movimentosTempos();
   const porPeca = agruparPorPeca(movimentos);
@@ -923,7 +1045,10 @@ function aplicarModo(){
   document.getElementById('secaoSetups').style.display = modoAtivo === 'setups' ? 'block' : 'none';
   document.getElementById('secaoConselhos').style.display = modoAtivo === 'conselhos' ? 'block' : 'none';
   document.getElementById('cartoes').style.display = (modoAtivo === 'kanban' || modoAtivo === 'oee' || modoAtivo === 'vsm' || modoAtivo === 'setups' || modoAtivo === 'conselhos') ? 'none' : 'grid';
-  if (modoAtivo === 'tempos'){ montarCartoes(movimentosTempos()); renderListaDetalhe(); montarTempoMedioProcesso(); }
+  if (modoAtivo === 'tempos'){
+    if (subModoTempos === 'ciclo'){ montarCartoesCiclo(); renderListaCiclo(); document.getElementById('cartoes').style.display = 'none'; }
+    else { montarCartoes(movimentosTempos()); renderListaDetalhe(); montarTempoMedioProcesso(); document.getElementById('cartoes').style.display = 'grid'; }
+  }
   else if (modoAtivo === 'defeitos'){ montarCartoesDefeitos(movimentosAtuais); renderListaDefeitos(); montarIshikawa(movimentosAtuais); }
   else if (modoAtivo === 'kanban'){ renderKanban(); }
   else if (modoAtivo === 'oee'){ montarOee(); }
