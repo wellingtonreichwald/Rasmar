@@ -42,7 +42,10 @@ function estadoPadrao(){
       { id: 'limpeza', label: 'Limpeza e Separação', type: 'peca', field: 'limpeza_em' },
       { id: 'pre', label: 'Pré Montagem', type: 'modulo', completaField: 'preCompleta', completaEmField: 'preCompletaEm' },
       { id: 'final', label: 'Montagem Final', type: 'modulo', completaField: 'finalCompleta', completaEmField: 'finalCompletaEm' }
-    ]
+    ],
+    // nome da marcenaria que está usando esse app — aparece no rodapé e
+    // no cabeçalho; editável pelo admin na Administração.
+    nomeMarcenaria: ''
   };
 }
 
@@ -197,13 +200,13 @@ function tratarGet(url, res){
     resultado = {
       projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido,
       usuarios: db.usuarios, logs: db.logs, movimentos: db.movimentos,
-      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes,
+      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, nomeMarcenaria: db.nomeMarcenaria,
       geradoEm: timestampLocal()
     };
   } else if (acao === 'listarBackups'){
     resultado = { backups: listarArquivosBackup() };
   } else {
-    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes };
+    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria };
   }
   resultado.chamadasHoje = chamadasHoje;
   const json = JSON.stringify(resultado);
@@ -271,6 +274,7 @@ function aplicarPost(corpo){
       movimentos: Array.isArray(b.movimentos) ? b.movimentos : [],
       configuracaoHorario: (b.configuracaoHorario && typeof b.configuracaoHorario === 'object') ? b.configuracaoHorario : estadoPadrao().configuracaoHorario,
       estacoes: (Array.isArray(b.estacoes) && b.estacoes.length) ? b.estacoes : estadoPadrao().estacoes,
+      nomeMarcenaria: (typeof b.nomeMarcenaria === 'string') ? b.nomeMarcenaria : '',
       salvoEm: timestampLocal()
     };
     salvarDB(novoDb);
@@ -296,6 +300,9 @@ function aplicarPost(corpo){
   }
   if (Array.isArray(corpo.estacoes) && corpo.estacoes.length){
     db.estacoes = corpo.estacoes;
+  }
+  if (typeof corpo.nomeMarcenaria === 'string'){
+    db.nomeMarcenaria = corpo.nomeMarcenaria;
   }
 
   db.logs = anexarNovosPorId(db.logs, corpo.logsNovos);

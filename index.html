@@ -237,7 +237,7 @@
 
 <div id="telaLogin" style="position:fixed; inset:0; background:radial-gradient(circle at 20% 10%, rgba(28,138,109,0.16), transparent 45%), radial-gradient(circle at 100% 100%, rgba(207,168,99,0.14), transparent 40%), var(--bg); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;">
   <div style="background:var(--surface-2); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:36px 32px; max-width:360px; width:100%; border-top:4px solid var(--brand2);">
-    <svg width="44" height="44" viewBox="0 0 120 120" style="display:block; margin:0 auto 10px;">
+    <svg width="64" height="64" viewBox="0 0 120 120" style="display:block; margin:0 auto 12px;">
       <defs>
         <linearGradient id="gIconeLogin" x1="0" y1="120" x2="120" y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#0a4a3e"/>
@@ -254,7 +254,8 @@
       <path d="M 85 32 L 89.5 37 L 98 26" stroke="#0a4a3e" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
     </svg>
     <h1 style="margin:0 0 4px; text-align:center;">Rasmar<span class="versao">V2</span></h1>
-    <p class="sub" style="margin-bottom:12px; text-align:center;">rastreio na marcenaria</p>
+    <p class="sub" style="margin-bottom:2px; text-align:center;">rastreio na marcenaria</p>
+    <p class="nomeMarcenariaExibicao" style="display:none; font-size:12px; color:var(--text-secondary); text-align:center; margin:0 0 12px;"></p>
 
     <p id="loginStatusSync" style="text-align:center; font-size:12px; color:var(--text-muted); margin:0 0 16px;">
       <span id="loginStatusIcone">🔄</span> <span id="loginStatusTexto">conectando...</span>
@@ -328,6 +329,19 @@
           <button id="btnCancelarEdicaoUsuario" style="padding:8px 16px; display:none;">Cancelar edição</button>
         </div>
       </div>
+    </div>
+
+    <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Identidade</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Nome da marcenaria que está usando esse Rasmar — aparece no rodapé e no cabeçalho.</p>
+      <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+        <div style="flex:1; min-width:200px;">
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">nome da marcenaria</label>
+          <input id="nomeMarcenariaInput" type="text" placeholder="ex: Marcenaria Cireneu Liebl" style="width:100%;" />
+        </div>
+        <button id="btnSalvarNomeMarcenaria" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Salvar</button>
+      </div>
+      <p id="statusNomeMarcenaria" style="font-size:12px; margin:8px 0 0; display:none;"></p>
     </div>
 
     <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
@@ -495,7 +509,7 @@
   <div class="cabecalho">
     <div class="linhaTopo">
     <div class="marca">
-    <svg width="40" height="40" viewBox="0 0 120 120" style="flex-shrink:0;">
+    <svg width="56" height="56" viewBox="0 0 120 120" style="flex-shrink:0;">
       <defs>
         <linearGradient id="gIconeHeader" x1="0" y1="120" x2="120" y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#0a4a3e"/>
@@ -513,7 +527,7 @@
     </svg>
     <div>
       <h1 style="margin:0;">Rasmar<span class="versao">V2</span></h1>
-      <p class="sub">rastreio na marcenaria</p>
+      <p class="sub">rastreio na marcenaria<span class="nomeMarcenariaInline" style="display:none;"></span></p>
     </div>
     </div>
     <div style="display:flex; align-items:center; gap:10px;">
@@ -659,7 +673,7 @@
   <div id="projetos"></div>
 
   <footer style="margin-top:40px; padding:20px 0 10px; text-align:center; border-top:1px solid var(--border);">
-    <p style="font-size:11px; color:var(--text-muted); margin:0;">Rasmar <span style="font-weight:600;">V2</span> — Sistema de rastreamento de peças · Marcenaria Cireneu Liebl</p>
+    <p style="font-size:11px; color:var(--text-muted); margin:0;">Rasmar <span style="font-weight:600;">V2</span> — Sistema de rastreamento de peças<span class="nomeMarcenariaInline" style="display:none;"></span></p>
     <p style="font-size:11px; color:var(--text-muted); margin:4px 0 0;">Todos os direitos reservados © 2026 · Criador: Wellington Reichwald — SENAI · Brasil + Produtivo</p>
   </footer>
 
@@ -674,6 +688,7 @@ let usuarios = [];
 // sugestão de horário comercial — editável na Administração; usada só pra
 // calcular "tempo útil" no dashboard, nunca trava bipagem fora dela.
 let configuracaoHorario = { inicio: '08:00', fim: '17:00', almocoInicio: '12:00', almocoFim: '13:00' };
+let nomeMarcenaria = '';
 let usuarioLogadoNome = sessionStorage.getItem('rasmar_usuario') || null;
 // logs e movimentos só crescem (nunca são sobrescritos) — cada sincronização
 // manda só as entradas NOVAS desde a última vez, que a planilha vai
@@ -2509,7 +2524,7 @@ function buscarEstadoServidor(){
 // sendo o retrato completo de cada vez.
 function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios){
   return new Promise((resolve, reject) => {
-    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, configuracaoHorario, estacoes: stations };
+    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, configuracaoHorario, estacoes: stations, nomeMarcenaria };
     if (confirmarZerarTudo) corpo.confirmarZerarTudo = true;
     if (confirmarZerarUsuarios) corpo.confirmarZerarUsuarios = true;
     let iframe = document.getElementById('rasmarSyncFrame');
@@ -2563,6 +2578,8 @@ async function carregarDoServidorAgora_lancaErro(){
   if (Array.isArray(dados.usuarios)) usuarios = dados.usuarios;
   if (dados.configuracaoHorario && typeof dados.configuracaoHorario === 'object') configuracaoHorario = dados.configuracaoHorario;
   if (Array.isArray(dados.estacoes) && dados.estacoes.length) stations = dados.estacoes;
+  if (typeof dados.nomeMarcenaria === 'string') nomeMarcenaria = dados.nomeMarcenaria;
+  aplicarNomeMarcenariaNaTela();
   if (usuarioLogadoNome && !getUsuarioLogado()){
     usuarioLogadoNome = null;
     sessionStorage.removeItem('rasmar_usuario');
@@ -3029,6 +3046,7 @@ document.getElementById('btnAbrirAdmin').onclick = () => {
   document.getElementById('horarioFim').value = configuracaoHorario.fim;
   document.getElementById('horarioAlmocoInicio').value = configuracaoHorario.almocoInicio;
   document.getElementById('horarioAlmocoFim').value = configuracaoHorario.almocoFim;
+  document.getElementById('nomeMarcenariaInput').value = nomeMarcenaria;
   renderListaEstacoesAdmin();
 };
 document.getElementById('btnFecharAdmin').onclick = () => { document.getElementById('telaAdmin').style.display = 'none'; };
@@ -3051,6 +3069,27 @@ document.getElementById('btnSalvarHorario').onclick = () => {
   status.textContent = 'horário salvo — já vale pro dashboard de todo mundo';
 };
 
+document.getElementById('btnSalvarNomeMarcenaria').onclick = () => {
+  const nome = document.getElementById('nomeMarcenariaInput').value.trim();
+  nomeMarcenaria = nome;
+  registrarLog('atualizou o nome da marcenaria para "' + nome + '"');
+  agendarSincronizacaoRapida();
+  aplicarNomeMarcenariaNaTela();
+  const status = document.getElementById('statusNomeMarcenaria');
+  status.style.display = 'block'; status.style.color = 'var(--text-success)';
+  status.textContent = 'nome salvo — já vale pro app e pro dashboard de todo mundo';
+};
+function aplicarNomeMarcenariaNaTela(){
+  document.querySelectorAll('.nomeMarcenariaExibicao').forEach(el => {
+    el.textContent = nomeMarcenaria || '';
+    el.style.display = nomeMarcenaria ? '' : 'none';
+  });
+  document.querySelectorAll('.nomeMarcenariaInline').forEach(el => {
+    el.textContent = nomeMarcenaria ? (' · ' + nomeMarcenaria) : '';
+    el.style.display = nomeMarcenaria ? '' : 'none';
+  });
+}
+
 // ---------- etapas/processos customizáveis ----------
 function algumaPecaOuModuloUsaEstacao(stationId){
   const station = stations.find(s => s.id === stationId);
@@ -3066,11 +3105,27 @@ function renderListaEstacoesAdmin(){
   el.innerHTML = '';
   stations.forEach((s, i) => {
     const linha = document.createElement('div');
-    linha.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-bottom:1px solid var(--border); font-size:13px;';
+    linha.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-bottom:1px solid var(--border); font-size:13px; flex-wrap:wrap;';
     const nome = document.createElement('span');
     nome.innerHTML = (i+1) + '. <strong>' + s.label + '</strong> <span style="font-size:11px; color:var(--text-muted);">(' + (s.type === 'peca' ? 'por peça' : 'por módulo') + ')</span>';
     const acoes = document.createElement('span');
-    acoes.style.cssText = 'display:flex; gap:4px;';
+    acoes.style.cssText = 'display:flex; align-items:center; gap:4px; flex-wrap:wrap;';
+    if (s.type === 'peca'){
+      const selMetrica = document.createElement('select');
+      selMetrica.style.cssText = 'font-size:11px; padding:3px 4px;';
+      selMetrica.title = 'métrica usada pra ratear o tempo do lote entre as peças';
+      [['area','área (m²)'], ['bordaLinear','metro linear de borda'], ['','nenhuma (divide igual)']].forEach(([valor, texto]) => {
+        const opt = document.createElement('option');
+        opt.value = valor; opt.textContent = texto;
+        if ((s.metricaRateio || '') === valor) opt.selected = true;
+        selMetrica.appendChild(opt);
+      });
+      selMetrica.onchange = () => {
+        s.metricaRateio = selMetrica.value || null;
+        salvarEstacoes('mudou a métrica de rateio de ' + s.label + ' para ' + (selMetrica.value || 'nenhuma'));
+      };
+      acoes.appendChild(selMetrica);
+    }
     const btnCima = document.createElement('button');
     btnCima.textContent = '↑'; btnCima.title = 'mover pra cima (só dentro do mesmo tipo)';
     btnCima.style.cssText = 'font-size:12px; padding:3px 8px;';

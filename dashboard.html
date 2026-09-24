@@ -130,7 +130,7 @@
 
 <div id="telaLoginDash" style="display:none;">
   <div class="caixaLogin">
-    <svg width="44" height="44" viewBox="0 0 120 120" style="display:block; margin:0 auto 10px;">
+    <svg width="64" height="64" viewBox="0 0 120 120" style="display:block; margin:0 auto 12px;">
       <defs>
         <linearGradient id="gIconeLoginDash" x1="0" y1="120" x2="120" y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#0a4a3e"/>
@@ -160,7 +160,7 @@
   <div class="wrap">
     <div class="cabecalho">
       <div class="marcaDash">
-        <svg width="40" height="40" viewBox="0 0 120 120" style="flex-shrink:0;">
+        <svg width="56" height="56" viewBox="0 0 120 120" style="flex-shrink:0;">
           <defs>
             <linearGradient id="gIconeHeaderDash" x1="0" y1="120" x2="120" y2="0" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stop-color="#0a4a3e"/>
@@ -270,6 +270,7 @@
 
       <div id="secaoTempoCiclo" style="display:none;">
         <div class="cartoes" id="cartoesCiclo"></div>
+        <div id="listaApontamentosFaltando"></div>
         <div class="abas ocultarNaImpressao">
           <button id="abaCicloModulos" class="ativa">Por módulo</button>
           <button id="abaCicloPedidos">Por pedido</button>
@@ -467,9 +468,9 @@ function diffLegivel(de, ate){
 // as 5 etapas padrão de fábrica — se o servidor tiver uma lista salva
 // (o admin criou etapas novas), ela substitui essa assim que carrega.
 let estacoesConfig = [
-  { id: 'cnc', label: 'CNC', type: 'peca' },
-  { id: 'coladeira', label: 'Coladeira', type: 'peca' },
-  { id: 'limpeza', label: 'Limpeza e Separação', type: 'peca' },
+  { id: 'cnc', label: 'CNC', type: 'peca', metricaRateio: 'area' },
+  { id: 'coladeira', label: 'Coladeira', type: 'peca', metricaRateio: 'bordaLinear' },
+  { id: 'limpeza', label: 'Limpeza e Separação', type: 'peca', metricaRateio: 'area' },
   { id: 'pre', label: 'Pré Montagem', type: 'modulo' },
   { id: 'final', label: 'Montagem Final', type: 'modulo' }
 ];
@@ -658,8 +659,8 @@ function paresCiclo(){
   const pares = {};
   eventos.forEach(m => {
     if (!pares[m.pecaCodigo]) pares[m.pecaCodigo] = { cicloId: m.pecaCodigo, moduloId: m.moduloId, moduloNome: m.moduloNome, clienteCodigo: m.clienteCodigo, cliente: m.cliente, projeto: m.projeto, detalhe: m.detalhe, usuario: m.usuario };
-    if (m.tipo === 'ciclo_inicio'){ pares[m.pecaCodigo].inicio = m.em; }
-    else { pares[m.pecaCodigo].fim = m.em; pares[m.pecaCodigo].usuario = m.usuario || pares[m.pecaCodigo].usuario; }
+    if (m.tipo === 'ciclo_inicio'){ pares[m.pecaCodigo].inicio = m.em; pares[m.pecaCodigo].idInicio = m.id; }
+    else { pares[m.pecaCodigo].fim = m.em; pares[m.pecaCodigo].idFim = m.id; pares[m.pecaCodigo].usuario = m.usuario || pares[m.pecaCodigo].usuario; }
   });
   return Object.values(pares).map(p => ({ ...p, minutos: (p.inicio && p.fim) ? diffMinutos(p.inicio, p.fim) : null }));
 }
@@ -669,12 +670,49 @@ function ciclosPorPeca(){
   return movimentosAtuais.filter(m => m.tipo === 'ciclo_peca_estimado').map(m => {
     const partes = (m.detalhe||'').split('|');
     return {
-      pecaCodigo: m.pecaCodigo, pecaDescricao: m.pecaDescricao, moduloId: m.moduloId, moduloNome: m.moduloNome,
+      id: m.id, pecaCodigo: m.pecaCodigo, pecaDescricao: m.pecaDescricao, moduloId: m.moduloId, moduloNome: m.moduloNome,
       clienteCodigo: m.clienteCodigo, cliente: m.cliente, projeto: m.projeto, usuario: m.usuario, em: m.em,
       estacao: partes[0] || '', minutos: parseFloat(partes[1]) || null, medida: parseFloat(partes[2]) || null,
       metricaRateio: partes[3] || ''
     };
   });
+}
+// ---------- apontamentos incompletos (poka-yoke: avisa em vez de travar) ----------
+// pra cada módulo concluído, pedido baixado, ou peça bipada numa etapa que
+// tem métrica de rateio configurada, confere se existe um tempo de ciclo
+// correspondente. Se não tiver, é sinal de que alguém esqueceu de apertar
+// "Iniciar" — não impede nada, só avisa.
+function apontamentosIncompletos(){
+  const faltando = [];
+  const JANELA_MS = 10 * 60000; // até 10min de diferença ainda conta como "o mesmo evento"
+
+  const conclusoesModulo = movimentosAtuais.filter(m => m.tipo === 'conclusao_modulo' || m.tipo === 'conclusao_forcada_modulo');
+  const ciclosModulo = ciclosPorModulo();
+  conclusoesModulo.forEach(c => {
+    const temCiclo = ciclosModulo.some(cm => cm.moduloId === c.moduloId && cm.detalhe === c.detalhe && cm.fim && Math.abs(new Date(cm.fim) - new Date(c.em)) < JANELA_MS);
+    if (!temCiclo){
+      faltando.push({ tipo: 'módulo', label: '#' + c.moduloId + ' ' + (c.moduloNome||''), contexto: (c.clienteCodigo||'') + ' ' + (c.cliente||'') + ' — ' + c.detalhe, quando: c.em });
+    }
+  });
+
+  const baixas = movimentosAtuais.filter(m => m.tipo === 'baixa_pedido');
+  const ciclosPedido = ciclosPorPedido();
+  baixas.forEach(b => {
+    const temCiclo = ciclosPedido.some(cp => cp.clienteCodigo === b.clienteCodigo && cp.fim && Math.abs(new Date(cp.fim) - new Date(b.em)) < JANELA_MS);
+    if (!temCiclo){
+      faltando.push({ tipo: 'pedido', label: b.clienteCodigo, contexto: (b.cliente||'') + ' · ' + (b.projeto||''), quando: b.em });
+    }
+  });
+
+  const idsComRateio = new Set(ciclosPorPeca().map(c => c.pecaCodigo + '|' + c.estacao));
+  const estacoesComMetrica = new Set(estacoesConfig.filter(s => s.metricaRateio).map(s => s.label));
+  movimentosAtuais.filter(m => m.tipo === 'bipagem' && estacoesComMetrica.has(m.detalhe)).forEach(m => {
+    if (!idsComRateio.has(m.pecaCodigo + '|' + m.detalhe)){
+      faltando.push({ tipo: 'peça', label: m.pecaCodigo + (m.pecaDescricao ? ' — ' + m.pecaDescricao : ''), contexto: '#' + m.moduloId + ' ' + (m.moduloNome||'') + ' — ' + m.detalhe, quando: m.em });
+    }
+  });
+
+  return faltando.sort((a,b) => (b.quando||'').localeCompare(a.quando||''));
 }
 function montarCartoesCiclo(){
   const cModulos = ciclosPorModulo();
@@ -697,28 +735,52 @@ function montarCartoesCiclo(){
     const porHora = minutosTotal > 0 ? (medidaTotal / (minutosTotal/60)) : 0;
     cartoes.push({ numero: porHora.toFixed(2) + ' ' + cfg.sigla, rotulo: cfg.rotuloBase + ' (rateado por ' + doGrupo.length + ' peça(s))' });
   });
+
+  const faltando = apontamentosIncompletos();
+  const totalEventosQueDeveriamTerCiclo = movimentosAtuais.filter(m => m.tipo === 'conclusao_modulo' || m.tipo === 'conclusao_forcada_modulo' || m.tipo === 'baixa_pedido').length
+    + movimentosAtuais.filter(m => m.tipo === 'bipagem' && new Set(estacoesConfig.filter(s=>s.metricaRateio).map(s=>s.label)).has(m.detalhe)).length;
+  if (totalEventosQueDeveriamTerCiclo > 0){
+    const aderencia = Math.round(100 * (1 - faltando.length / totalEventosQueDeveriamTerCiclo));
+    cartoes.push({ numero: aderencia + '%', rotulo: 'apontamentos completos (' + faltando.length + ' faltando de ' + totalEventosQueDeveriamTerCiclo + ')', cor: aderencia >= 90 ? 'var(--text-success)' : (aderencia >= 70 ? 'var(--text-warning, #b8860b)' : 'var(--text-danger)') });
+  }
+
   document.getElementById('cartoesCiclo').innerHTML = cartoes.map(c =>
-    '<div class="cartao"><div class="numero" style="font-size:' + (c.destaque?'22px':'20px') + '; color:' + (c.destaque ? 'var(--brand)' : 'var(--text-primary)') + ';">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
+    '<div class="cartao"><div class="numero" style="font-size:' + (c.destaque?'22px':'20px') + '; color:' + (c.cor || (c.destaque ? 'var(--brand)' : 'var(--text-primary)')) + ';">' + c.numero + '</div><div class="rotulo">' + c.rotulo + '</div></div>'
   ).join('');
+
+  const elFaltando = document.getElementById('listaApontamentosFaltando');
+  if (!faltando.length){
+    elFaltando.innerHTML = '';
+  } else {
+    const linhas = faltando.slice(0, 50).map(f =>
+      '<tr><td>' + f.tipo + '</td><td>' + f.label + '</td><td>' + f.contexto + '</td><td style="white-space:nowrap;">' + (f.quando||'').replace('T',' ') + '</td></tr>'
+    ).join('');
+    elFaltando.innerHTML = '<details class="secao" style="padding:12px 14px; margin-top:14px; border-left:4px solid var(--text-danger);" open>' +
+      '<summary style="cursor:pointer; font-weight:700; font-size:13px;">⚠ ' + faltando.length + ' item(ns) concluído(s) sem tempo de ciclo registrado</summary>' +
+      '<p style="font-size:12px; color:var(--text-muted); margin:8px 0;">Alguém esqueceu de apertar "Iniciar" antes de concluir esses — o trabalho foi feito normalmente, só não temos o tempo de ciclo dele.</p>' +
+      '<div class="tabela-wrap"><table><thead><tr><th>tipo</th><th>item</th><th>contexto</th><th>quando</th></tr></thead><tbody>' + linhas + '</tbody></table></div>' +
+    '</details>';
+  }
 }
 let abaCicloAtiva = 'modulos';
 function renderListaCiclo(){
   const termo = document.getElementById('buscaCiclo').value.trim().toLowerCase();
   const el = document.getElementById('listaCiclo');
+  const ehAdmin = usuarioEhAdmin();
   if (abaCicloAtiva === 'modulos'){
     let dados = ciclosPorModulo();
     if (termo) dados = dados.filter(d => ((d.moduloNome||'')+(d.cliente||'')+(d.projeto||'')).toLowerCase().includes(termo));
     dados.sort((a,b) => (b.fim||'').localeCompare(a.fim||''));
     if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
-    const linhas = dados.map(d => '<tr><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + (d.clienteCodigo||'') + ' ' + (d.cliente||'') + '</td><td>' + d.detalhe + '</td><td style="white-space:nowrap;">' + (d.fim||'').replace('T',' ') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td>' + (d.usuario||'') + '</td></tr>').join('');
-    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>módulo</th><th>cliente</th><th>etapa</th><th>quando terminou</th><th>tempo de ciclo</th><th>usuário</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+    const linhas = dados.map(d => '<tr><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + (d.clienteCodigo||'') + ' ' + (d.cliente||'') + '</td><td>' + d.detalhe + '</td><td style="white-space:nowrap;">' + (d.fim||'').replace('T',' ') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td>' + (d.usuario||'') + '</td>' + (ehAdmin ? '<td>' + botaoExcluirRegistro([d.idInicio, d.idFim]) + '</td>' : '') + '</tr>').join('');
+    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>módulo</th><th>cliente</th><th>etapa</th><th>quando terminou</th><th>tempo de ciclo</th><th>usuário</th>' + (ehAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' + linhas + '</tbody></table></div>';
   } else if (abaCicloAtiva === 'pedidos'){
     let dados = ciclosPorPedido();
     if (termo) dados = dados.filter(d => ((d.clienteCodigo||'')+(d.cliente||'')+(d.projeto||'')).toLowerCase().includes(termo));
     dados.sort((a,b) => (b.fim||'').localeCompare(a.fim||''));
     if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
-    const linhas = dados.map(d => '<tr><td>' + d.clienteCodigo + '</td><td>' + (d.cliente||'') + ' · ' + (d.projeto||'') + '</td><td style="white-space:nowrap;">' + (d.fim||'').replace('T',' ') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td>' + (d.usuario||'') + '</td></tr>').join('');
-    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>pedido</th><th>cliente/projeto</th><th>quando terminou</th><th>tempo de ciclo</th><th>usuário</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+    const linhas = dados.map(d => '<tr><td>' + d.clienteCodigo + '</td><td>' + (d.cliente||'') + ' · ' + (d.projeto||'') + '</td><td style="white-space:nowrap;">' + (d.fim||'').replace('T',' ') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td>' + (d.usuario||'') + '</td>' + (ehAdmin ? '<td>' + botaoExcluirRegistro([d.idInicio, d.idFim]) + '</td>' : '') + '</tr>').join('');
+    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>pedido</th><th>cliente/projeto</th><th>quando terminou</th><th>tempo de ciclo</th><th>usuário</th>' + (ehAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' + linhas + '</tbody></table></div>';
   } else {
     let dados = ciclosPorPeca();
     if (termo) dados = dados.filter(d => ((d.pecaCodigo||'')+(d.moduloNome||'')+(d.cliente||'')).toLowerCase().includes(termo));
@@ -726,10 +788,11 @@ function renderListaCiclo(){
     if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
     const linhas = dados.map(d => {
       const unidade = d.metricaRateio === 'bordaLinear' ? ' m' : (d.metricaRateio === 'area' ? ' m²' : '');
-      return '<tr><td>' + d.pecaCodigo + (d.pecaDescricao ? ' — ' + d.pecaDescricao : '') + '</td><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + d.estacao + '</td><td>' + (d.medida ? d.medida.toFixed(4) + unidade : '—') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td style="white-space:nowrap;">' + (d.em||'').replace('T',' ') + '</td></tr>';
+      return '<tr><td>' + d.pecaCodigo + (d.pecaDescricao ? ' — ' + d.pecaDescricao : '') + '</td><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + d.estacao + '</td><td>' + (d.medida ? d.medida.toFixed(4) + unidade : '—') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td style="white-space:nowrap;">' + (d.em||'').replace('T',' ') + '</td>' + (ehAdmin ? '<td>' + botaoExcluirRegistro([d.id]) + '</td>' : '') + '</tr>';
     }).join('');
-    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>peça</th><th>módulo</th><th>etapa</th><th>medida (área ou borda)</th><th>tempo rateado</th><th>quando</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>peça</th><th>módulo</th><th>etapa</th><th>medida (área ou borda)</th><th>tempo rateado</th><th>quando</th>' + (ehAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' + linhas + '</tbody></table></div>';
   }
+  ativarExclusaoNaLista('listaCiclo', () => { renderListaCiclo(); montarCartoesCiclo(); });
 }
 document.getElementById('buscaCiclo').addEventListener('input', renderListaCiclo);
 ['abaCicloModulos','abaCicloPedidos','abaCicloPecas'].forEach((id, i) => {
@@ -822,21 +885,29 @@ function ordenarPorData(eventos){
 
 function renderLinhaDoTempo(eventos){
   const ordenados = ordenarPorData(eventos);
+  const ehAdmin = usuarioEhAdmin();
   const linhas = ordenados.map((ev, i) => {
     const delta = i === 0 ? '—' : diffLegivel(ordenados[i-1].em, ev.em);
     return '<tr><td>' + ev.em.replace('T',' ') + '</td><td>' + nomeTipo(ev.tipo) + '</td><td>' + (ev.detalhe||'') +
-      '</td><td>' + (ev.usuario||'') + '</td><td class="delta">' + (i===0 ? '—' : '+' + delta) + '</td></tr>';
+      '</td><td>' + (ev.usuario||'') + '</td><td class="delta">' + (i===0 ? '—' : '+' + delta) + '</td>' +
+      (ehAdmin ? '<td>' + botaoExcluirRegistro([ev.id]) + '</td>' : '') + '</tr>';
   }).join('');
-  return '<table><thead><tr><th>data/hora</th><th>evento</th><th>detalhe</th><th>usuário</th><th>desde o evento anterior</th></tr></thead><tbody>' + linhas + '</tbody></table>';
+  return '<table><thead><tr><th>data/hora</th><th>evento</th><th>detalhe</th><th>usuário</th><th>desde o evento anterior</th>' + (ehAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' + linhas + '</tbody></table>';
 }
 
+let chaveLinhaDoTempoAberta = null;
 function mostrarLinhaDoTempo(chave){
+  chaveLinhaDoTempoAberta = chave;
   const grupo = (ultimosGrupos || []).find(g => g.chave === chave);
   const el = document.getElementById('detalheLinhaDoTempo');
   if (!grupo){ el.style.display = 'none'; return; }
   el.style.display = 'block';
   el.innerHTML = '<h2 style="font-size:14px; margin:0 0 10px;">Linha do tempo completa</h2>' + renderLinhaDoTempo(grupo.eventos);
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  ativarExclusaoNaLista('detalheLinhaDoTempo', () => {
+    aplicarModo(); // reconstrói os grupos (ultimosGrupos) a partir dos movimentos já sem o excluído
+    if (chaveLinhaDoTempoAberta) mostrarLinhaDoTempo(chaveLinhaDoTempoAberta);
+  });
 }
 
 // ---------- agrupamento por peça / módulo / projeto ----------
@@ -1183,6 +1254,112 @@ function buscarVsmExato(tipo, valor){
   if (!eventos.length) return null;
   return { tipo: 'pedido', rotulo: (eventos[0].clienteCodigo||'') + ' · ' + (eventos[0].cliente||''), eventos: ordenarPorData(eventos) };
 }
+// ---------- VSM completo, estilo Lean: caixa de processo (C/T, S/T, OEE),
+// triângulo de estoque/espera entre processos, e a escada de tempo (lead
+// time em cima, tempo de processamento embaixo) — não é desenhado em
+// escala exata (tempos de segundos a dias no mesmo desenho ficariam
+// ilegíveis), é o jeito padrão de fazer isso num VSM de papel também.
+function tempoSetupMedioEstacao(stationLabel){
+  const pares = paresParadaSetup().filter(p => p.tipo === 'setup' && p.processo === stationLabel && p.minutos !== null);
+  if (!pares.length) return null;
+  return pares.reduce((a,p)=>a+p.minutos,0) / pares.length;
+}
+function cicloDoItemNaEstacao(tipoNivel, stationLabel, moduloId, pecaCodigo){
+  if (tipoNivel === 'modulo'){
+    const registro = ciclosPorModulo().find(c => c.moduloId === moduloId && c.detalhe === stationLabel);
+    if (registro) return { valor: registro.minutos, éMedia: false };
+    const todos = ciclosPorModulo().filter(c => c.detalhe === stationLabel);
+    return todos.length ? { valor: todos.reduce((a,c)=>a+c.minutos,0)/todos.length, éMedia: true } : { valor: null, éMedia: false };
+  }
+  const registro = ciclosPorPeca().find(c => c.pecaCodigo === pecaCodigo && c.estacao === stationLabel);
+  if (registro) return { valor: registro.minutos, éMedia: false };
+  const todos = ciclosPorPeca().filter(c => c.estacao === stationLabel);
+  return todos.length ? { valor: todos.reduce((a,c)=>a+c.minutos,0)/todos.length, éMedia: true } : { valor: null, éMedia: false };
+}
+function idEstacaoPorLabel(label){
+  const s = estacoesConfig.find(e => e.label === label);
+  return s ? s.id : null;
+}
+function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo){
+  // pontos: [{label, data}] já filtrados só pros que têm data (alcançados)
+  const larguraCaixa = 168, alturaCaixa = 108, larguraTriangulo = 90, y0 = 40;
+  const total = pontos.length;
+  const larguraSvg = total * larguraCaixa + (total-1) * larguraTriangulo + 60;
+  const alturaSvg = 330;
+  const escapar = t => String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+  const dadosCaixas = pontos.map(p => {
+    const idEst = idEstacaoPorLabel(p.label);
+    const ct = cicloDoItemNaEstacao(tipoNivel, p.label, moduloId, pecaCodigo);
+    const st = tempoSetupMedioEstacao(p.label);
+    const oeeInfo = idEst ? calcularOeeEstacao(idEst) : null;
+    return { label: p.label, ct, st, oee: oeeInfo ? oeeInfo.oee : null };
+  });
+  const esperas = [];
+  for (let i = 0; i < pontos.length - 1; i++){
+    esperas.push(diffMinutos(pontos[i].data, pontos[i+1].data));
+  }
+
+  let x = 30;
+  let svg = '<svg viewBox="0 0 ' + larguraSvg + ' ' + alturaSvg + '" width="100%" style="min-width:' + Math.max(700, larguraSvg*0.7) + 'px; font-family:var(--font-body);">';
+
+  dadosCaixas.forEach((d, i) => {
+    // caixa do processo
+    svg += '<rect x="' + x + '" y="' + y0 + '" width="' + larguraCaixa + '" height="' + alturaCaixa + '" rx="6" fill="#fff8e6" stroke="#8a6d1f" stroke-width="1.5"/>';
+    svg += '<text x="' + (x+larguraCaixa/2) + '" y="' + (y0+22) + '" text-anchor="middle" font-size="13" font-weight="700" fill="#3d2f0a">' + escapar(d.label) + '</text>';
+    svg += '<line x1="' + x + '" y1="' + (y0+30) + '" x2="' + (x+larguraCaixa) + '" y2="' + (y0+30) + '" stroke="#8a6d1f" stroke-width="1"/>';
+    const ctTexto = d.ct.valor !== null ? minutosLegivel(d.ct.valor) + (d.ct.éMedia ? ' (média)' : '') : 'sem dado';
+    svg += '<text x="' + (x+10) + '" y="' + (y0+48) + '" font-size="11" fill="#3d2f0a">C/T: ' + escapar(ctTexto) + '</text>';
+    svg += '<text x="' + (x+10) + '" y="' + (y0+66) + '" font-size="11" fill="#3d2f0a">S/T: ' + escapar(d.st !== null ? minutosLegivel(d.st) : 'sem dado') + '</text>';
+    svg += '<text x="' + (x+10) + '" y="' + (y0+84) + '" font-size="11" fill="#3d2f0a">OEE: ' + escapar(d.oee !== null ? (d.oee*100).toFixed(0) + '%' : 'sem dado') + '</text>';
+    x += larguraCaixa;
+
+    if (i < dadosCaixas.length - 1){
+      // triângulo de estoque/espera
+      const cx = x + larguraTriangulo/2;
+      svg += '<polygon points="' + x + ',' + (y0+alturaCaixa-10) + ' ' + (x+larguraTriangulo) + ',' + (y0+alturaCaixa-10) + ' ' + cx + ',' + (y0+alturaCaixa-55) + '" fill="#fdeecb" stroke="#8a6d1f" stroke-width="1.5"/>';
+      svg += '<text x="' + cx + '" y="' + (y0+alturaCaixa-25) + '" text-anchor="middle" font-size="10.5" font-weight="700" fill="#3d2f0a">' + (esperas[i] !== null ? escapar(minutosLegivel(esperas[i])) : '—') + '</text>';
+      svg += '<text x="' + cx + '" y="' + (y0+alturaCaixa+2) + '" text-anchor="middle" font-size="9.5" fill="#8a6d1f">espera</text>';
+      x += larguraTriangulo;
+    }
+  });
+
+  // escada do lead time embaixo — não está em escala, é o padrão pra VSM
+  const yLinha = y0 + alturaCaixa + 90;
+  x = 30;
+  const ladderPassoLargura = (larguraCaixa + larguraTriangulo) / 2;
+  let pathTopo = 'M ' + x + ' ' + yLinha;
+  let pathBase = '';
+  const segmentos = [];
+  dadosCaixas.forEach((d, i) => {
+    segmentos.push({ tipo:'processo', largura: larguraCaixa, valor: d.ct.valor });
+    if (i < dadosCaixas.length - 1) segmentos.push({ tipo:'espera', largura: larguraTriangulo, valor: esperas[i] });
+  });
+  let xs = 30;
+  let alturaAlt = 0;
+  segmentos.forEach(seg => {
+    if (seg.tipo === 'espera'){ alturaAlt = 28; pathTopo += ' L ' + xs + ' ' + (yLinha-alturaAlt) + ' L ' + (xs+seg.largura) + ' ' + (yLinha-alturaAlt) + ' L ' + (xs+seg.largura) + ' ' + yLinha; }
+    xs += seg.largura;
+  });
+  svg += '<path d="' + pathTopo + '" fill="none" stroke="#141b17" stroke-width="2"/>';
+  // rótulos dos valores em cada degrau
+  xs = 30;
+  segmentos.forEach(seg => {
+    const yTxt = seg.tipo === 'espera' ? (yLinha - alturaAlt - 6) : (yLinha + 16);
+    svg += '<text x="' + (xs + seg.largura/2) + '" y="' + yTxt + '" text-anchor="middle" font-size="10" fill="' + (seg.tipo==='espera' ? '#8a6d1f' : '#141b17') + '">' + (seg.valor !== null ? escapar(minutosLegivel(seg.valor)) : '—') + '</text>';
+    xs += seg.largura;
+  });
+
+  const leadTimeTotal = pontos.length >= 2 ? diffMinutos(pontos[0].data, pontos[pontos.length-1].data) : null;
+  const tempoProcessamentoTotal = dadosCaixas.reduce((a,d) => a + (d.ct.valor || 0), 0);
+  svg += '<text x="30" y="' + (yLinha+42) + '" font-size="12.5" font-weight="700" fill="#141b17">Lead time total: ' + (leadTimeTotal !== null ? escapar(minutosLegivel(leadTimeTotal)) : '—') + '</text>';
+  svg += '<text x="30" y="' + (yLinha+60) + '" font-size="12.5" font-weight="700" fill="var(--brand)">Tempo de processamento total (C/T somado): ' + escapar(minutosLegivel(tempoProcessamentoTotal)) + '</text>';
+
+  svg += '</svg>';
+  return '<div style="overflow-x:auto;">' + svg + '</div>' +
+    '<p style="font-size:11px; color:var(--text-muted); margin-top:8px;">C/T = tempo de ciclo (específico desse item quando disponível, senão a média da etapa) · S/T = tempo médio de setup na etapa · OEE = da etapa, no período · a escada embaixo não está em escala — é o padrão de um VSM, já que os tempos variam demais pra caber num desenho proporcional.</p>';
+}
+
 function renderVsm(){
   const tipo = document.getElementById('vsmTipo').value;
   const valor = document.getElementById('vsmCodigo').value;
@@ -1201,11 +1378,12 @@ function renderVsm(){
     // evento por peça bipada, senão um módulo com 10 peças viraria uma
     // lista enorme e difícil de ler.
     const datas = PONTOS_FIXOS.map(p => acharDataPonto(eventos, p.valor));
-    const validas = datas.filter(d => d);
-    const leadTime = validas.length >= 2 ? diffMinutos(validas[0], validas[validas.length-1]) : null;
-    const leadTimeUtil = validas.length >= 2 ? calcularMinutosUteis(validas[0], validas[validas.length-1]) : null;
-    html += renderFluxoVisual(datas);
-    html += leadTime !== null ? '<p style="font-size:13px; margin-top:14px;"><strong>Lead time total:</strong> ' + minutosLegivel(leadTime) + ' corrido' + (leadTimeUtil !== null ? ' <span class="tagMuted">(' + minutosLegivel(leadTimeUtil) + ' útil, dentro do expediente)</span>' : '') + '</p>' : '';
+    const pontos = PONTOS_FIXOS.map((p,i) => ({ label: p.label, data: datas[i] })).filter(p => p.data);
+    if (pontos.length >= 1){
+      html += renderVsmLean(pontos, 'modulo', valor.split('#')[1], null);
+    } else {
+      html += '<p class="tagMuted">esse módulo ainda não tem nenhuma etapa concluída no período</p>';
+    }
   } else if (tipo === 'pedido'){
     // pedido: só início (primeiro evento de qualquer peça/módulo dele) e
     // situação atual ou entrega — não todos os registros de peça por peça.
@@ -1229,27 +1407,13 @@ function renderVsm(){
     '</div>';
     html += total !== null ? '<p style="font-size:13px; margin-top:16px;"><strong>Lead time total:</strong> ' + minutosLegivel(total) + ' corrido' + (totalUtil !== null ? ' <span class="tagMuted">(' + minutosLegivel(totalUtil) + ' útil, dentro do expediente)</span>' : '') + '</p>' : '';
   } else {
-    // peça: uma peça só tem poucos eventos (uma bipagem por etapa), então
-    // listar cada um continua claro e vale a pena mostrar todos.
-    html += '<div style="display:flex; align-items:stretch; overflow-x:auto; gap:0; padding-bottom:10px;">';
-    eventos.forEach((ev, i) => {
-      html += '<div style="min-width:170px; flex-shrink:0; background:var(--surface-1); border:1px solid var(--border-strong); border-radius:8px; padding:10px;">' +
-        '<div style="font-size:11px; color:var(--text-muted);">' + ev.em.replace('T',' ') + '</div>' +
-        '<div style="font-weight:700; font-size:13px; margin:4px 0;">' + nomeTipo(ev.tipo) + '</div>' +
-        '<div style="font-size:11px; color:var(--text-secondary);">' + (ev.detalhe||'') + '</div>' +
-        '<div style="font-size:10px; color:var(--text-muted); margin-top:4px;">' + (ev.usuario||'') + '</div>' +
-        '</div>';
-      if (i < eventos.length - 1){
-        const espera = diffMinutos(ev.em, eventos[i+1].em);
-        html += '<div style="display:flex; align-items:center; justify-content:center; min-width:80px; flex-shrink:0; flex-direction:column; color:var(--text-muted); font-size:11px;">' +
-          '<span style="font-size:22px; line-height:1;">→</span>' +
-          (espera !== null ? '<span>' + minutosLegivel(espera) + '</span>' : '') +
-          '</div>';
-      }
-    });
-    html += '</div>';
-    const total = eventos.length > 1 ? diffMinutos(eventos[0].em, eventos[eventos.length-1].em) : null;
-    html += '<p style="font-size:13px; margin-top:14px;"><strong>Lead time total (do primeiro ao último evento):</strong> ' + (total !== null ? minutosLegivel(total) : '—') + '</p>';
+    // peça: mesma visualização Lean, usando cada bipagem como uma etapa alcançada
+    const pontosPeca = eventos.filter(ev => ev.tipo === 'bipagem').map(ev => ({ label: ev.detalhe, data: ev.em }));
+    if (pontosPeca.length >= 1){
+      html += renderVsmLean(pontosPeca, 'peca', null, valor);
+    } else {
+      html += '<p class="tagMuted">essa peça ainda não tem nenhuma bipagem no período</p>';
+    }
   }
   el.innerHTML = html;
 }
@@ -1270,9 +1434,43 @@ function usuarioEhAdmin(){
   const u = usuariosCache.find(x => x.usuario === usuarioLogadoNome);
   return !!(u && u.admin);
 }
+// ---------- exclusão de registros pelo admin (reaproveitado em toda lista
+// do dashboard — Defeitos, Tempo de Ciclo, Lead Time detalhado, etc.) ----------
+function botaoExcluirRegistro(ids){
+  const idsValidos = ids.filter(Boolean);
+  if (!idsValidos.length) return '';
+  return '<button class="btnExcluirRegistro" data-ids="' + idsValidos.join(',') + '" style="font-size:11px; padding:3px 8px; color:var(--text-danger);">Excluir</button>';
+}
+function ativarExclusaoNaLista(containerId, aoExcluirComSucesso){
+  const container = document.getElementById(containerId);
+  if (container.dataset.exclusaoAtiva) return; // não duplica o listener a cada render
+  container.dataset.exclusaoAtiva = '1';
+  container.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.btnExcluirRegistro');
+    if (!btn) return;
+    if (!window.confirm('Excluir esse registro? Não pode ser desfeito.')) return;
+    const ids = btn.dataset.ids.split(',').filter(Boolean);
+    btn.textContent = 'excluindo...'; btn.disabled = true;
+    const resultado = await enviarAcaoServidorDash({ acao: 'apagarMovimentosPorId', ids });
+    if (resultado.ok){
+      movimentosAtuais = movimentosAtuais.filter(m => !ids.includes(m.id));
+      aoExcluirComSucesso();
+    } else {
+      window.alert('erro ao excluir: ' + (resultado.erro || 'desconhecido'));
+      btn.textContent = 'Excluir'; btn.disabled = false;
+    }
+  });
+}
 // ---------- conselhos baseados em regras (sem IA externa) ----------
 function renderConselhos(){
   const conselhos = [];
+
+  // 0) apontamentos incompletos (poka-yoke) — avisa cedo, antes de qualquer outra coisa
+  const faltandoApontar = apontamentosIncompletos();
+  if (faltandoApontar.length >= 3){
+    conselhos.push({ icone:'⚠', cor:'var(--text-danger)', titulo: faltandoApontar.length + ' apontamento(s) de tempo de ciclo faltando',
+      texto: 'Módulos, pedidos ou peças foram concluídos sem ninguém ter apertado "Iniciar" antes — o trabalho foi feito normalmente, só não tem o tempo de ciclo registrado. Dá pra ver a lista completa na aba Tempos → Tempo de Ciclo.' });
+  }
 
   // 1) etapa com mais tempo perdido em parada/setup no período
   const pares = paresParadaSetup();
@@ -1491,16 +1689,10 @@ function diasNoPeriodoSelecionado(){
   return Math.max(dias, 1);
 }
 
-function montarOee(){
-  const sel = document.getElementById('oeeFiltroProcesso');
-  if (!sel.options.length){
-    sel.innerHTML = ESTACOES_OEE.map(e => '<option value="' + e.id + '">' + e.label + '</option>').join('');
-  }
-  const processoId = sel.value || ESTACOES_OEE[0].id;
+// cálculo de OEE isolado da tela — usado tanto pela aba OEE quanto pelo VSM.
+function calcularOeeEstacao(processoId){
   const processo = ESTACOES_OEE.find(e => e.id === processoId);
-  const tempoDisponivelInput = document.getElementById('oeeTempoDisponivel');
-  if (!tempoDisponivelInput.value) tempoDisponivelInput.value = tempoDisponivelPorDiaSalvo();
-
+  if (!processo) return null;
   const eventosParada = movimentosAtuais.filter(m => ['parada_inicio','parada_fim','setup_inicio','setup_fim'].includes(m.tipo) && m.moduloId === processoId);
   const pares = {};
   eventosParada.forEach(m => {
@@ -1519,10 +1711,6 @@ function montarOee(){
   const bipagens = movimentosAtuais.filter(m => m.tipo === 'bipagem' && m.detalhe === processo.label).sort((a,b) => a.em.localeCompare(b.em));
   const totalPecas = bipagens.length;
 
-  // Disponibilidade agora usa o tempo disponível cadastrado (editável) x
-  // quantidade de dias do período escolhido, em vez de adivinhar pela
-  // janela entre o primeiro e o último evento — mais correto e sob seu
-  // controle.
   const tempoDisponivelPorDia = tempoDisponivelPorDiaSalvo();
   const totalDias = diasNoPeriodoSelecionado();
   const tempoDisponivelTotal = tempoDisponivelPorDia * totalDias;
@@ -1544,6 +1732,20 @@ function montarOee(){
   const qualidade = totalPecas > 0 ? (totalPecas - descartadosNessaEtapa) / totalPecas : 1;
 
   const oee = disponibilidade * performance * qualidade;
+  return { oee, disponibilidade, performance, qualidade, minutosParados, totalPecas, tempoDisponivelPorDia, totalDias, tempoDisponivelTotal, cicloIdeal, descartadosNessaEtapa };
+}
+function montarOee(){
+  const sel = document.getElementById('oeeFiltroProcesso');
+  if (!sel.options.length){
+    sel.innerHTML = ESTACOES_OEE.map(e => '<option value="' + e.id + '">' + e.label + '</option>').join('');
+  }
+  const processoId = sel.value || ESTACOES_OEE[0].id;
+  const processo = ESTACOES_OEE.find(e => e.id === processoId);
+  const tempoDisponivelInput = document.getElementById('oeeTempoDisponivel');
+  if (!tempoDisponivelInput.value) tempoDisponivelInput.value = tempoDisponivelPorDiaSalvo();
+
+  const r = calcularOeeEstacao(processoId);
+  const { oee, disponibilidade, performance, qualidade, minutosParados, totalPecas, tempoDisponivelPorDia, totalDias, tempoDisponivelTotal, cicloIdeal, descartadosNessaEtapa } = r;
   const corOee = oee >= 0.85 ? 'var(--text-success)' : oee >= 0.6 ? 'var(--fill-warning)' : 'var(--text-danger)';
 
   const cartoes = [
@@ -1824,6 +2026,7 @@ function renderListaDefeitos(){
   }
   eventos = ordenarPorData(eventos).reverse(); // mais recente primeiro
   if (!eventos.length){ el.innerHTML = '<p class="tagMuted">nenhum defeito encontrado nesse período</p>'; return; }
+  const ehAdmin = usuarioEhAdmin();
   const linhas = eventos.map(ev => {
     const alvo = ev.pecaCodigo ? (ev.pecaCodigo + (ev.pecaDescricao ? ' — ' + ev.pecaDescricao : '')) : ('módulo #' + ev.moduloId + ' ' + (ev.moduloNome||''));
     return '<tr>' +
@@ -1832,9 +2035,11 @@ function renderListaDefeitos(){
       '<td>' + alvo + '</td>' +
       '<td>' + (ev.detalhe || '') + '</td>' +
       '<td>' + (ev.usuario || '') + '</td>' +
+      (ehAdmin ? '<td>' + botaoExcluirRegistro([ev.id]) + '</td>' : '') +
     '</tr>';
   }).join('');
-  el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>quando</th><th>tipo</th><th>peça/módulo</th><th>categoria / detalhe</th><th>usuário</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+  el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>quando</th><th>tipo</th><th>peça/módulo</th><th>categoria / detalhe</th><th>usuário</th>' + (ehAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' + linhas + '</tbody></table></div>';
+  ativarExclusaoNaLista('listaDefeitos', () => { renderListaDefeitos(); montarCartoesDefeitos(movimentosAtuais); montarIshikawa(movimentosAtuais); });
 }
 document.getElementById('buscaDefeitos').addEventListener('input', renderListaDefeitos);
 

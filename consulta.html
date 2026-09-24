@@ -57,9 +57,27 @@
 <body>
 <div class="wrap">
   <div class="cabecalho">
+    <div style="display:flex; align-items:center; gap:14px;">
+    <svg width="56" height="56" viewBox="0 0 120 120" style="flex-shrink:0;">
+      <defs>
+        <linearGradient id="gIconeConsulta" x1="0" y1="120" x2="120" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#0a4a3e"/>
+          <stop offset="55%" stop-color="#12695a"/>
+          <stop offset="100%" stop-color="#1c8a6d"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="120" height="120" rx="28" fill="url(#gIconeConsulta)"/>
+      <path d="M 26 94 L 50 76 L 74 54 L 90 34" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 12" opacity="0.9" fill="none"/>
+      <circle cx="26" cy="94" r="6" fill="#ffffff" opacity="0.55"/>
+      <circle cx="50" cy="76" r="6" fill="#ffffff" opacity="0.75"/>
+      <circle cx="74" cy="54" r="6.5" fill="#ffffff" opacity="0.92"/>
+      <circle cx="91" cy="32" r="14" fill="#ffffff"/>
+      <path d="M 85 32 L 89.5 37 L 98 26" stroke="#0a4a3e" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
     <div>
       <h1>Rasmar<span class="versao">V2</span></h1>
-      <p class="sub">consulta pública — só leitura</p>
+      <p class="sub">consulta pública — só leitura<span class="nomeMarcenariaInline" style="display:none;"></span></p>
+    </div>
     </div>
   </div>
 
@@ -69,7 +87,7 @@
     </div>
   </div>
 
-  <footer>Rasmar V2 — Marcenaria Cireneu Liebl · Esta página é só de consulta, não permite fazer login ou alterar nada.</footer>
+  <footer>Rasmar V2<span class="nomeMarcenariaInline" style="display:none;"></span> · Esta página é só de consulta, não permite fazer login ou alterar nada.</footer>
 </div>
 
 <script>
@@ -124,6 +142,13 @@ async function iniciar(){
     ]);
     const projetos = Array.isArray(estado.projetos) ? estado.projetos : [];
     const movimentos = Array.isArray(movs.movimentos) ? movs.movimentos : [];
+
+    if (typeof estado.nomeMarcenaria === 'string' && estado.nomeMarcenaria){
+      document.querySelectorAll('.nomeMarcenariaInline').forEach(el => {
+        el.textContent = ' · ' + estado.nomeMarcenaria;
+        el.style.display = '';
+      });
+    }
 
     if (tipo === 'modulo'){
       // código de etiqueta de módulo é "CODIGOPEDIDO-M<id>"
