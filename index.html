@@ -376,6 +376,14 @@
           <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">posição: logo depois de</label>
           <select id="novaEstacaoDepoisDe" style="width:100%;"></select>
         </div>
+        <div id="wrapNovaEstacaoMetrica">
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">ratear tempo do lote por</label>
+          <select id="novaEstacaoMetrica" style="width:100%;">
+            <option value="area">área (m²) — corte, usinagem</option>
+            <option value="bordaLinear">metro linear de borda — coladeira</option>
+            <option value="">nenhuma (divide igual entre as peças)</option>
+          </select>
+        </div>
       </div>
       <button id="btnAdicionarEstacao" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Adicionar etapa</button>
       <p id="statusEstacoes" style="font-size:12px; margin:8px 0 0; display:none;"></p>
@@ -753,9 +761,9 @@ function registrarMovimento(tipo, detalhe){
 // ---------- modelo das estações ----------
 // 3 primeiras rastreiam por peça (sequenciais); as 2 últimas são escolha manual por módulo inteiro.
 let stations = [
-  {id:'cnc',      label:'CNC',                  type:'peca',   field:'cnc_em'},
-  {id:'coladeira',label:'Coladeira',             type:'peca',   field:'coladeira_em'},
-  {id:'limpeza',  label:'Limpeza e Separação',   type:'peca',   field:'limpeza_em'},
+  {id:'cnc',      label:'CNC',                  type:'peca',   field:'cnc_em',       metricaRateio:'area'},
+  {id:'coladeira',label:'Coladeira',             type:'peca',   field:'coladeira_em', metricaRateio:'bordaLinear'},
+  {id:'limpeza',  label:'Limpeza e Separação',   type:'peca',   field:'limpeza_em',   metricaRateio:'area'},
   {id:'pre',      label:'Pré Montagem',          type:'modulo', completaField:'preCompleta',  completaEmField:'preCompletaEm'},
   {id:'final',    label:'Montagem Final',        type:'modulo', completaField:'finalCompleta', completaEmField:'finalCompletaEm'}
 ];
@@ -824,17 +832,17 @@ function atualizarSemiCabecalho(){
 }
 setInterval(atualizarSemiCabecalho, 1000);
 
-const COL_ID = 0, COL_PRODUTO = 1, COL_COMPRIMENTO = 3, COL_LARGURA = 5, COL_DESCRICAO = 10, COL_CLIENTE = 18, COL_PROJETO = 19, COL_NESTING = 22;
+const COL_ID = 0, COL_PRODUTO = 1, COL_COMPRIMENTO = 3, COL_LARGURA = 5, COL_DESCRICAO = 10, COL_BORDA_FRONTAL = 12, COL_BORDA_TRASEIRA = 13, COL_BORDA_ESQUERDA = 14, COL_BORDA_DIREITA = 15, COL_CLIENTE = 18, COL_PROJETO = 19, COL_NESTING = 22;
 
-function novaPeca(codigo, descricao, areaM2){
-  const peca = {codigo, descricao, areaM2: areaM2 || null, descartada:false, descartadaEm:null, estacaoAtual: estacoesPeca()[0] ? estacoesPeca()[0].id : ''};
+function novaPeca(codigo, descricao, areaM2, metrosLinearesBorda){
+  const peca = {codigo, descricao, areaM2: areaM2 || null, metrosLinearesBorda: metrosLinearesBorda || null, descartada:false, descartadaEm:null, estacaoAtual: estacoesPeca()[0] ? estacoesPeca()[0].id : ''};
   estacoesPeca().forEach(s => { peca[s.field] = null; });
   return peca;
 }
 function novoModulo(id, nome, pecasRaw){
   const mod = {
     id, nome, aberto:false,
-    pecas: pecasRaw.map(p => novaPeca(p.codigo, p.descricao, p.areaM2)),
+    pecas: pecasRaw.map(p => novaPeca(p.codigo, p.descricao, p.areaM2, p.metrosLinearesBorda)),
     fase: 'peca'           // 'peca' (ainda passando pelas etapas de peça) | id de uma etapa de módulo
   };
   estacoesModulo().forEach(s => { mod[s.completaField] = false; mod[s.completaEmField] = null; });
@@ -2326,7 +2334,17 @@ function parseCSV(texto){
     // a que a CNC realmente usina) — usada pra ratear o tempo de ciclo
     // proporcionalmente ao tamanho de cada peça.
     const areaM2 = (compMm > 0 && largMm > 0) ? (compMm * largMm) / 1000000 : null;
-    modulosMap[id].pecas.push({codigo: c[COL_NESTING].trim(), descricao: c[COL_DESCRICAO].trim(), areaM2});
+    // metros lineares de fita de borda: soma só os lados que realmente têm
+    // fita aplicada (a coluna daquele lado vem preenchida com o código do
+    // material de borda; vazia significa que aquele lado não leva fita).
+    // Frontal/Traseira usam o comprimento; Esquerda/Direita usam a largura.
+    let metrosBorda = 0;
+    if ((c[COL_BORDA_FRONTAL]||'').trim() && compMm > 0) metrosBorda += compMm;
+    if ((c[COL_BORDA_TRASEIRA]||'').trim() && compMm > 0) metrosBorda += compMm;
+    if ((c[COL_BORDA_ESQUERDA]||'').trim() && largMm > 0) metrosBorda += largMm;
+    if ((c[COL_BORDA_DIREITA]||'').trim() && largMm > 0) metrosBorda += largMm;
+    const metrosLinearesBorda = metrosBorda > 0 ? metrosBorda / 1000 : null;
+    modulosMap[id].pecas.push({codigo: c[COL_NESTING].trim(), descricao: c[COL_DESCRICAO].trim(), areaM2, metrosLinearesBorda});
   });
   return {cliente, projeto, modulos: ordem.map(id => modulosMap[id])};
 }
@@ -3093,15 +3111,20 @@ function salvarEstacoes(logMsg){
   status.textContent = 'etapas salvas — já valem pro app e pro dashboard de todo mundo';
 }
 
+document.getElementById('novaEstacaoTipo').addEventListener('change', () => {
+  document.getElementById('wrapNovaEstacaoMetrica').style.display = document.getElementById('novaEstacaoTipo').value === 'peca' ? 'block' : 'none';
+});
+
 document.getElementById('btnAdicionarEstacao').onclick = () => {
   const nome = document.getElementById('novaEstacaoNome').value.trim();
   const tipo = document.getElementById('novaEstacaoTipo').value;
   const depoisDeId = document.getElementById('novaEstacaoDepoisDe').value;
+  const metricaRateio = document.getElementById('novaEstacaoMetrica').value;
   const status = document.getElementById('statusEstacoes');
   if (!nome){ status.style.display = 'block'; status.style.color = 'var(--text-danger)'; status.textContent = 'digite um nome pra etapa'; return; }
   const id = slugificarEstacao(nome);
   const nova = tipo === 'peca'
-    ? { id, label: nome, type: 'peca', field: 'campo_' + id + '_em' }
+    ? { id, label: nome, type: 'peca', field: 'campo_' + id + '_em', metricaRateio: metricaRateio || null }
     : { id, label: nome, type: 'modulo', completaField: 'completa_' + id, completaEmField: 'completaEm_' + id };
   // já cria os campos correspondentes nas peças/módulos que já existem, senão
   // fica undefined em vez de null (o que quebraria as checagens de "vazio")
@@ -3289,33 +3312,42 @@ function finalizarLoteEstacao(station){
       if (achou) break;
     }
   });
-  const areaTotal = pecasEnvolvidas.reduce((a,x) => a + (x.peca.areaM2 || 0), 0);
+  // qual medida usar pra ratear depende da etapa: CNC/Limpeza rateiam por
+  // área (m²), Coladeira rateia por metro linear de borda — cada etapa
+  // decide isso sozinha (metricaRateio), então uma etapa nova criada pelo
+  // admin também escolhe a sua na hora de ser criada.
+  const campoMetrica = station.metricaRateio === 'bordaLinear' ? 'metrosLinearesBorda' : (station.metricaRateio === 'area' ? 'areaM2' : null);
+  const totalMetrica = campoMetrica ? pecasEnvolvidas.reduce((a,x) => a + (x.peca[campoMetrica] || 0), 0) : 0;
 
   registrarMovimento('ciclo_fim', { moduloId: '', moduloNome: '', pecaCodigo: ativo.cicloId, clienteCodigo: '', cliente: '', projeto: '', detalhe: 'lote:' + station.id });
 
   pecasEnvolvidas.forEach(({peca, mod, pr}) => {
-    const minutosRateados = (areaTotal > 0 && peca.areaM2)
-      ? (totalMinutos * (peca.areaM2 / areaTotal))
+    const valorMetrica = campoMetrica ? (peca[campoMetrica] || 0) : 0;
+    const minutosRateados = (totalMetrica > 0 && valorMetrica > 0)
+      ? (totalMinutos * (valorMetrica / totalMetrica))
       : (pecasEnvolvidas.length ? (totalMinutos / pecasEnvolvidas.length) : 0);
     registrarMovimento('ciclo_peca_estimado', {
       pecaCodigo: peca.codigo, pecaDescricao: peca.descricao, moduloId: mod.id, moduloNome: mod.nome,
       clienteCodigo: pr.codigo, cliente: pr.cliente, projeto: pr.projeto,
-      detalhe: station.label + '|' + minutosRateados.toFixed(2) + '|' + (peca.areaM2 || 0).toFixed(4)
+      detalhe: station.label + '|' + minutosRateados.toFixed(2) + '|' + valorMetrica.toFixed(4) + '|' + (station.metricaRateio || '')
     });
   });
 
-  registrarLog('finalizou o lote de corte em ' + station.label + ' — ' + pecasEnvolvidas.length + ' peça(s), ' + totalMinutos.toFixed(1) + 'min no total' + (areaTotal > 0 ? ' (' + areaTotal.toFixed(3) + 'm²)' : ''));
-  showFeedback('lote finalizado: ' + pecasEnvolvidas.length + ' peça(s) em ' + station.label + (areaTotal > 0 ? ', tempo rateado por área' : ', dividido igualmente (sem área cadastrada)'), false);
+  const unidadeMetrica = station.metricaRateio === 'bordaLinear' ? 'm linear' : 'm²';
+  const nomeMetrica = station.metricaRateio === 'bordaLinear' ? 'metro linear de borda' : 'área';
+  registrarLog('finalizou o lote em ' + station.label + ' — ' + pecasEnvolvidas.length + ' peça(s), ' + totalMinutos.toFixed(1) + 'min no total' + (totalMetrica > 0 ? ' (' + totalMetrica.toFixed(3) + ' ' + unidadeMetrica + ')' : ''));
+  showFeedback('lote finalizado: ' + pecasEnvolvidas.length + ' peça(s) em ' + station.label + (totalMetrica > 0 ? ', tempo rateado por ' + nomeMetrica : ', dividido igualmente (sem medida cadastrada)'), false);
   renderTudo();
 }
 function renderBotaoLoteEstacao(station){
   const el = document.createElement('span');
   el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
   const ativo = cicloAtivoEstacao(station);
+  const nomeMetrica = station.metricaRateio === 'bordaLinear' ? 'metro linear de borda' : (station.metricaRateio === 'area' ? 'área' : null);
   if (ativo){
     el.style.color = 'var(--text-accent)';
     const texto = document.createElement('span');
-    texto.textContent = '⏱ lote de corte em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
+    texto.textContent = '⏱ lote em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
     const btn = document.createElement('button');
     btn.textContent = 'Finalizar lote';
     btn.style.cssText = 'font-size:11px; padding:3px 9px; color:var(--text-danger);';
@@ -3323,9 +3355,9 @@ function renderBotaoLoteEstacao(station){
     el.appendChild(texto); el.appendChild(btn);
   } else {
     const btn = document.createElement('button');
-    btn.textContent = '▶ Iniciar lote de corte';
+    btn.textContent = '▶ Iniciar lote';
     btn.style.cssText = 'font-size:11px; padding:3px 9px;';
-    btn.title = 'Marca o início de um lote — todas as peças bipadas aqui até você finalizar entram automaticamente nele, e o tempo é dividido entre elas pela área de cada uma.';
+    btn.title = 'Marca o início de um lote — todas as peças bipadas aqui até você finalizar entram automaticamente nele, e o tempo é dividido entre elas' + (nomeMetrica ? ' pela ' + nomeMetrica + ' de cada uma.' : ' igualmente (essa etapa não tem uma medida configurada).');
     btn.onclick = (e) => { e.stopPropagation(); iniciarLoteEstacao(station); };
     el.appendChild(btn);
   }
