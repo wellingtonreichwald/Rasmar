@@ -160,9 +160,9 @@
     padding: 0.8mm 2.4mm; border-radius: 1.4mm;
   }
   .etiqueta .etiquetaCorpo{ width: 100%; display: flex; align-items: center; gap: 2.5mm; }
-  .etiqueta .etiquetaCorpo svg{ flex: 1; min-width: 0; height: auto; max-height: 20mm; }
-  .etiqueta .etiquetaQr{ flex-shrink: 0; width: 22mm; height: 22mm; }
-  .etiqueta .etiquetaQr img, .etiqueta .etiquetaQr canvas, .etiqueta .etiquetaQr table{ width: 22mm !important; height: 22mm !important; }
+  .etiqueta .etiquetaCorpo svg{ flex-shrink: 0; width: 20mm; height: auto; max-height: 14mm; }
+  .etiqueta .etiquetaQr{ flex-shrink: 0; width: 30mm; height: 30mm; }
+  .etiqueta .etiquetaQr img, .etiqueta .etiquetaQr canvas, .etiqueta .etiquetaQr table{ width: 30mm !important; height: 30mm !important; }
   .etiqueta .linha1{ font-size: 15pt; font-weight: 800; margin: 0; line-height: 1.15; }
   .etiqueta .linha2{ font-size: 11pt; margin: 0; line-height: 1.25; color: #333; }
   .etiqueta .etiquetaRodape{ font-size: 7.5pt; color: #666; margin: auto 0 0; }
@@ -189,6 +189,36 @@
     </div>
     <p id="resumoDiaData" style="font-size:12px; color:var(--text-muted); margin:0 0 16px;"></p>
     <div id="resumoDiaConteudo"><p class="tagMuted" style="font-size:13px; color:var(--text-muted);">carregando resumo...</p></div>
+  </div>
+</div>
+
+<div id="modalRegistroManualParada" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.5); z-index:210; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:28px; max-width:420px; width:100%;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h2 style="font-size:16px; margin:0;">Registro manual de parada/setup</h2>
+      <button id="btnFecharRegistroManual" style="font-size:12px; padding:5px 10px;">Fechar</button>
+    </div>
+    <p style="font-size:12px; color:var(--text-muted); margin:0 0 14px;">Pra quando a parada/setup já aconteceu e ninguém apontou na hora — registra com a data e hora certas, não a de agora.</p>
+    <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">tipo</label>
+    <select id="rmTipo" style="width:100%; margin-bottom:10px;">
+      <option value="parada">Parada</option>
+      <option value="setup">Setup</option>
+    </select>
+    <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">motivo</label>
+    <select id="rmMotivo" style="width:100%; margin-bottom:10px;"></select>
+    <input id="rmMotivoOutro" type="text" placeholder="descreva o motivo" style="width:100%; margin-bottom:10px; display:none;" />
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+      <div>
+        <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">início</label>
+        <input id="rmInicio" type="datetime-local" style="width:100%;" />
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">fim</label>
+        <input id="rmFim" type="datetime-local" style="width:100%;" />
+      </div>
+    </div>
+    <button id="btnConfirmarRegistroManual" style="width:100%; padding:10px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Registrar</button>
+    <p id="statusRegistroManual" style="font-size:12px; margin:8px 0 0; display:none;"></p>
   </div>
 </div>
 
@@ -395,6 +425,9 @@
           <select id="novaEstacaoMetrica" style="width:100%;">
             <option value="area">área (m²) — corte, usinagem</option>
             <option value="bordaLinear">metro linear de borda — coladeira</option>
+            <option value="volume">volume (m³) — furação, prensa</option>
+            <option value="comprimento">comprimento (m)</option>
+            <option value="largura">largura (m)</option>
             <option value="">nenhuma (divide igual entre as peças)</option>
           </select>
         </div>
@@ -772,9 +805,26 @@ function registrarMovimento(tipo, detalhe){
     clienteCodigo: '', cliente: '', projeto: '', detalhe: ''
   }, detalhe));
 }
+// mesma coisa, mas com uma data/hora escolhida à mão em vez de "agora" —
+// usada só no registro manual retroativo de parada/setup.
+function registrarMovimentoComHorario(tipo, detalhe, emIso){
+  const u = getUsuarioLogado();
+  movimentos.push(Object.assign({
+    id: gerarId(),
+    em: emIso,
+    usuario: u ? u.usuario : '—',
+    tipo,
+    pecaCodigo: '', pecaDescricao: '', moduloId: '', moduloNome: '',
+    clienteCodigo: '', cliente: '', projeto: '', detalhe: ''
+  }, detalhe));
+}
 
 // ---------- modelo das estações ----------
 // 3 primeiras rastreiam por peça (sequenciais); as 2 últimas são escolha manual por módulo inteiro.
+// nomes/unidades das métricas de rateio — usados tanto ao finalizar um
+// lote quanto nos textos de ajuda dos botões.
+const UNIDADES_METRICA = { area: 'm²', bordaLinear: 'm linear', volume: 'm³', comprimento: 'm', largura: 'm' };
+const NOMES_METRICA = { area: 'área', bordaLinear: 'metro linear de borda', volume: 'volume', comprimento: 'comprimento', largura: 'largura' };
 let stations = [
   {id:'cnc',      label:'CNC',                  type:'peca',   field:'cnc_em',       metricaRateio:'area'},
   {id:'coladeira',label:'Coladeira',             type:'peca',   field:'coladeira_em', metricaRateio:'bordaLinear'},
@@ -847,17 +897,28 @@ function atualizarSemiCabecalho(){
 }
 setInterval(atualizarSemiCabecalho, 1000);
 
-const COL_ID = 0, COL_PRODUTO = 1, COL_COMPRIMENTO = 3, COL_LARGURA = 5, COL_DESCRICAO = 10, COL_BORDA_FRONTAL = 12, COL_BORDA_TRASEIRA = 13, COL_BORDA_ESQUERDA = 14, COL_BORDA_DIREITA = 15, COL_CLIENTE = 18, COL_PROJETO = 19, COL_NESTING = 22;
+const COL_ID = 0, COL_PRODUTO = 1, COL_COMPRIMENTO = 3, COL_LARGURA = 5, COL_MATERIAL = 7, COL_DESCRICAO = 10, COL_BORDA_FRONTAL = 12, COL_BORDA_TRASEIRA = 13, COL_BORDA_ESQUERDA = 14, COL_BORDA_DIREITA = 15, COL_CLIENTE = 18, COL_PROJETO = 19, COL_NESTING = 22;
 
-function novaPeca(codigo, descricao, areaM2, metrosLinearesBorda){
-  const peca = {codigo, descricao, areaM2: areaM2 || null, metrosLinearesBorda: metrosLinearesBorda || null, descartada:false, descartadaEm:null, estacaoAtual: estacoesPeca()[0] ? estacoesPeca()[0].id : ''};
+function novaPeca(codigo, descricao, extras){
+  extras = extras || {};
+  const peca = {
+    codigo, descricao,
+    areaM2: extras.areaM2 || null,
+    metrosLinearesBorda: extras.metrosLinearesBorda || null,
+    comprimentoM: extras.comprimentoM || null,
+    larguraM: extras.larguraM || null,
+    espessuraMm: extras.espessuraMm || null,
+    volumeM3: extras.volumeM3 || null,
+    linkDesenho: extras.linkDesenho || null,
+    descartada:false, descartadaEm:null, estacaoAtual: estacoesPeca()[0] ? estacoesPeca()[0].id : ''
+  };
   estacoesPeca().forEach(s => { peca[s.field] = null; });
   return peca;
 }
 function novoModulo(id, nome, pecasRaw){
   const mod = {
-    id, nome, aberto:false,
-    pecas: pecasRaw.map(p => novaPeca(p.codigo, p.descricao, p.areaM2, p.metrosLinearesBorda)),
+    id, nome, aberto:false, linkDesenho: null,
+    pecas: pecasRaw.map(p => novaPeca(p.codigo, p.descricao, p)),
     fase: 'peca'           // 'peca' (ainda passando pelas etapas de peça) | id de uma etapa de módulo
   };
   estacoesModulo().forEach(s => { mod[s.completaField] = false; mod[s.completaEmField] = null; });
@@ -870,7 +931,7 @@ function proximoCodigoPedido(){
   return codigo;
 }
 function novoProjeto(cliente, projeto, modulosRaw){
-  return {cliente, projeto, codigo: proximoCodigoPedido(), aberto:false, baixado:false, baixadoEm:null,
+  return {cliente, projeto, codigo: proximoCodigoPedido(), aberto:false, baixado:false, baixadoEm:null, linkDesenho: null,
     modulos: modulosRaw.map(m => novoModulo(m.id, m.nome, m.pecas))};
 }
 
@@ -1487,6 +1548,7 @@ function renderListaPecas(mod, station, comBorda){
 
     row.appendChild(chk); row.appendChild(span); row.appendChild(dataSpan);
     if (p[field]) row.appendChild(renderEnvioPecaIndividual(mod, p, station.id));
+    row.appendChild(renderBotaoLinkDesenho(p, () => { registrarLog('atualizou o link do desenho da peça ' + p.codigo); agendarSincronizacaoRapida(); renderProjetos(); }));
     row.appendChild(btnDefeito);
     if (temPermissao('excluir')) row.appendChild(btnExcluir);
     linha.appendChild(row);
@@ -1662,14 +1724,18 @@ function imprimirEtiqueta(codigo, opcoes){
   corpo.className = 'etiquetaCorpo';
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.id = 'svgEtiquetaTemp';
-  corpo.appendChild(svg);
+  // QR primeiro (visualmente maior e mais em destaque) — muitos leitores
+  // de código de barras hoje também leem QR, então ele é o principal;
+  // o código de barras fica como referência secundária, menor, do lado.
   if (opcoes.urlConsulta && typeof QRCode !== 'undefined'){
     const qrDiv = document.createElement('div');
     qrDiv.className = 'etiquetaQr';
     corpo.appendChild(qrDiv);
+    corpo.appendChild(svg);
     div.appendChild(corpo);
     new QRCode(qrDiv, { text: opcoes.urlConsulta, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M });
   } else {
+    corpo.appendChild(svg);
     div.appendChild(corpo);
   }
 
@@ -1679,11 +1745,11 @@ function imprimirEtiqueta(codigo, opcoes){
 
   const rodape = document.createElement('p');
   rodape.className = 'etiquetaRodape';
-  rodape.textContent = 'impresso em ' + formatarDataHora(new Date()) + (opcoes.urlConsulta ? ' · aponte a câmera pro QR pra ver o histórico' : '');
+  rodape.textContent = (nomeMarcenaria ? nomeMarcenaria + ' · ' : '') + formatarDataHora(new Date()) + (opcoes.urlConsulta ? ' · bipe o QR' : '');
   div.appendChild(rodape);
 
   area.appendChild(div);
-  JsBarcode(svg, codigo, { format: 'CODE128', displayValue: true, fontSize: 12, height: 28, margin: 0 });
+  JsBarcode(svg, codigo, { format: 'CODE128', displayValue: true, fontSize: 10, height: 20, margin: 0 });
   // pequena espera pro SVG e o QR terminarem de desenhar antes de abrir o diálogo de impressão
   setTimeout(() => window.print(), 120);
 }
@@ -1981,6 +2047,7 @@ function renderModuloCard(pr, mod, station){
       direita.appendChild(btnForcar);
     }
     direita.appendChild(renderBotaoEtiquetaModulo(pr, mod));
+    direita.appendChild(renderBotaoLinkDesenho(mod, () => { registrarLog('atualizou o link do desenho do módulo #' + mod.id); agendarSincronizacaoRapida(); renderProjetos(); }));
     direita.appendChild(renderBotaoDefeitoModulo(mod));
     direita.appendChild(renderBotaoExcluir(pr, mod));
     modHeader.appendChild(esquerda); modHeader.appendChild(direita);
@@ -2009,6 +2076,7 @@ function renderModuloCard(pr, mod, station){
       acoes.appendChild(renderBotaoOutroSetorToggle(mod));
     }
     acoes.appendChild(renderBotaoEtiquetaModulo(pr, mod));
+    acoes.appendChild(renderBotaoLinkDesenho(mod, () => { registrarLog('atualizou o link do desenho do módulo #' + mod.id); agendarSincronizacaoRapida(); renderProjetos(); }));
     acoes.appendChild(renderBotaoDefeitoModulo(mod));
     acoes.appendChild(renderBotaoExcluir(pr, mod));
     header.appendChild(titulo);
@@ -2071,6 +2139,7 @@ function renderBlocoProjeto(pr, station, dinamico){
   const baixaEl = renderBaixaPedido(pr);
   if (baixaEl) right.appendChild(baixaEl);
   if (!pr.baixado) right.appendChild(renderBotaoCicloProjeto(pr));
+  right.appendChild(renderBotaoLinkDesenho(pr, () => { registrarLog('atualizou o link do desenho do pedido ' + pr.codigo); agendarSincronizacaoRapida(); renderProjetos(); }));
   const btnEtiquetaPedido = document.createElement('button');
   btnEtiquetaPedido.textContent = '🖨️ Etiqueta';
   btnEtiquetaPedido.title = 'Imprimir etiqueta com código de barras do pedido';
@@ -2250,9 +2319,24 @@ document.getElementById('fConfirmar').onclick = () => {
 };
 
 // ---------- bipagem por código ----------
+// se alguém bipar o QR da etiqueta sem querer (em vez do código de
+// barras), o leitor devolve a URL inteira da consulta — extrai só o
+// código de peça/módulo/pedido de dentro dela, pra continuar funcionando
+// igual. Se não for uma URL, devolve o texto como veio.
+function extrairCodigoDeEntrada(valorBruto){
+  if (!/^https?:\/\//i.test(valorBruto)) return valorBruto;
+  try {
+    const url = new URL(valorBruto);
+    const codigoNaUrl = url.searchParams.get('codigo');
+    return codigoNaUrl || valorBruto;
+  } catch (e) {
+    return valorBruto;
+  }
+}
+
 document.getElementById('scanInput').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
-  const codigo = e.target.value.trim();
+  const codigo = extrairCodigoDeEntrada(e.target.value.trim());
   if (!codigo){ showFeedback('digite um código antes de escanear', true); return; }
   const station = estacaoAtual();
   let peca = null, modDaPeca = null, prDaPeca = null;
@@ -2359,7 +2443,15 @@ function parseCSV(texto){
     if ((c[COL_BORDA_ESQUERDA]||'').trim() && largMm > 0) metrosBorda += largMm;
     if ((c[COL_BORDA_DIREITA]||'').trim() && largMm > 0) metrosBorda += largMm;
     const metrosLinearesBorda = metrosBorda > 0 ? metrosBorda / 1000 : null;
-    modulosMap[id].pecas.push({codigo: c[COL_NESTING].trim(), descricao: c[COL_DESCRICAO].trim(), areaM2, metrosLinearesBorda});
+    // espessura vem embutida no código do material (ex: MDF_18_BRANCO_TX
+    // = 18mm) — padrão consistente nos arquivos WPS que a marcenaria usa.
+    const materialTexto = (c[COL_MATERIAL]||'').trim();
+    const matchEspessura = materialTexto.match(/_(\d+(?:[.,]\d+)?)_/);
+    const espessuraMm = matchEspessura ? parseFloat(matchEspessura[1].replace(',', '.')) : null;
+    const comprimentoM = compMm > 0 ? compMm / 1000 : null;
+    const larguraM = largMm > 0 ? largMm / 1000 : null;
+    const volumeM3 = (compMm > 0 && largMm > 0 && espessuraMm > 0) ? (compMm * largMm * espessuraMm) / 1000000000 : null;
+    modulosMap[id].pecas.push({codigo: c[COL_NESTING].trim(), descricao: c[COL_DESCRICAO].trim(), areaM2, metrosLinearesBorda, comprimentoM, larguraM, espessuraMm, volumeM3});
   });
   return {cliente, projeto, modulos: ordem.map(id => modulosMap[id])};
 }
@@ -3114,7 +3206,7 @@ function renderListaEstacoesAdmin(){
       const selMetrica = document.createElement('select');
       selMetrica.style.cssText = 'font-size:11px; padding:3px 4px;';
       selMetrica.title = 'métrica usada pra ratear o tempo do lote entre as peças';
-      [['area','área (m²)'], ['bordaLinear','metro linear de borda'], ['','nenhuma (divide igual)']].forEach(([valor, texto]) => {
+      [['area','área (m²)'], ['bordaLinear','metro linear de borda'], ['volume','volume (m³)'], ['comprimento','comprimento (m)'], ['largura','largura (m)'], ['','nenhuma (divide igual)']].forEach(([valor, texto]) => {
         const opt = document.createElement('option');
         opt.value = valor; opt.textContent = texto;
         if ((s.metricaRateio || '') === valor) opt.selected = true;
@@ -3371,7 +3463,8 @@ function finalizarLoteEstacao(station){
   // área (m²), Coladeira rateia por metro linear de borda — cada etapa
   // decide isso sozinha (metricaRateio), então uma etapa nova criada pelo
   // admin também escolhe a sua na hora de ser criada.
-  const campoMetrica = station.metricaRateio === 'bordaLinear' ? 'metrosLinearesBorda' : (station.metricaRateio === 'area' ? 'areaM2' : null);
+  const CAMPOS_METRICA = { area: 'areaM2', bordaLinear: 'metrosLinearesBorda', volume: 'volumeM3', comprimento: 'comprimentoM', largura: 'larguraM' };
+  const campoMetrica = CAMPOS_METRICA[station.metricaRateio] || null;
   const totalMetrica = campoMetrica ? pecasEnvolvidas.reduce((a,x) => a + (x.peca[campoMetrica] || 0), 0) : 0;
 
   registrarMovimento('ciclo_fim', { moduloId: '', moduloNome: '', pecaCodigo: ativo.cicloId, clienteCodigo: '', cliente: '', projeto: '', detalhe: 'lote:' + station.id });
@@ -3388,8 +3481,8 @@ function finalizarLoteEstacao(station){
     });
   });
 
-  const unidadeMetrica = station.metricaRateio === 'bordaLinear' ? 'm linear' : 'm²';
-  const nomeMetrica = station.metricaRateio === 'bordaLinear' ? 'metro linear de borda' : 'área';
+  const unidadeMetrica = UNIDADES_METRICA[station.metricaRateio] || 'm²';
+  const nomeMetrica = NOMES_METRICA[station.metricaRateio] || 'área';
   registrarLog('finalizou o lote em ' + station.label + ' — ' + pecasEnvolvidas.length + ' peça(s), ' + totalMinutos.toFixed(1) + 'min no total' + (totalMetrica > 0 ? ' (' + totalMetrica.toFixed(3) + ' ' + unidadeMetrica + ')' : ''));
   showFeedback('lote finalizado: ' + pecasEnvolvidas.length + ' peça(s) em ' + station.label + (totalMetrica > 0 ? ', tempo rateado por ' + nomeMetrica : ', dividido igualmente (sem medida cadastrada)'), false);
   renderTudo();
@@ -3398,7 +3491,7 @@ function renderBotaoLoteEstacao(station){
   const el = document.createElement('span');
   el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
   const ativo = cicloAtivoEstacao(station);
-  const nomeMetrica = station.metricaRateio === 'bordaLinear' ? 'metro linear de borda' : (station.metricaRateio === 'area' ? 'área' : null);
+  const nomeMetrica = NOMES_METRICA[station.metricaRateio] || null;
   if (ativo){
     el.style.color = 'var(--text-accent)';
     const texto = document.createElement('span');
@@ -3414,6 +3507,39 @@ function renderBotaoLoteEstacao(station){
     btn.style.cssText = 'font-size:11px; padding:3px 9px;';
     btn.title = 'Marca o início de um lote — todas as peças bipadas aqui até você finalizar entram automaticamente nele, e o tempo é dividido entre elas' + (nomeMetrica ? ' pela ' + nomeMetrica + ' de cada uma.' : ' igualmente (essa etapa não tem uma medida configurada).');
     btn.onclick = (e) => { e.stopPropagation(); iniciarLoteEstacao(station); };
+    el.appendChild(btn);
+  }
+  return el;
+}
+
+// ---------- link do desenho (Sketchup) — peça, módulo ou pedido ----------
+// mostra "ver desenho" se já tiver link, ou "+ link do desenho" pra
+// adicionar. Um clique de editar sempre disponível, pra trocar depois.
+function renderBotaoLinkDesenho(objeto, salvarCallback){
+  const el = document.createElement('span');
+  el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
+  const editar = (e) => {
+    e.stopPropagation();
+    const novo = window.prompt('Link do desenho (Sketchup, imagem, PDF...):', objeto.linkDesenho || '');
+    if (novo === null) return;
+    objeto.linkDesenho = novo.trim() || null;
+    salvarCallback();
+  };
+  if (objeto.linkDesenho){
+    const link = document.createElement('a');
+    link.href = objeto.linkDesenho; link.target = '_blank'; link.rel = 'noopener noreferrer';
+    link.textContent = '📐 ver desenho';
+    link.style.cssText = 'color:var(--text-accent);';
+    link.onclick = (e) => e.stopPropagation();
+    const btnEditar = document.createElement('button');
+    btnEditar.textContent = 'editar'; btnEditar.style.cssText = 'font-size:10px; padding:2px 6px;';
+    btnEditar.onclick = editar;
+    el.appendChild(link); el.appendChild(btnEditar);
+  } else {
+    const btn = document.createElement('button');
+    btn.textContent = '📐 + link do desenho';
+    btn.style.cssText = 'font-size:11px; padding:3px 8px;';
+    btn.onclick = editar;
     el.appendChild(btn);
   }
   return el;
@@ -3465,6 +3591,60 @@ function finalizarParadaOuSetup(processoId, processoLabel, tipo, paradaId){
   renderBarraParadaSetup();
   if (document.getElementById('telaParadas').style.display !== 'none') renderTelaParadas();
 }
+
+// ---------- registro manual de parada/setup (retroativo, com início e fim
+// escolhidos à mão) — pro caso de esquecerem de apontar na hora. ----------
+let registroManualContexto = null;
+function popularMotivosRegistroManual(){
+  const tipo = document.getElementById('rmTipo').value;
+  const sel = document.getElementById('rmMotivo');
+  const opcoes = tipo === 'setup' ? MOTIVOS_SETUP : MOTIVOS_PARADA;
+  sel.innerHTML = opcoes.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+  document.getElementById('rmMotivoOutro').style.display = sel.value === 'Outro motivo...' ? 'block' : 'none';
+}
+function abrirRegistroManualParada(processoId, processoLabel){
+  registroManualContexto = { processoId, processoLabel };
+  document.getElementById('rmTipo').value = 'parada';
+  popularMotivosRegistroManual();
+  document.getElementById('rmMotivoOutro').value = '';
+  document.getElementById('rmInicio').value = '';
+  document.getElementById('rmFim').value = '';
+  document.getElementById('statusRegistroManual').style.display = 'none';
+  document.getElementById('modalRegistroManualParada').style.display = 'flex';
+}
+document.getElementById('rmTipo').addEventListener('change', popularMotivosRegistroManual);
+document.getElementById('rmMotivo').addEventListener('change', () => {
+  document.getElementById('rmMotivoOutro').style.display = document.getElementById('rmMotivo').value === 'Outro motivo...' ? 'block' : 'none';
+});
+document.getElementById('btnFecharRegistroManual').onclick = () => { document.getElementById('modalRegistroManualParada').style.display = 'none'; };
+document.getElementById('btnConfirmarRegistroManual').onclick = () => {
+  const status = document.getElementById('statusRegistroManual');
+  const tipo = document.getElementById('rmTipo').value;
+  let motivo = document.getElementById('rmMotivo').value;
+  if (motivo === 'Outro motivo...'){
+    motivo = document.getElementById('rmMotivoOutro').value.trim();
+    if (!motivo){ status.style.display='block'; status.style.color='var(--text-danger)'; status.textContent='descreva o motivo'; return; }
+  }
+  const inicioBruto = document.getElementById('rmInicio').value;
+  const fimBruto = document.getElementById('rmFim').value;
+  if (!inicioBruto || !fimBruto){ status.style.display='block'; status.style.color='var(--text-danger)'; status.textContent='preencha início e fim'; return; }
+  // <input type="datetime-local"> devolve "AAAA-MM-DDTHH:MM" (sem segundos)
+  // — completa com ":00" pra bater com o formato usado no resto do app.
+  const inicioIso = inicioBruto + ':00';
+  const fimIso = fimBruto + ':00';
+  if (fimIso <= inicioIso){ status.style.display='block'; status.style.color='var(--text-danger)'; status.textContent='o fim precisa ser depois do início'; return; }
+  const { processoId, processoLabel } = registroManualContexto;
+  const paradaId = gerarIdParada();
+  const rotulo = tipo === 'setup' ? 'setup' : 'parada';
+  registrarLog('registrou manualmente ' + rotulo + ' em ' + processoLabel + ' (' + motivo + '), de ' + inicioBruto.replace('T',' ') + ' até ' + fimBruto.replace('T',' '));
+  registrarMovimentoComHorario(tipo + '_inicio', { moduloId: processoId, moduloNome: processoLabel, pecaCodigo: paradaId, detalhe: motivo }, inicioIso);
+  registrarMovimentoComHorario(tipo + '_fim', { moduloId: processoId, moduloNome: processoLabel, pecaCodigo: paradaId }, fimIso);
+  agendarSincronizacaoRapida();
+  document.getElementById('modalRegistroManualParada').style.display = 'none';
+  showFeedback(rotulo.charAt(0).toUpperCase() + rotulo.slice(1) + ' registrada com sucesso', false);
+  renderBarraParadaSetup();
+  if (document.getElementById('telaParadas').style.display !== 'none') renderTelaParadas();
+};
 
 function tempoDecorridoLegivel(inicioIso){
   const inicio = parsearComoBrasilia(inicioIso);
@@ -3532,6 +3712,15 @@ function renderBarraParadaSetup(){
     el.appendChild(separador);
     el.appendChild(renderBotaoLoteEstacao(station));
   }
+  const separador2 = document.createElement('span');
+  separador2.style.cssText = 'width:1px; height:18px; background:var(--border-strong);';
+  el.appendChild(separador2);
+  const btnManual = document.createElement('button');
+  btnManual.textContent = '📝 registro manual';
+  btnManual.title = 'Registrar uma parada ou setup que já aconteceu, com a data/hora certas';
+  btnManual.style.cssText = 'font-size:11px; padding:4px 9px;';
+  btnManual.onclick = () => abrirRegistroManualParada(station.id, station.label);
+  el.appendChild(btnManual);
 }
 // atualiza o cronômetro a cada 30s enquanto a tela estiver montada
 setInterval(() => {

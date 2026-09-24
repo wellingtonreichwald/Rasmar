@@ -235,16 +235,6 @@
           <label style="font-size:12px; color:var(--text-muted);">processo a processo</label>
           <select id="filtroProcessoAProcesso">
             <option value="">personalizado (escolha abaixo)</option>
-            <option value="bipagem|CNC|bipagem|Coladeira">CNC → Coladeira</option>
-            <option value="bipagem|CNC|bipagem|Limpeza e Separação">CNC → Limpeza e Separação</option>
-            <option value="bipagem|CNC|conclusao_modulo|Pré Montagem">CNC → Pré Montagem</option>
-            <option value="bipagem|CNC|conclusao_modulo|Montagem Final">CNC → Montagem Final</option>
-            <option value="bipagem|Coladeira|bipagem|Limpeza e Separação">Coladeira → Limpeza e Separação</option>
-            <option value="bipagem|Coladeira|conclusao_modulo|Pré Montagem">Coladeira → Pré Montagem</option>
-            <option value="bipagem|Coladeira|conclusao_modulo|Montagem Final">Coladeira → Montagem Final</option>
-            <option value="bipagem|Limpeza e Separação|conclusao_modulo|Pré Montagem">Limpeza e Separação → Pré Montagem</option>
-            <option value="bipagem|Limpeza e Separação|conclusao_modulo|Montagem Final">Limpeza e Separação → Montagem Final</option>
-            <option value="conclusao_modulo|Pré Montagem|conclusao_modulo|Montagem Final">Pré Montagem → Montagem Final</option>
           </select>
           <label style="font-size:12px; color:var(--text-muted);">ou escolha manualmente: de</label>
           <select id="pontoDe"></select>
@@ -494,15 +484,33 @@ function regenerarEstruturasEstacoes(){
   ESTACOES_KANBAN = estacoesConfig.map(s => ({ id: s.id, label: s.label, tipo: s.type }));
   ESTACOES_OEE = estacoesConfig.filter(s => s.type === 'peca').map(s => ({ id: s.id, label: s.label }));
   ORDEM_ESTACOES_KANBAN = estacoesConfig.map(s => s.id);
+  // pontos "de/até" pro filtro processo-a-processo e pra tabela de tempo
+  // médio — inclui o cadastro/importação como primeiro ponto possível,
+  // além de todas as etapas configuradas (não fica mais preso a 5).
+  const pontosComCriacao = [
+    { label: 'Cadastro/Importação', valor: 'criacao|*', nivel: 'peca' },
+    ...PONTOS_FIXOS
+  ];
   TRANSICOES_PROCESSO = [];
-  for (let i = 0; i < PONTOS_FIXOS.length; i++){
-    for (let j = i+1; j < PONTOS_FIXOS.length; j++){
-      const de = PONTOS_FIXOS[i], ate = PONTOS_FIXOS[j];
+  for (let i = 0; i < pontosComCriacao.length; i++){
+    for (let j = i+1; j < pontosComCriacao.length; j++){
+      const de = pontosComCriacao[i], ate = pontosComCriacao[j];
       TRANSICOES_PROCESSO.push({
         label: de.label + ' → ' + ate.label, de: de.valor, ate: ate.valor,
         nivel: (de.nivel === 'modulo' || ate.nivel === 'modulo') ? 'modulo' : 'peca'
       });
     }
+  }
+  const selRapido = document.getElementById('filtroProcessoAProcesso');
+  if (selRapido){
+    const valorAntes = selRapido.value;
+    selRapido.innerHTML = '<option value="">personalizado (escolha abaixo)</option>' +
+      TRANSICOES_PROCESSO.map(t => {
+        const [tipoDe, detDe] = [t.de.slice(0, t.de.indexOf('|')), t.de.slice(t.de.indexOf('|')+1)];
+        const [tipoAte, detAte] = [t.ate.slice(0, t.ate.indexOf('|')), t.ate.slice(t.ate.indexOf('|')+1)];
+        return '<option value="' + tipoDe + '|' + detDe + '|' + tipoAte + '|' + detAte + '">' + t.label + '</option>';
+      }).join('');
+    if (Array.from(selRapido.options).some(o => o.value === valorAntes)) selRapido.value = valorAntes;
   }
 }
 regenerarEstruturasEstacoes();
@@ -516,6 +524,12 @@ function nomeCampoCompletaModulo(estacaoId){
 function listarPontos(movimentos){
   const vistos = new Set();
   const pontos = [];
+  const TIPOS_CICLO = ['ciclo_inicio', 'ciclo_fim', 'ciclo_peca_estimado'];
+  const TIPOS_CRIACAO = ['importacao_csv', 'cadastro_manual'];
+  if (movimentos.some(m => TIPOS_CRIACAO.includes(m.tipo))){
+    pontos.push({ valor: 'criacao|*', label: 'Cadastro/Importação (criação da peça)' });
+    vistos.add('criacao|*');
+  }
   ORDEM_ETAPAS_PECA.forEach(etapa => {
     if (movimentos.some(m => m.tipo === 'bipagem' && m.detalhe === etapa)){
       const valor = 'bipagem|' + etapa;
@@ -524,8 +538,8 @@ function listarPontos(movimentos){
     }
   });
   movimentos.forEach(m => {
-    if (m.tipo === 'bipagem') return;
-    if (TIPOS_PARADA_SETUP.includes(m.tipo) || TIPOS_DEFEITO.includes(m.tipo)) return; // paradas/setups e defeitos têm abas próprias, não entram aqui
+    if (m.tipo === 'bipagem' || TIPOS_CRIACAO.includes(m.tipo)) return;
+    if (TIPOS_PARADA_SETUP.includes(m.tipo) || TIPOS_DEFEITO.includes(m.tipo) || TIPOS_CICLO.includes(m.tipo)) return; // paradas/setups, defeitos e tempo de ciclo têm abas próprias, não entram aqui
     const valor = m.tipo + '|' + (m.detalhe || '');
     if (vistos.has(valor)) return;
     vistos.add(valor);
@@ -549,6 +563,17 @@ function popularSelectsDePontos(movimentos){
 function encontrarPonto(eventosOrdenados, pontoValor, apartirIndice){
   const i2 = pontoValor.indexOf('|');
   const tipo = pontoValor.slice(0, i2), detalhe = pontoValor.slice(i2+1);
+  // "criacao|*" é um ponto sintético: pega o primeiro registro de entrada
+  // da peça no sistema, seja ela veio de importação de CSV ou de cadastro
+  // manual — não importa qual dos dois, o que interessa é "quando essa
+  // peça passou a existir aqui".
+  if (tipo === 'criacao' && detalhe === '*'){
+    for (let i = apartirIndice; i < eventosOrdenados.length; i++){
+      const ev = eventosOrdenados[i];
+      if (ev.tipo === 'importacao_csv' || ev.tipo === 'cadastro_manual') return { ev, indice: i };
+    }
+    return null;
+  }
   for (let i = apartirIndice; i < eventosOrdenados.length; i++){
     const ev = eventosOrdenados[i];
     // compara o detalhe sempre que o ponto pedir um específico — antes só
@@ -727,7 +752,10 @@ function montarCartoesCiclo(){
   // não dá pra somar as duas juntas) — mostra um cartão pra cada uma que
   // tiver dado, com a unidade certa.
   [{chave:'area', unidade:'m²', sigla:'m²/h', rotuloBase:'ritmo médio (área)'},
-   {chave:'bordaLinear', unidade:'m', sigla:'m/h', rotuloBase:'ritmo médio (borda linear)'}].forEach(cfg => {
+   {chave:'bordaLinear', unidade:'m', sigla:'m/h', rotuloBase:'ritmo médio (borda linear)'},
+   {chave:'volume', unidade:'m³', sigla:'m³/h', rotuloBase:'ritmo médio (volume)'},
+   {chave:'comprimento', unidade:'m', sigla:'m/h', rotuloBase:'ritmo médio (comprimento)'},
+   {chave:'largura', unidade:'m', sigla:'m/h', rotuloBase:'ritmo médio (largura)'}].forEach(cfg => {
     const doGrupo = cPecas.filter(c => c.metricaRateio === cfg.chave && c.medida > 0 && c.minutos > 0);
     if (!doGrupo.length) return;
     const medidaTotal = doGrupo.reduce((a,c)=>a+c.medida,0);
@@ -787,7 +815,8 @@ function renderListaCiclo(){
     dados.sort((a,b) => (b.em||'').localeCompare(a.em||''));
     if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
     const linhas = dados.map(d => {
-      const unidade = d.metricaRateio === 'bordaLinear' ? ' m' : (d.metricaRateio === 'area' ? ' m²' : '');
+      const UNIDADES = { bordaLinear: ' m', area: ' m²', volume: ' m³', comprimento: ' m', largura: ' m' };
+      const unidade = UNIDADES[d.metricaRateio] || '';
       return '<tr><td>' + d.pecaCodigo + (d.pecaDescricao ? ' — ' + d.pecaDescricao : '') + '</td><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + d.estacao + '</td><td>' + (d.medida ? d.medida.toFixed(4) + unidade : '—') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td style="white-space:nowrap;">' + (d.em||'').replace('T',' ') + '</td>' + (ehAdmin ? '<td>' + botaoExcluirRegistro([d.id]) + '</td>' : '') + '</tr>';
     }).join('');
     el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>peça</th><th>módulo</th><th>etapa</th><th>medida (área ou borda)</th><th>tempo rateado</th><th>quando</th>' + (ehAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' + linhas + '</tbody></table></div>';
@@ -1282,68 +1311,90 @@ function idEstacaoPorLabel(label){
 }
 function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo){
   // pontos: [{label, data}] já filtrados só pros que têm data (alcançados)
-  const larguraCaixa = 168, alturaCaixa = 108, larguraTriangulo = 90, y0 = 40;
+  const larguraCaixa = 172, alturaCaixa = 118, larguraTriangulo = 96, y0 = 90, iconeLado = 46;
   const total = pontos.length;
-  const larguraSvg = total * larguraCaixa + (total-1) * larguraTriangulo + 60;
-  const alturaSvg = 330;
+  const larguraSvg = iconeLado + 40 + total * larguraCaixa + (total-1) * larguraTriangulo + iconeLado + 40;
+  const alturaSvg = 360;
   const escapar = t => String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
   const dadosCaixas = pontos.map(p => {
     const idEst = idEstacaoPorLabel(p.label);
-    const ct = cicloDoItemNaEstacao(tipoNivel, p.label, moduloId, pecaCodigo);
-    const st = tempoSetupMedioEstacao(p.label);
+    const tc = cicloDoItemNaEstacao(tipoNivel, p.label, moduloId, pecaCodigo);
+    const tr = tempoSetupMedioEstacao(p.label);
     const oeeInfo = idEst ? calcularOeeEstacao(idEst) : null;
-    return { label: p.label, ct, st, oee: oeeInfo ? oeeInfo.oee : null };
+    const wip = idEst ? (contagemAtualPorEstacao()[idEst] || 0) : 0;
+    return { label: p.label, tc, tr, oee: oeeInfo ? oeeInfo.oee : null, wip };
   });
   const esperas = [];
   for (let i = 0; i < pontos.length - 1; i++){
     esperas.push(diffMinutos(pontos[i].data, pontos[i+1].data));
   }
 
-  let x = 30;
-  let svg = '<svg viewBox="0 0 ' + larguraSvg + ' ' + alturaSvg + '" width="100%" style="min-width:' + Math.max(700, larguraSvg*0.7) + 'px; font-family:var(--font-body);">';
+  const xInicio = iconeLado + 40;
+  let x = xInicio;
+  let svg = '<svg viewBox="0 0 ' + larguraSvg + ' ' + alturaSvg + '" width="100%" style="min-width:' + Math.max(760, larguraSvg*0.7) + 'px; font-family:var(--font-body);">';
+
+  // fluxo de informação no topo — linha tracejada representando a ordem de
+  // produção percorrendo as etapas (padrão clássico de um VSM)
+  svg += '<line x1="' + (xInicio-20) + '" y1="30" x2="' + (larguraSvg-iconeLado-20) + '" y2="30" stroke="#555" stroke-width="1.2" stroke-dasharray="5 4"/>';
+  svg += '<polygon points="' + (larguraSvg-iconeLado-20) + ',25 ' + (larguraSvg-iconeLado-8) + ',30 ' + (larguraSvg-iconeLado-20) + ',35" fill="#555"/>';
+  svg += '<text x="' + (xInicio-20) + '" y="20" font-size="10" fill="#555">fluxo de informação / ordem de produção</text>';
+
+  // ícone de "fornecedor" (a origem: cadastro/importação) no canto esquerdo
+  svg += '<rect x="4" y="' + (y0+20) + '" width="' + iconeLado + '" height="' + (iconeLado-12) + '" fill="none" stroke="#333" stroke-width="1.5"/>';
+  svg += '<polygon points="4,' + (y0+20) + ' ' + (4+iconeLado/2) + ',' + (y0+2) + ' ' + (4+iconeLado) + ',' + (y0+20) + '" fill="none" stroke="#333" stroke-width="1.5"/>';
+  svg += '<text x="' + (4+iconeLado/2) + '" y="' + (y0+alturaCaixa+10) + '" text-anchor="middle" font-size="9.5" fill="#333">início</text>';
 
   dadosCaixas.forEach((d, i) => {
-    // caixa do processo
-    svg += '<rect x="' + x + '" y="' + y0 + '" width="' + larguraCaixa + '" height="' + alturaCaixa + '" rx="6" fill="#fff8e6" stroke="#8a6d1f" stroke-width="1.5"/>';
-    svg += '<text x="' + (x+larguraCaixa/2) + '" y="' + (y0+22) + '" text-anchor="middle" font-size="13" font-weight="700" fill="#3d2f0a">' + escapar(d.label) + '</text>';
-    svg += '<line x1="' + x + '" y1="' + (y0+30) + '" x2="' + (x+larguraCaixa) + '" y2="' + (y0+30) + '" stroke="#8a6d1f" stroke-width="1"/>';
-    const ctTexto = d.ct.valor !== null ? minutosLegivel(d.ct.valor) + (d.ct.éMedia ? ' (média)' : '') : 'sem dado';
-    svg += '<text x="' + (x+10) + '" y="' + (y0+48) + '" font-size="11" fill="#3d2f0a">C/T: ' + escapar(ctTexto) + '</text>';
-    svg += '<text x="' + (x+10) + '" y="' + (y0+66) + '" font-size="11" fill="#3d2f0a">S/T: ' + escapar(d.st !== null ? minutosLegivel(d.st) : 'sem dado') + '</text>';
-    svg += '<text x="' + (x+10) + '" y="' + (y0+84) + '" font-size="11" fill="#3d2f0a">OEE: ' + escapar(d.oee !== null ? (d.oee*100).toFixed(0) + '%' : 'sem dado') + '</text>';
+    // caixa do processo (com uma faixa de título, como um VSM de verdade)
+    svg += '<rect x="' + x + '" y="' + y0 + '" width="' + larguraCaixa + '" height="' + alturaCaixa + '" fill="#fff8e6" stroke="#3d2f0a" stroke-width="1.5"/>';
+    svg += '<rect x="' + x + '" y="' + y0 + '" width="' + larguraCaixa + '" height="26" fill="#3d2f0a"/>';
+    svg += '<text x="' + (x+larguraCaixa/2) + '" y="' + (y0+18) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff8e6">' + escapar(d.label) + '</text>';
+    const tcTexto = d.tc.valor !== null ? minutosLegivel(d.tc.valor) + (d.tc.éMedia ? ' (méd.)' : '') : 'sem dado';
+    svg += '<text x="' + (x+10) + '" y="' + (y0+46) + '" font-size="11" fill="#3d2f0a">T/C: ' + escapar(tcTexto) + '</text>';
+    svg += '<text x="' + (x+10) + '" y="' + (y0+64) + '" font-size="11" fill="#3d2f0a">T/R: ' + escapar(d.tr !== null ? minutosLegivel(d.tr) : 'sem dado') + '</text>';
+    svg += '<text x="' + (x+10) + '" y="' + (y0+82) + '" font-size="11" fill="#3d2f0a">OEE: ' + escapar(d.oee !== null ? (d.oee*100).toFixed(0) + '%' : 'sem dado') + '</text>';
+    svg += '<text x="' + (x+10) + '" y="' + (y0+100) + '" font-size="11" fill="#3d2f0a">WIP agora: ' + d.wip + ' peça(s)</text>';
     x += larguraCaixa;
 
     if (i < dadosCaixas.length - 1){
-      // triângulo de estoque/espera
+      // seta listrada de fluxo de material (empurrado) + triângulo de
+      // estoque/WIP na espera entre as duas etapas
+      const yFlecha = y0 + alturaCaixa/2;
+      svg += '<line x1="' + x + '" y1="' + yFlecha + '" x2="' + (x+larguraTriangulo-14) + '" y2="' + yFlecha + '" stroke="#3d2f0a" stroke-width="6" stroke-dasharray="10 5"/>';
+      svg += '<polygon points="' + (x+larguraTriangulo-14) + ',' + (yFlecha-9) + ' ' + (x+larguraTriangulo) + ',' + yFlecha + ' ' + (x+larguraTriangulo-14) + ',' + (yFlecha+9) + '" fill="#3d2f0a"/>';
       const cx = x + larguraTriangulo/2;
-      svg += '<polygon points="' + x + ',' + (y0+alturaCaixa-10) + ' ' + (x+larguraTriangulo) + ',' + (y0+alturaCaixa-10) + ' ' + cx + ',' + (y0+alturaCaixa-55) + '" fill="#fdeecb" stroke="#8a6d1f" stroke-width="1.5"/>';
-      svg += '<text x="' + cx + '" y="' + (y0+alturaCaixa-25) + '" text-anchor="middle" font-size="10.5" font-weight="700" fill="#3d2f0a">' + (esperas[i] !== null ? escapar(minutosLegivel(esperas[i])) : '—') + '</text>';
-      svg += '<text x="' + cx + '" y="' + (y0+alturaCaixa+2) + '" text-anchor="middle" font-size="9.5" fill="#8a6d1f">espera</text>';
+      svg += '<polygon points="' + (cx-24) + ',' + (y0+alturaCaixa+12) + ' ' + (cx+24) + ',' + (y0+alturaCaixa+12) + ' ' + cx + ',' + (y0+alturaCaixa-28) + '" fill="#fdeecb" stroke="#8a6d1f" stroke-width="1.5"/>';
+      svg += '<text x="' + cx + '" y="' + (y0+alturaCaixa-2) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#3d2f0a">' + (esperas[i] !== null ? escapar(minutosLegivel(esperas[i])) : '—') + '</text>';
+      svg += '<text x="' + cx + '" y="' + (y0+alturaCaixa+28) + '" text-anchor="middle" font-size="9.5" fill="#8a6d1f">espera (WIP)</text>';
       x += larguraTriangulo;
     }
   });
 
-  // escada do lead time embaixo — não está em escala, é o padrão pra VSM
-  const yLinha = y0 + alturaCaixa + 90;
-  x = 30;
-  const ladderPassoLargura = (larguraCaixa + larguraTriangulo) / 2;
-  let pathTopo = 'M ' + x + ' ' + yLinha;
-  let pathBase = '';
+  // ícone de "cliente" (o destino: entrega/consumo) no canto direito
+  svg += '<polygon points="' + x + ',' + (y0+alturaCaixa-6) + ' ' + (x+iconeLado*0.6) + ',' + (y0+alturaCaixa-6) + ' ' + (x+iconeLado*0.6) + ',' + (y0+alturaCaixa-26) + ' ' + (x+iconeLado*0.85) + ',' + (y0+alturaCaixa-26) + ' ' + (x+iconeLado) + ',' + (y0+alturaCaixa-10) + ' ' + (x+iconeLado) + ',' + (y0+alturaCaixa+6) + ' ' + x + ',' + (y0+alturaCaixa+6) + '" fill="none" stroke="#333" stroke-width="1.5"/>';
+  svg += '<circle cx="' + (x+12) + '" cy="' + (y0+alturaCaixa+10) + '" r="4" fill="#333"/><circle cx="' + (x+iconeLado-14) + '" cy="' + (y0+alturaCaixa+10) + '" r="4" fill="#333"/>';
+  svg += '<text x="' + (x+iconeLado/2) + '" y="' + (y0+alturaCaixa+34) + '" text-anchor="middle" font-size="9.5" fill="#333">entrega</text>';
+
+  // escada do lead time embaixo (Product/Process Timeline clássica de um
+  // VSM) — não está em escala, é o padrão, já que os tempos variam demais
+  // pra caber num desenho proporcional
+  const yLinha = y0 + alturaCaixa + 100;
+  x = xInicio;
   const segmentos = [];
   dadosCaixas.forEach((d, i) => {
-    segmentos.push({ tipo:'processo', largura: larguraCaixa, valor: d.ct.valor });
+    segmentos.push({ tipo:'processo', largura: larguraCaixa, valor: d.tc.valor });
     if (i < dadosCaixas.length - 1) segmentos.push({ tipo:'espera', largura: larguraTriangulo, valor: esperas[i] });
   });
-  let xs = 30;
+  let pathTopo = 'M ' + x + ' ' + yLinha;
+  let xs = xInicio;
   let alturaAlt = 0;
   segmentos.forEach(seg => {
-    if (seg.tipo === 'espera'){ alturaAlt = 28; pathTopo += ' L ' + xs + ' ' + (yLinha-alturaAlt) + ' L ' + (xs+seg.largura) + ' ' + (yLinha-alturaAlt) + ' L ' + (xs+seg.largura) + ' ' + yLinha; }
+    if (seg.tipo === 'espera'){ alturaAlt = 30; pathTopo += ' L ' + xs + ' ' + (yLinha-alturaAlt) + ' L ' + (xs+seg.largura) + ' ' + (yLinha-alturaAlt) + ' L ' + (xs+seg.largura) + ' ' + yLinha; }
     xs += seg.largura;
   });
   svg += '<path d="' + pathTopo + '" fill="none" stroke="#141b17" stroke-width="2"/>';
-  // rótulos dos valores em cada degrau
-  xs = 30;
+  xs = xInicio;
   segmentos.forEach(seg => {
     const yTxt = seg.tipo === 'espera' ? (yLinha - alturaAlt - 6) : (yLinha + 16);
     svg += '<text x="' + (xs + seg.largura/2) + '" y="' + yTxt + '" text-anchor="middle" font-size="10" fill="' + (seg.tipo==='espera' ? '#8a6d1f' : '#141b17') + '">' + (seg.valor !== null ? escapar(minutosLegivel(seg.valor)) : '—') + '</text>';
@@ -1351,13 +1402,13 @@ function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo){
   });
 
   const leadTimeTotal = pontos.length >= 2 ? diffMinutos(pontos[0].data, pontos[pontos.length-1].data) : null;
-  const tempoProcessamentoTotal = dadosCaixas.reduce((a,d) => a + (d.ct.valor || 0), 0);
-  svg += '<text x="30" y="' + (yLinha+42) + '" font-size="12.5" font-weight="700" fill="#141b17">Lead time total: ' + (leadTimeTotal !== null ? escapar(minutosLegivel(leadTimeTotal)) : '—') + '</text>';
-  svg += '<text x="30" y="' + (yLinha+60) + '" font-size="12.5" font-weight="700" fill="var(--brand)">Tempo de processamento total (C/T somado): ' + escapar(minutosLegivel(tempoProcessamentoTotal)) + '</text>';
+  const tempoProcessamentoTotal = dadosCaixas.reduce((a,d) => a + (d.tc.valor || 0), 0);
+  svg += '<text x="' + xInicio + '" y="' + (yLinha+42) + '" font-size="13" font-weight="700" fill="#141b17">Lead Time total: ' + (leadTimeTotal !== null ? escapar(minutosLegivel(leadTimeTotal)) : '—') + '</text>';
+  svg += '<text x="' + xInicio + '" y="' + (yLinha+60) + '" font-size="13" font-weight="700" fill="var(--brand)">Tempo de Processamento (Σ T/C): ' + escapar(minutosLegivel(tempoProcessamentoTotal)) + '</text>';
 
   svg += '</svg>';
   return '<div style="overflow-x:auto;">' + svg + '</div>' +
-    '<p style="font-size:11px; color:var(--text-muted); margin-top:8px;">C/T = tempo de ciclo (específico desse item quando disponível, senão a média da etapa) · S/T = tempo médio de setup na etapa · OEE = da etapa, no período · a escada embaixo não está em escala — é o padrão de um VSM, já que os tempos variam demais pra caber num desenho proporcional.</p>';
+    '<p style="font-size:11px; color:var(--text-muted); margin-top:8px;"><strong>T/C</strong> = tempo de ciclo (desse item quando disponível, senão a média da etapa) · <strong>T/R</strong> = tempo médio de troca/setup na etapa · <strong>OEE</strong> = da etapa, no período · <strong>WIP</strong> = quantas peças/módulos estão parados ali agora mesmo (em tempo real) · a escada embaixo não está em escala — é o padrão de um VSM, já que os tempos variam demais pra caber num desenho proporcional.</p>';
 }
 
 function renderVsm(){
@@ -1462,6 +1513,23 @@ function ativarExclusaoNaLista(containerId, aoExcluirComSucesso){
   });
 }
 // ---------- conselhos baseados em regras (sem IA externa) ----------
+// contagem de quantas peças/módulos estão parados em cada etapa AGORA —
+// reaproveitado pelo Kanban, pelos conselhos e pelo WIP mostrado no VSM.
+function contagemAtualPorEstacao(){
+  const contagem = {};
+  ESTACOES_KANBAN.forEach(e => { contagem[e.id] = 0; });
+  projetosAtuais.forEach(pr => {
+    if (pr.baixado) return;
+    pr.modulos.forEach(mod => {
+      if (mod.fase === 'peca'){
+        mod.pecas.forEach(p => { if (!p.descartada) contagem[p.estacaoAtual] = (contagem[p.estacaoAtual]||0) + 1; });
+      } else {
+        if (!mod[nomeCampoCompletaModulo(mod.fase)]) contagem[mod.fase] = (contagem[mod.fase]||0) + 1;
+      }
+    });
+  });
+  return contagem;
+}
 function renderConselhos(){
   const conselhos = [];
 
@@ -1496,18 +1564,7 @@ function renderConselhos(){
   }
 
   // 3) maior acúmulo AGORA (gargalo do momento, olhando o estado atual)
-  const contagemAtual = {};
-  ESTACOES_KANBAN.forEach(e => { contagemAtual[e.id] = 0; });
-  projetosAtuais.forEach(pr => {
-    if (pr.baixado) return;
-    pr.modulos.forEach(mod => {
-      if (mod.fase === 'peca'){
-        mod.pecas.forEach(p => { if (!p.descartada) contagemAtual[p.estacaoAtual] = (contagemAtual[p.estacaoAtual]||0) + 1; });
-      } else {
-        if (!mod[nomeCampoCompletaModulo(mod.fase)]) contagemAtual[mod.fase] = (contagemAtual[mod.fase]||0) + 1;
-      }
-    });
-  });
+  const contagemAtual = contagemAtualPorEstacao();
   const gargaloAtual = Object.entries(contagemAtual).sort((a,b) => b[1]-a[1])[0];
   if (gargaloAtual && gargaloAtual[1] >= 2){
     const labelEtapa = (ESTACOES_KANBAN.find(e => e.id === gargaloAtual[0])||{}).label || gargaloAtual[0];
