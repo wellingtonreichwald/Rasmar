@@ -1294,16 +1294,19 @@ function tempoSetupMedioEstacao(stationLabel){
   return pares.reduce((a,p)=>a+p.minutos,0) / pares.length;
 }
 function cicloDoItemNaEstacao(tipoNivel, stationLabel, moduloId, pecaCodigo){
-  if (tipoNivel === 'modulo'){
+  if (tipoNivel === 'modulo' && moduloId){
     const registro = ciclosPorModulo().find(c => c.moduloId === moduloId && c.detalhe === stationLabel);
     if (registro) return { valor: registro.minutos, éMedia: false };
-    const todos = ciclosPorModulo().filter(c => c.detalhe === stationLabel);
-    return todos.length ? { valor: todos.reduce((a,c)=>a+c.minutos,0)/todos.length, éMedia: true } : { valor: null, éMedia: false };
   }
-  const registro = ciclosPorPeca().find(c => c.pecaCodigo === pecaCodigo && c.estacao === stationLabel);
-  if (registro) return { valor: registro.minutos, éMedia: false };
-  const todos = ciclosPorPeca().filter(c => c.estacao === stationLabel);
-  return todos.length ? { valor: todos.reduce((a,c)=>a+c.minutos,0)/todos.length, éMedia: true } : { valor: null, éMedia: false };
+  if (tipoNivel === 'peca' && pecaCodigo){
+    const registro = ciclosPorPeca().find(c => c.pecaCodigo === pecaCodigo && c.estacao === stationLabel);
+    if (registro) return { valor: registro.minutos, éMedia: false };
+  }
+  // sem registro específico (ou é um pedido, que junta vários módulos/peças
+  // — não faz sentido um "T/C só dele" por etapa) — usa a média da etapa,
+  // olhando os dois tipos de registro que ela tiver.
+  const todos = [...ciclosPorModulo().filter(c => c.detalhe === stationLabel).map(c=>c.minutos), ...ciclosPorPeca().filter(c => c.estacao === stationLabel).map(c=>c.minutos)];
+  return todos.length ? { valor: todos.reduce((a,b)=>a+b,0)/todos.length, éMedia: true } : { valor: null, éMedia: false };
 }
 function idEstacaoPorLabel(label){
   const s = estacoesConfig.find(e => e.label === label);
@@ -1436,27 +1439,22 @@ function renderVsm(){
       html += '<p class="tagMuted">esse módulo ainda não tem nenhuma etapa concluída no período</p>';
     }
   } else if (tipo === 'pedido'){
-    // pedido: só início (primeiro evento de qualquer peça/módulo dele) e
-    // situação atual ou entrega — não todos os registros de peça por peça.
-    const primeiro = eventos[0];
+    // pedido: agrega por etapa (CNC, Coladeira...), pegando o momento em
+    // que o ÚLTIMO módulo/peça do pedido atingiu aquela etapa — ou seja,
+    // "quando o pedido inteiro, não só uma parte dele, passou por ali".
+    // Mesma visualização Lean usada em módulo e peça.
+    const pontosPedido = PONTOS_FIXOS.map(p => {
+      const datasDessaEtapa = eventos.filter(ev => (ev.tipo + '|' + (ev.detalhe||'')) === p.valor).map(ev => ev.em);
+      if (!datasDessaEtapa.length) return null;
+      return { label: p.label, data: datasDessaEtapa.sort().reverse()[0] };
+    }).filter(Boolean);
+    if (pontosPedido.length >= 1){
+      html += renderVsmLean(pontosPedido, 'pedido', null, null);
+    } else {
+      html += '<p class="tagMuted">esse pedido ainda não tem nenhuma etapa concluída no período</p>';
+    }
     const entrega = eventos.find(ev => ev.tipo === 'baixa_pedido');
-    const ultimo = entrega || eventos[eventos.length-1];
-    const total = eventos.length > 1 ? diffMinutos(primeiro.em, ultimo.em) : null;
-    const totalUtil = eventos.length > 1 ? calcularMinutosUteis(primeiro.em, ultimo.em) : null;
-    html += '<div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">' +
-      '<div style="min-width:180px; background:var(--surface-1); border:1px solid var(--border-strong); border-radius:8px; padding:14px;">' +
-        '<div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em;">Início</div>' +
-        '<div style="font-weight:700; font-size:14px; margin:4px 0;">' + primeiro.em.replace('T',' ') + '</div>' +
-        '<div style="font-size:11px; color:var(--text-secondary);">' + nomeTipo(primeiro.tipo) + (primeiro.detalhe ? ' — ' + primeiro.detalhe : '') + '</div>' +
-      '</div>' +
-      '<span style="font-size:26px; color:var(--border-strong);">→</span>' +
-      '<div style="min-width:180px; background:var(--surface-1); border:1px solid var(--border-strong); border-radius:8px; padding:14px;">' +
-        '<div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em;">' + (entrega ? 'Entrega' : 'Situação atual (ainda em andamento)') + '</div>' +
-        '<div style="font-weight:700; font-size:14px; margin:4px 0;">' + ultimo.em.replace('T',' ') + '</div>' +
-        '<div style="font-size:11px; color:var(--text-secondary);">' + nomeTipo(ultimo.tipo) + (ultimo.detalhe ? ' — ' + ultimo.detalhe : '') + '</div>' +
-      '</div>' +
-    '</div>';
-    html += total !== null ? '<p style="font-size:13px; margin-top:16px;"><strong>Lead time total:</strong> ' + minutosLegivel(total) + ' corrido' + (totalUtil !== null ? ' <span class="tagMuted">(' + minutosLegivel(totalUtil) + ' útil, dentro do expediente)</span>' : '') + '</p>' : '';
+    if (entrega) html += '<p style="font-size:13px; margin-top:10px;">📦 Entregue em <strong>' + entrega.em.replace('T',' ') + '</strong></p>';
   } else {
     // peça: mesma visualização Lean, usando cada bipagem como uma etapa alcançada
     const pontosPeca = eventos.filter(ev => ev.tipo === 'bipagem').map(ev => ({ label: ev.detalhe, data: ev.em }));

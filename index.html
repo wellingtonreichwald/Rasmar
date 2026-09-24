@@ -3351,7 +3351,7 @@ function renderBotaoCicloModulo(mod, station){
   if (ativo){
     el.style.color = 'var(--text-accent)';
     const texto = document.createElement('span');
-    texto.textContent = '⏱ ciclo em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
+    texto.textContent = '⏱ cronômetro DESTE MÓDULO em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
     const btnFim = document.createElement('button');
     btnFim.textContent = 'Encerrar';
     btnFim.title = 'Encerra o cronômetro agora, sem precisar concluir o módulo — útil se você iniciou por engano ou precisa parar antes de terminar.';
@@ -3360,7 +3360,8 @@ function renderBotaoCicloModulo(mod, station){
     el.appendChild(texto); el.appendChild(btnFim);
   } else {
     const btn = document.createElement('button');
-    btn.textContent = '▶ Iniciar tempo de ciclo';
+    btn.textContent = '▶ Iniciar cronômetro deste módulo';
+    btn.title = 'Mede o tempo de trabalho só deste módulo, do início ao fim — não divide com nada nem ninguém.';
     btn.style.cssText = 'font-size:11px; padding:3px 9px;';
     btn.onclick = (e) => { e.stopPropagation(); iniciarCicloModulo(mod, station); };
     el.appendChild(btn);
@@ -3398,7 +3399,7 @@ function renderBotaoCicloProjeto(pr){
   if (ativo){
     el.style.color = 'var(--text-accent)';
     const texto = document.createElement('span');
-    texto.textContent = '⏱ ciclo em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
+    texto.textContent = '⏱ cronômetro DESTE PEDIDO em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
     const btnFim = document.createElement('button');
     btnFim.textContent = 'Encerrar';
     btnFim.title = 'Encerra o cronômetro agora, sem precisar dar baixa no pedido — útil se você iniciou por engano ou precisa parar antes de terminar.';
@@ -3407,7 +3408,8 @@ function renderBotaoCicloProjeto(pr){
     el.appendChild(texto); el.appendChild(btnFim);
   } else {
     const btn = document.createElement('button');
-    btn.textContent = '▶ Iniciar tempo de ciclo do pedido';
+    btn.textContent = '▶ Iniciar cronômetro deste pedido';
+    btn.title = 'Mede o tempo de trabalho só deste pedido, do início ao fim — não divide com nada nem ninguém.';
     btn.style.cssText = 'font-size:11px; padding:3px 9px;';
     btn.onclick = (e) => { e.stopPropagation(); iniciarCicloProjeto(pr); };
     el.appendChild(btn);
@@ -3495,7 +3497,7 @@ function renderBotaoLoteEstacao(station){
   if (ativo){
     el.style.color = 'var(--text-accent)';
     const texto = document.createElement('span');
-    texto.textContent = '⏱ lote em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
+    texto.textContent = '⏱ cronômetro do LOTE (várias peças) em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
     const btn = document.createElement('button');
     btn.textContent = 'Finalizar lote';
     btn.style.cssText = 'font-size:11px; padding:3px 9px; color:var(--text-danger);';
@@ -3503,7 +3505,7 @@ function renderBotaoLoteEstacao(station){
     el.appendChild(texto); el.appendChild(btn);
   } else {
     const btn = document.createElement('button');
-    btn.textContent = '▶ Iniciar lote';
+    btn.textContent = '▶ Iniciar cronômetro do lote (várias peças)';
     btn.style.cssText = 'font-size:11px; padding:3px 9px;';
     btn.title = 'Marca o início de um lote — todas as peças bipadas aqui até você finalizar entram automaticamente nele, e o tempo é dividido entre elas' + (nomeMetrica ? ' pela ' + nomeMetrica + ' de cada uma.' : ' igualmente (essa etapa não tem uma medida configurada).');
     btn.onclick = (e) => { e.stopPropagation(); iniciarLoteEstacao(station); };
