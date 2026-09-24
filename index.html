@@ -3344,29 +3344,45 @@ function fecharCicloModuloSeAtivo(mod, station){
   registrarLog('fechou o tempo de ciclo do módulo #' + mod.id + ' (' + mod.nome + ') em ' + station.label);
   registrarMovimento('ciclo_fim', { moduloId: mod.id, moduloNome: mod.nome, pecaCodigo: ativo.cicloId, clienteCodigo: pr?pr.codigo:'', cliente: pr?pr.cliente:'', projeto: pr?pr.projeto:'', detalhe: station.label });
 }
-function renderBotaoCicloModulo(mod, station){
+// ---------- componente único de cronômetro — visual idêntico em módulo,
+// pedido e lote, pra ficar sempre reconhecível como a mesma coisa, não
+// importa onde apareça. Uma "pílula" com borda: verde quando parado
+// (▶ Iniciar), vermelha quando rodando (com o botão de parar SEMPRE
+// visível junto, nunca escondido atrás de outro clique). ----------
+function renderControleCronometro(opcoes){
   const el = document.createElement('span');
-  el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
-  const ativo = cicloAtivoModulo(mod);
-  if (ativo){
-    el.style.color = 'var(--text-accent)';
+  el.style.cssText = 'display:inline-flex; align-items:center; font-size:12px; border-radius:999px; overflow:hidden; border:1.5px solid ' + (opcoes.ativo ? 'var(--text-danger)' : 'var(--brand2)') + '; flex-shrink:0;';
+  if (opcoes.ativo){
     const texto = document.createElement('span');
-    texto.textContent = '⏱ cronômetro DESTE MÓDULO em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
-    const btnFim = document.createElement('button');
-    btnFim.textContent = 'Encerrar';
-    btnFim.title = 'Encerra o cronômetro agora, sem precisar concluir o módulo — útil se você iniciou por engano ou precisa parar antes de terminar.';
-    btnFim.style.cssText = 'font-size:11px; padding:3px 9px; color:var(--text-danger);';
-    btnFim.onclick = (e) => { e.stopPropagation(); fecharCicloModuloSeAtivo(mod, station); renderProjetos(); };
-    el.appendChild(texto); el.appendChild(btnFim);
+    texto.style.cssText = 'padding:5px 10px 5px 12px; background:#fdeceb; color:var(--text-danger); font-weight:600; white-space:nowrap;';
+    texto.textContent = '⏱ ' + opcoes.rotulo + ' — ' + tempoDecorridoLegivel(opcoes.ativo.inicio);
+    const btn = document.createElement('button');
+    btn.textContent = '⏹ Encerrar';
+    btn.title = opcoes.tituloEncerrar || '';
+    btn.style.cssText = 'font-size:12px; padding:5px 12px; background:var(--text-danger); color:#fff; border:none; font-weight:600; cursor:pointer;';
+    btn.onclick = (e) => { e.stopPropagation(); opcoes.aoEncerrar(); };
+    el.appendChild(texto); el.appendChild(btn);
   } else {
     const btn = document.createElement('button');
-    btn.textContent = '▶ Iniciar cronômetro deste módulo';
-    btn.title = 'Mede o tempo de trabalho só deste módulo, do início ao fim — não divide com nada nem ninguém.';
-    btn.style.cssText = 'font-size:11px; padding:3px 9px;';
-    btn.onclick = (e) => { e.stopPropagation(); iniciarCicloModulo(mod, station); };
+    btn.textContent = '▶ ' + opcoes.rotulo;
+    btn.title = opcoes.tituloIniciar || '';
+    btn.style.cssText = 'font-size:12px; padding:5px 14px; background:#fff; color:var(--brand-dark); border:none; font-weight:600; cursor:pointer; white-space:nowrap;';
+    btn.onclick = (e) => { e.stopPropagation(); opcoes.aoIniciar(); };
     el.appendChild(btn);
   }
   return el;
+}
+
+function renderBotaoCicloModulo(mod, station){
+  const ativo = cicloAtivoModulo(mod);
+  return renderControleCronometro({
+    rotulo: 'cronômetro deste módulo',
+    ativo,
+    tituloIniciar: 'Mede o tempo de trabalho só deste módulo, do início ao fim — não divide com nada nem ninguém.',
+    tituloEncerrar: 'Encerra o cronômetro agora, sem precisar concluir o módulo — útil se você iniciou por engano ou precisa parar antes de terminar.',
+    aoIniciar: () => iniciarCicloModulo(mod, station),
+    aoEncerrar: () => { fecharCicloModuloSeAtivo(mod, station); renderProjetos(); }
+  });
 }
 
 function cicloAtivoProjeto(pr){
@@ -3393,28 +3409,15 @@ function fecharCicloProjetoSeAtivo(pr){
   registrarMovimento('ciclo_fim', { moduloId: '', moduloNome: '', pecaCodigo: ativo.cicloId, clienteCodigo: pr.codigo, cliente: pr.cliente, projeto: pr.projeto, detalhe: 'pedido inteiro' });
 }
 function renderBotaoCicloProjeto(pr){
-  const el = document.createElement('span');
-  el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
   const ativo = cicloAtivoProjeto(pr);
-  if (ativo){
-    el.style.color = 'var(--text-accent)';
-    const texto = document.createElement('span');
-    texto.textContent = '⏱ cronômetro DESTE PEDIDO em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
-    const btnFim = document.createElement('button');
-    btnFim.textContent = 'Encerrar';
-    btnFim.title = 'Encerra o cronômetro agora, sem precisar dar baixa no pedido — útil se você iniciou por engano ou precisa parar antes de terminar.';
-    btnFim.style.cssText = 'font-size:11px; padding:3px 9px; color:var(--text-danger);';
-    btnFim.onclick = (e) => { e.stopPropagation(); fecharCicloProjetoSeAtivo(pr); renderProjetos(); };
-    el.appendChild(texto); el.appendChild(btnFim);
-  } else {
-    const btn = document.createElement('button');
-    btn.textContent = '▶ Iniciar cronômetro deste pedido';
-    btn.title = 'Mede o tempo de trabalho só deste pedido, do início ao fim — não divide com nada nem ninguém.';
-    btn.style.cssText = 'font-size:11px; padding:3px 9px;';
-    btn.onclick = (e) => { e.stopPropagation(); iniciarCicloProjeto(pr); };
-    el.appendChild(btn);
-  }
-  return el;
+  return renderControleCronometro({
+    rotulo: 'cronômetro deste pedido',
+    ativo,
+    tituloIniciar: 'Mede o tempo de trabalho só deste pedido, do início ao fim — não divide com nada nem ninguém.',
+    tituloEncerrar: 'Encerra o cronômetro agora, sem precisar dar baixa no pedido — útil se você iniciou por engano ou precisa parar antes de terminar.',
+    aoIniciar: () => iniciarCicloProjeto(pr),
+    aoEncerrar: () => { fecharCicloProjetoSeAtivo(pr); renderProjetos(); }
+  });
 }
 
 // ---------- lote de corte (tempo de ciclo por peça, rateado por m²) ----------
@@ -3490,28 +3493,16 @@ function finalizarLoteEstacao(station){
   renderTudo();
 }
 function renderBotaoLoteEstacao(station){
-  const el = document.createElement('span');
-  el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
   const ativo = cicloAtivoEstacao(station);
   const nomeMetrica = NOMES_METRICA[station.metricaRateio] || null;
-  if (ativo){
-    el.style.color = 'var(--text-accent)';
-    const texto = document.createElement('span');
-    texto.textContent = '⏱ cronômetro do LOTE (várias peças) em andamento — ' + tempoDecorridoLegivel(ativo.inicio);
-    const btn = document.createElement('button');
-    btn.textContent = 'Finalizar lote';
-    btn.style.cssText = 'font-size:11px; padding:3px 9px; color:var(--text-danger);';
-    btn.onclick = (e) => { e.stopPropagation(); finalizarLoteEstacao(station); };
-    el.appendChild(texto); el.appendChild(btn);
-  } else {
-    const btn = document.createElement('button');
-    btn.textContent = '▶ Iniciar cronômetro do lote (várias peças)';
-    btn.style.cssText = 'font-size:11px; padding:3px 9px;';
-    btn.title = 'Marca o início de um lote — todas as peças bipadas aqui até você finalizar entram automaticamente nele, e o tempo é dividido entre elas' + (nomeMetrica ? ' pela ' + nomeMetrica + ' de cada uma.' : ' igualmente (essa etapa não tem uma medida configurada).');
-    btn.onclick = (e) => { e.stopPropagation(); iniciarLoteEstacao(station); };
-    el.appendChild(btn);
-  }
-  return el;
+  return renderControleCronometro({
+    rotulo: 'cronômetro do lote (várias peças)',
+    ativo,
+    tituloIniciar: 'Marca o início de um lote — todas as peças bipadas aqui até você finalizar entram automaticamente nele, e o tempo é dividido entre elas' + (nomeMetrica ? ' pela ' + nomeMetrica + ' de cada uma.' : ' igualmente (essa etapa não tem uma medida configurada).'),
+    tituloEncerrar: 'Fecha o lote agora — o tempo é rateado entre as peças que foram bipadas aqui desde o início.',
+    aoIniciar: () => iniciarLoteEstacao(station),
+    aoEncerrar: () => finalizarLoteEstacao(station)
+  });
 }
 
 // ---------- link do desenho (Sketchup) — peça, módulo ou pedido ----------
