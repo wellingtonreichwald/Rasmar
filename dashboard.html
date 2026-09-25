@@ -233,11 +233,7 @@
       <details class="secao ocultarNaImpressao" style="padding:12px 14px; margin-bottom:14px;">
         <summary style="cursor:pointer; font-size:13px; font-weight:600;">🔍 Comparar dois pontos específicos (opcional)</summary>
         <div class="filtros" style="margin-top:10px; padding:0;">
-          <label style="font-size:12px; color:var(--text-muted);">processo a processo</label>
-          <select id="filtroProcessoAProcesso">
-            <option value="">personalizado (escolha abaixo)</option>
-          </select>
-          <label style="font-size:12px; color:var(--text-muted);">ou escolha manualmente: de</label>
+          <label style="font-size:12px; color:var(--text-muted);">de</label>
           <select id="pontoDe"></select>
           <label style="font-size:12px; color:var(--text-muted);">até</label>
           <select id="pontoAte"></select>
@@ -515,17 +511,6 @@ function regenerarEstruturasEstacoes(){
         nivel: (de.nivel === 'modulo' || ate.nivel === 'modulo') ? 'modulo' : 'peca'
       });
     }
-  }
-  const selRapido = document.getElementById('filtroProcessoAProcesso');
-  if (selRapido){
-    const valorAntes = selRapido.value;
-    selRapido.innerHTML = '<option value="">personalizado (escolha abaixo)</option>' +
-      TRANSICOES_PROCESSO.map(t => {
-        const [tipoDe, detDe] = [t.de.slice(0, t.de.indexOf('|')), t.de.slice(t.de.indexOf('|')+1)];
-        const [tipoAte, detAte] = [t.ate.slice(0, t.ate.indexOf('|')), t.ate.slice(t.ate.indexOf('|')+1)];
-        return '<option value="' + tipoDe + '|' + detDe + '|' + tipoAte + '|' + detAte + '">' + t.label + '</option>';
-      }).join('');
-    if (Array.from(selRapido.options).some(o => o.value === valorAntes)) selRapido.value = valorAntes;
   }
 }
 regenerarEstruturasEstacoes();
@@ -1146,6 +1131,7 @@ function renderFluxoVisual(datas){
 function renderTabelaPecas(grupos, porModulo){
   const moduloPorChave = {};
   (porModulo||[]).forEach(m => { moduloPorChave[(m.clienteCodigo||'—') + '#' + m.moduloId] = m; });
+  const ehAdmin = usuarioEhAdmin();
   return grupos.map(g => {
     const mod = moduloPorChave[(g.clienteCodigo||'—') + '#' + g.moduloId];
     const datas = PONTOS_FIXOS.map(p => acharDataPonto(p.nivel === 'modulo' ? (mod ? mod.eventos : []) : g.eventos, p.valor));
@@ -1158,7 +1144,10 @@ function renderTabelaPecas(grupos, porModulo){
           '<span class="fluxoTitulo">' + g.pecaCodigo + '</span> <span class="fluxoSubtitulo">' + (g.pecaDescricao||'') + '</span><br>' +
           '<span class="fluxoSubtitulo">#' + (g.moduloId||'—') + ' ' + (g.moduloNome||'') + ' · ' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + '</span>' +
         '</div>' +
+        '<span style="display:flex; gap:6px; align-items:center;">' +
         '<button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:5px 10px;">ver tudo (' + g.eventos.length + ')</button>' +
+        (ehAdmin ? botaoExcluirRegistro(g.eventos.map(ev=>ev.id)) : '') +
+        '</span>' +
       '</div>' +
       renderFluxoVisual(datas) +
       (leadTime !== null ? '<p class="fluxoTotal">Lead time total: <strong>' + minutosLegivel(leadTime) + '</strong> corrido' + (leadTimeUtil !== null ? ' <span class="tagMuted">(' + minutosLegivel(leadTimeUtil) + ' útil, dentro do expediente)</span>' : '') + '</p>' : '') +
@@ -1167,6 +1156,7 @@ function renderTabelaPecas(grupos, porModulo){
 }
 
 function renderTabelaModulos(grupos){
+  const ehAdmin = usuarioEhAdmin();
   return grupos.map(g => {
     const datas = PONTOS_FIXOS.map(p => acharDataPonto(g.eventos, p.valor));
     const validas = datas.filter(d => d);
@@ -1178,7 +1168,10 @@ function renderTabelaModulos(grupos){
           '<span class="fluxoTitulo">#' + g.moduloId + ' ' + (g.moduloNome||'') + '</span><br>' +
           '<span class="fluxoSubtitulo">' + (g.clienteCodigo||'') + ' ' + (g.cliente||'') + ' · ' + (g.projeto||'') + ' · ' + g.totalPecas + ' peça(s)</span>' +
         '</div>' +
+        '<span style="display:flex; gap:6px; align-items:center;">' +
         '<button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:5px 10px;">ver tudo (' + g.eventos.length + ')</button>' +
+        (ehAdmin ? botaoExcluirRegistro(g.eventos.map(ev=>ev.id)) : '') +
+        '</span>' +
       '</div>' +
       renderFluxoVisual(datas) +
       (leadTime !== null ? '<p class="fluxoTotal">Lead time total: <strong>' + minutosLegivel(leadTime) + '</strong> corrido' + (leadTimeUtil !== null ? ' <span class="tagMuted">(' + minutosLegivel(leadTimeUtil) + ' útil, dentro do expediente)</span>' : '') + '</p>' : '') +
@@ -1187,6 +1180,7 @@ function renderTabelaModulos(grupos){
 }
 
 function renderTabelaProjetos(grupos){
+  const ehAdmin = usuarioEhAdmin();
   const linhas = grupos.map(g => {
     const ordenados = ordenarPorData(g.eventos);
     const primeiro = ordenados[0], ultimo = ordenados[ordenados.length-1];
@@ -1199,7 +1193,8 @@ function renderTabelaProjetos(grupos){
       '<td style="white-space:nowrap; font-size:12px;">' + (primeiro ? primeiro.em.replace('T',' ') : '—') + '</td>' +
       '<td style="white-space:nowrap; font-size:12px;">' + (ultimo ? ultimo.em.replace('T',' ') : '—') + '</td>' +
       '<td class="delta">' + (leadTime !== null ? minutosLegivel(leadTime) : '—') + '</td>' +
-      '<td><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button></td>' +
+      '<td style="display:flex; gap:6px;"><button class="btnVerTudo" data-chave="' + String(g.chave).replace(/"/g,'&quot;') + '" style="font-size:12px; padding:4px 8px;">ver tudo (' + g.eventos.length + ')</button>' +
+      (ehAdmin ? botaoExcluirRegistro(g.eventos.map(ev=>ev.id)) : '') + '</td>' +
     '</tr>';
   }).join('');
   return '<table><thead><tr><th>pedido</th><th>projeto</th><th>módulos</th><th>peças</th><th>início</th><th>último evento</th><th>lead time</th><th></th></tr></thead><tbody>' + linhas + '</tbody></table>';
@@ -1230,6 +1225,7 @@ function renderListaDetalhe(){
 
   if (!grupos.length){ el.innerHTML = '<p class="tagMuted">nada encontrado</p>'; return; }
   el.innerHTML = '<div class="tabela-wrap">' + (abaAtiva === 'pecas' ? renderFn(grupos, agruparPorModulo(movimentosTempos())) : renderFn(grupos)) + '</div>';
+  ativarExclusaoNaLista('listaDetalhe', () => { aplicarModo(); });
 }
 
 document.getElementById('buscaDetalhe').addEventListener('input', renderListaDetalhe);
@@ -1422,7 +1418,7 @@ function idEstacaoPorLabel(label){
   const s = estacoesConfig.find(e => e.label === label);
   return s ? s.id : null;
 }
-function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo){
+function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo, clienteCodigoContexto){
   // pontos: [{label, data}] — sempre todas as etapas configuradas.
   // Layout no padrão clássico de VSM: fornecedor/cliente no topo, estoque
   // (triângulo) ANTES do primeiro processo, ENTRE cada par, e DEPOIS do
@@ -1434,12 +1430,18 @@ function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo){
   const alturaSvg = 320;
   const escapar = t => String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
+  // WIP contextual: se estamos olhando um pedido ou módulo específico, o
+  // WIP mostra só as peças/módulos DESSE pedido paradas ali — não a
+  // fábrica inteira. Pra peça (um item só) não tem "peças dele", então
+  // continua mostrando o WIP da fábrica na etapa, como contexto.
+  const wipPorEstacao = clienteCodigoContexto ? contagemWipPedido(clienteCodigoContexto) : contagemAtualPorEstacao();
+
   const dadosCaixas = pontos.map(p => {
     const idEst = idEstacaoPorLabel(p.label);
     const tc = cicloDoItemNaEstacao(tipoNivel, p.label, moduloId, pecaCodigo);
     const tr = tempoSetupMedioEstacao(p.label);
     const oeeInfo = idEst ? calcularOeeEstacao(idEst) : null;
-    const wip = idEst ? (contagemAtualPorEstacao()[idEst] || 0) : 0;
+    const wip = idEst ? (wipPorEstacao[idEst] || 0) : 0;
     return { label: p.label, tc, tr, oee: oeeInfo ? oeeInfo.oee : null, wip };
   });
   const esperas = [];
@@ -1554,7 +1556,7 @@ function renderVsm(){
     // tem e deixando "—" no que ainda não chegou — simples assim.
     const datas = PONTOS_FIXOS.map(p => acharDataPonto(eventos, p.valor));
     const pontos = PONTOS_FIXOS.map((p,i) => ({ label: p.label, data: datas[i] }));
-    html += renderVsmLean(pontos, 'modulo', valor.split('#')[1], null);
+    html += renderVsmLean(pontos, 'modulo', valor.split('#')[1], null, valor.split('#')[0]);
   } else if (tipo === 'pedido'){
     // pedido: agrega por etapa (CNC, Coladeira...), pegando o momento em
     // que o ÚLTIMO módulo/peça do pedido atingiu aquela etapa — sempre
@@ -1563,7 +1565,7 @@ function renderVsm(){
       const datasDessaEtapa = eventos.filter(ev => (ev.tipo + '|' + (ev.detalhe||'')) === p.valor).map(ev => ev.em);
       return { label: p.label, data: datasDessaEtapa.length ? datasDessaEtapa.sort().reverse()[0] : null };
     });
-    html += renderVsmLean(pontosPedido, 'pedido', null, null);
+    html += renderVsmLean(pontosPedido, 'pedido', null, null, valor);
     const entrega = eventos.find(ev => ev.tipo === 'baixa_pedido');
     if (entrega) html += '<p style="font-size:13px; margin-top:10px;">📦 Entregue em <strong>' + entrega.em.replace('T',' ') + '</strong></p>';
   } else {
@@ -1605,8 +1607,11 @@ function ativarExclusaoNaLista(containerId, aoExcluirComSucesso){
   container.addEventListener('click', async (e) => {
     const btn = e.target.closest('.btnExcluirRegistro');
     if (!btn) return;
-    if (!window.confirm('Excluir esse registro? Não pode ser desfeito.')) return;
     const ids = btn.dataset.ids.split(',').filter(Boolean);
+    const mensagem = ids.length > 1
+      ? 'Excluir TODOS os ' + ids.length + ' eventos desse item? Isso apaga o histórico de lead time dele inteiro — não pode ser desfeito.'
+      : 'Excluir esse registro? Não pode ser desfeito.';
+    if (!window.confirm(mensagem)) return;
     btn.textContent = 'excluindo...'; btn.disabled = true;
     const resultado = await enviarAcaoServidorDash({ acao: 'apagarMovimentosPorId', ids });
     if (resultado.ok){
@@ -1633,6 +1638,24 @@ function contagemAtualPorEstacao(){
         if (!mod[nomeCampoCompletaModulo(mod.fase)]) contagem[mod.fase] = (contagem[mod.fase]||0) + 1;
       }
     });
+  });
+  return contagem;
+}
+// mesma contagem, mas só das peças/módulos de UM pedido específico — usada
+// no VSM pra mostrar o WIP de verdade daquele pedido, não da fábrica
+// inteira (que não muda nunca ao trocar de pedido, e por isso parecia
+// errado).
+function contagemWipPedido(clienteCodigo){
+  const contagem = {};
+  estacoesConfig.forEach(e => { contagem[e.id] = 0; });
+  const pr = projetosAtuais.find(p => p.codigo === clienteCodigo);
+  if (!pr || pr.baixado) return contagem;
+  pr.modulos.forEach(mod => {
+    if (mod.fase === 'peca'){
+      mod.pecas.forEach(p => { if (!p.descartada) contagem[p.estacaoAtual] = (contagem[p.estacaoAtual]||0) + 1; });
+    } else {
+      if (!mod[nomeCampoCompletaModulo(mod.fase)]) contagem[mod.fase] = (contagem[mod.fase]||0) + 1;
+    }
   });
   return contagem;
 }
@@ -1880,22 +1903,37 @@ function calcularOeeEstacao(processoId){
   const tempoRodando = Math.max(tempoDisponivelTotal - minutosParados, 0);
   const disponibilidade = tempoDisponivelTotal > 0 ? (tempoRodando / tempoDisponivelTotal) : 0;
 
-  const intervalos = [];
-  for (let i = 1; i < bipagens.length; i++){
-    const min = diffMinutos(bipagens[i-1].em, bipagens[i].em);
-    if (min !== null && min > 0) intervalos.push(min);
+  // tempo ideal: se o admin cadastrou um valor de engenharia pra essa
+  // etapa (cicloIdealConfigurado), usa ele — é o jeito certo de fazer,
+  // segundo a própria literatura de OEE. Sem isso configurado, cai pro
+  // "menor intervalo observado" como estimativa (frágil: uma bipagem
+  // quase simultânea por engano infla o resultado pra pior — por isso
+  // vale configurar o valor de verdade assim que souber).
+  const cicloIdealConfigurado = (estacoesConfig.find(s => s.id === processoId) || {}).cicloIdealMin || null;
+  let cicloIdeal = cicloIdealConfigurado;
+  let cicloIdealÉEstimado = false;
+  if (cicloIdeal === null){
+    const intervalos = [];
+    for (let i = 1; i < bipagens.length; i++){
+      const min = diffMinutos(bipagens[i-1].em, bipagens[i].em);
+      if (min !== null && min > 0) intervalos.push(min);
+    }
+    cicloIdeal = intervalos.length ? Math.min(...intervalos) : null;
+    cicloIdealÉEstimado = true;
   }
-  const cicloIdeal = intervalos.length ? Math.min(...intervalos) : null;
   const tempoIdealTotal = cicloIdeal !== null ? cicloIdeal * totalPecas : null;
   const performance = (tempoIdealTotal !== null && tempoRodando > 0) ? Math.min(tempoIdealTotal / tempoRodando, 1) : (totalPecas > 0 ? 1 : 0);
 
-  const codigosDescartados = new Set(movimentosAtuais.filter(m => m.tipo === 'defeito_descarte').map(m => m.pecaCodigo));
-  let descartadosNessaEtapa = 0;
-  new Set(bipagens.map(m => m.pecaCodigo)).forEach(c => { if (codigosDescartados.has(c)) descartadosNessaEtapa++; });
-  const qualidade = totalPecas > 0 ? (totalPecas - descartadosNessaEtapa) / totalPecas : 1;
+  // qualidade: descarte E retrabalho contam como perda — uma peça que
+  // precisou ser refeita não saiu boa de primeira, mesmo sem ter sido
+  // jogada fora (é o padrão da literatura de OEE, não só descarte).
+  const codigosComPerda = new Set(movimentosAtuais.filter(m => m.tipo === 'defeito_descarte' || m.tipo === 'defeito_retrabalho').map(m => m.pecaCodigo));
+  let comPerdaNessaEtapa = 0;
+  new Set(bipagens.map(m => m.pecaCodigo)).forEach(c => { if (codigosComPerda.has(c)) comPerdaNessaEtapa++; });
+  const qualidade = totalPecas > 0 ? (totalPecas - comPerdaNessaEtapa) / totalPecas : 1;
 
   const oee = disponibilidade * performance * qualidade;
-  return { oee, disponibilidade, performance, qualidade, minutosParados, totalPecas, tempoDisponivelPorDia, totalDias, tempoDisponivelTotal, cicloIdeal, descartadosNessaEtapa };
+  return { oee, disponibilidade, performance, qualidade, minutosParados, totalPecas, tempoDisponivelPorDia, totalDias, tempoDisponivelTotal, cicloIdeal, cicloIdealÉEstimado, descartadosNessaEtapa: comPerdaNessaEtapa };
 }
 function montarOee(){
   const sel = document.getElementById('oeeFiltroProcesso');
@@ -1908,7 +1946,7 @@ function montarOee(){
   if (!tempoDisponivelInput.value) tempoDisponivelInput.value = tempoDisponivelPorDiaSalvo();
 
   const r = calcularOeeEstacao(processoId);
-  const { oee, disponibilidade, performance, qualidade, minutosParados, totalPecas, tempoDisponivelPorDia, totalDias, tempoDisponivelTotal, cicloIdeal, descartadosNessaEtapa } = r;
+  const { oee, disponibilidade, performance, qualidade, minutosParados, totalPecas, tempoDisponivelPorDia, totalDias, tempoDisponivelTotal, cicloIdeal, cicloIdealÉEstimado, descartadosNessaEtapa } = r;
   const corOee = oee >= 0.85 ? 'var(--text-success)' : oee >= 0.6 ? 'var(--fill-warning)' : 'var(--text-danger)';
 
   const cartoes = [
@@ -1926,8 +1964,8 @@ function montarOee(){
     '<ul style="font-size:12px; color:var(--text-secondary); margin:0; padding-left:18px; line-height:1.6;">' +
     '<li>Tempo disponível: ' + minutosLegivel(tempoDisponivelPorDia) + '/dia × ' + totalDias + ' dia(s) no período = ' + minutosLegivel(tempoDisponivelTotal) + '</li>' +
     '<li>Tempo parado (paradas + setups): ' + minutosLegivel(minutosParados) + '</li>' +
-    '<li>Peças processadas: ' + totalPecas + (descartadosNessaEtapa ? (' (' + descartadosNessaEtapa + ' descartada(s) depois)') : '') + '</li>' +
-    '<li>Ciclo de referência (mais rápido observado): ' + (cicloIdeal !== null ? minutosLegivel(cicloIdeal) : '— (poucas peças pra comparar)') + ' por peça</li>' +
+    '<li>Peças processadas: ' + totalPecas + (descartadosNessaEtapa ? (' (' + descartadosNessaEtapa + ' com descarte ou retrabalho)') : '') + '</li>' +
+    '<li>Ciclo ideal: ' + (cicloIdeal !== null ? minutosLegivel(cicloIdeal) : '— (poucas peças pra comparar)') + ' por peça' + (cicloIdealÉEstimado ? ' <span style="color:var(--text-accent);">(estimado pelo mais rápido observado — cadastre o valor de engenharia na Administração pra um cálculo mais confiável)</span>' : ' (configurado na Administração)') + '</li>' +
     '</ul>';
 }
 document.getElementById('oeeFiltroProcesso').addEventListener('change', montarOee);
@@ -2241,13 +2279,6 @@ function calcularComparacaoPontos(){
   if (!tempos.length){ el.textContent = 'sem dados suficientes pra calcular esse intervalo no período selecionado.'; return; }
   el.innerHTML = '<strong>' + labelDe + ' → ' + labelAte + ':</strong> tempo médio ' + mediaLegivel(tempos) + ' (' + tempos.length + ' amostra(s))';
 }
-document.getElementById('filtroProcessoAProcesso').addEventListener('change', (e) => {
-  if (!e.target.value) return;
-  const [tipoDe, detalheDe, tipoAte, detalheAte] = e.target.value.split('|');
-  document.getElementById('pontoDe').value = tipoDe + '|' + detalheDe;
-  document.getElementById('pontoAte').value = tipoAte + '|' + detalheAte;
-  calcularComparacaoPontos();
-});
 document.getElementById('pontoDe').addEventListener('change', calcularComparacaoPontos);
 document.getElementById('pontoAte').addEventListener('change', calcularComparacaoPontos);
 

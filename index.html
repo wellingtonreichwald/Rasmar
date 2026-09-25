@@ -147,26 +147,27 @@
   }
   @keyframes pulseAviso{ 0%,100%{ opacity:1; } 50%{ opacity:0.6; } }
   .etiqueta{
-    width: 96mm; padding: 3mm; text-align: center; font-family: var(--font-body);
-    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1.2mm;
-    border: 0.4mm solid #000; border-radius: 2mm; box-sizing: border-box; height: 56mm;
+    width: 96mm; padding: 2.5mm; text-align: center; font-family: var(--font-body);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.9mm;
+    border: 0.4mm solid #000; border-radius: 2mm; box-sizing: border-box; height: 56mm; overflow: hidden;
+    background: #fff;
   }
   .etiqueta .etiquetaCabecalho{
     width: 100%; display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 0.4mm solid #000; padding-bottom: 1.2mm; margin-bottom: 0.5mm;
+    border-bottom: 0.35mm solid #000; padding-bottom: 0.8mm; margin-bottom: 0.2mm;
   }
-  .etiqueta .etiquetaLogo{ height: 8mm; }
+  .etiqueta .etiquetaLogo{ height: 6mm; }
   .etiqueta .etiquetaTag{
-    font-size: 10pt; font-weight: 800; letter-spacing: 0.06em; background: #000; color: #fff;
-    padding: 0.8mm 2.4mm; border-radius: 1.4mm;
+    font-size: 9pt; font-weight: 800; letter-spacing: 0.06em; background: #000; color: #fff;
+    padding: 0.7mm 2.2mm; border-radius: 1.4mm;
   }
-  .etiqueta .etiquetaCorpo{ width: 100%; display: flex; align-items: center; gap: 2.5mm; }
-  .etiqueta .etiquetaCorpo svg{ flex-shrink: 0; width: 20mm; height: auto; max-height: 14mm; }
-  .etiqueta .etiquetaQr{ flex-shrink: 0; width: 30mm; height: 30mm; }
-  .etiqueta .etiquetaQr img, .etiqueta .etiquetaQr canvas, .etiqueta .etiquetaQr table{ width: 30mm !important; height: 30mm !important; }
-  .etiqueta .linha1{ font-size: 15pt; font-weight: 800; margin: 0; line-height: 1.15; }
-  .etiqueta .linha2{ font-size: 11pt; margin: 0; line-height: 1.25; color: #333; }
-  .etiqueta .etiquetaRodape{ font-size: 7.5pt; color: #666; margin: auto 0 0; }
+  .etiqueta .etiquetaCorpo{ width: 100%; display: flex; align-items: center; gap: 2.2mm; }
+  .etiqueta .etiquetaCorpo svg{ flex-shrink: 0; width: 19mm; height: auto; max-height: 12mm; }
+  .etiqueta .etiquetaQr{ flex-shrink: 0; width: 24mm; height: 24mm; }
+  .etiqueta .etiquetaQr img, .etiqueta .etiquetaQr canvas, .etiqueta .etiquetaQr table{ width: 24mm !important; height: 24mm !important; }
+  .etiqueta .linha1{ font-size: 12.5pt; font-weight: 800; margin: 0; line-height: 1.1; }
+  .etiqueta .linha2{ font-size: 9.5pt; margin: 0; line-height: 1.15; color: #333; }
+  .etiqueta .etiquetaRodape{ font-size: 6.5pt; color: #666; margin: auto 0 0; line-height: 1.15; }
 </style>
 </head>
 <body>
@@ -938,7 +939,7 @@ function proximoCodigoPedido(){
   return codigo;
 }
 function novoProjeto(cliente, projeto, modulosRaw){
-  return {cliente, projeto, codigo: proximoCodigoPedido(), aberto:false, baixado:false, baixadoEm:null, linkDesenho: null,
+  return {cliente, projeto, codigo: proximoCodigoPedido(), aberto:false, baixado:false, baixadoEm:null, linkDesenho: null, dataPrevisaoEntrega: null,
     modulos: modulosRaw.map(m => novoModulo(m.id, m.nome, m.pecas))};
 }
 
@@ -2152,6 +2153,7 @@ function renderBlocoProjeto(pr, station, dinamico){
   if (baixaEl) right.appendChild(baixaEl);
   // (tempo de ciclo do pedido agora é calculado no dashboard, sem cronômetro aqui)
   right.appendChild(renderBotaoLinkDesenho(pr, () => { registrarLog('atualizou o link do desenho do pedido ' + pr.codigo); agendarSincronizacaoRapida(); renderProjetos(); }));
+  right.appendChild(renderBotaoDataEntrega(pr, () => { agendarSincronizacaoRapida(); renderProjetos(); }));
   const btnEtiquetaPedido = document.createElement('button');
   btnEtiquetaPedido.textContent = '🖨️ Etiqueta';
   btnEtiquetaPedido.title = 'Imprimir etiqueta com código de barras do pedido';
@@ -3238,6 +3240,19 @@ function renderListaEstacoesAdmin(){
         salvarEstacoes('mudou a métrica de rateio de ' + s.label + ' para ' + (selMetrica.value || 'nenhuma'));
       };
       acoes.appendChild(selMetrica);
+
+      const inputCiclo = document.createElement('input');
+      inputCiclo.type = 'number'; inputCiclo.min = '0.1'; inputCiclo.step = '0.1';
+      inputCiclo.placeholder = 'ciclo ideal (min)';
+      inputCiclo.title = 'Tempo ideal de engenharia por peça, em minutos — usado no cálculo de OEE (Performance). Sem isso, o sistema estima usando o intervalo mais rápido já observado, o que é menos confiável.';
+      inputCiclo.style.cssText = 'font-size:11px; padding:3px 4px; width:110px;';
+      if (s.cicloIdealMin) inputCiclo.value = s.cicloIdealMin;
+      inputCiclo.onchange = () => {
+        const v = parseFloat(inputCiclo.value);
+        s.cicloIdealMin = (v && v > 0) ? v : null;
+        salvarEstacoes('definiu o ciclo ideal de ' + s.label + ' como ' + (s.cicloIdealMin ? s.cicloIdealMin + 'min/peça' : 'automático (estimado)'));
+      };
+      acoes.appendChild(inputCiclo);
     }
     const abasAtuais = s.abasDashboard || ['kanban','oee']; // sem config salva ainda = como sempre foi, aparece em tudo
     [['kanban','Kanban'], ['oee','OEE']].forEach(([valorAba, textoAba]) => {
@@ -3520,6 +3535,61 @@ function renderBotaoLoteEstacao(station){
 // ---------- link do desenho (Sketchup) — peça, módulo ou pedido ----------
 // mostra "ver desenho" se já tiver link, ou "+ link do desenho" pra
 // adicionar. Um clique de editar sempre disponível, pra trocar depois.
+// data prevista de entrega — só o admin edita, mas todo mundo vê. Usa um
+// campo de data nativo (evita gente digitando data errada num prompt).
+function formatarDataBr(isoData){
+  if (!isoData) return '';
+  const [ano, mes, dia] = isoData.split('-');
+  return dia + '/' + mes + '/' + ano;
+}
+function renderBotaoDataEntrega(pr, salvarCallback){
+  const el = document.createElement('span');
+  el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
+  if (!(getUsuarioLogado() && getUsuarioLogado().admin)){
+    if (pr.dataPrevisaoEntrega){
+      const span = document.createElement('span');
+      span.style.cssText = 'color:var(--text-accent); font-weight:600;';
+      span.textContent = '📅 entrega prevista: ' + formatarDataBr(pr.dataPrevisaoEntrega);
+      el.appendChild(span);
+    }
+    return el;
+  }
+  const abrirEdicao = (e) => {
+    e.stopPropagation();
+    const wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex; align-items:center; gap:4px;';
+    const input = document.createElement('input');
+    input.type = 'date'; input.style.cssText = 'font-size:11px; padding:2px 4px;';
+    if (pr.dataPrevisaoEntrega) input.value = pr.dataPrevisaoEntrega;
+    const btnOk = document.createElement('button');
+    btnOk.textContent = 'salvar'; btnOk.style.cssText = 'font-size:10px; padding:2px 6px;';
+    btnOk.onclick = (ev) => {
+      ev.stopPropagation();
+      pr.dataPrevisaoEntrega = input.value || null;
+      registrarLog('definiu a data prevista de entrega do pedido ' + pr.codigo + ' como ' + (pr.dataPrevisaoEntrega ? formatarDataBr(pr.dataPrevisaoEntrega) : 'nenhuma'));
+      salvarCallback();
+    };
+    input.onclick = (ev) => ev.stopPropagation();
+    wrap.appendChild(input); wrap.appendChild(btnOk);
+    el.innerHTML = ''; el.appendChild(wrap);
+    input.focus();
+  };
+  if (pr.dataPrevisaoEntrega){
+    const span = document.createElement('span');
+    span.style.cssText = 'color:var(--text-accent); font-weight:600; cursor:pointer;';
+    span.textContent = '📅 entrega prevista: ' + formatarDataBr(pr.dataPrevisaoEntrega);
+    span.title = 'clique pra editar';
+    span.onclick = abrirEdicao;
+    el.appendChild(span);
+  } else {
+    const btn = document.createElement('button');
+    btn.textContent = '📅 + data de entrega';
+    btn.style.cssText = 'font-size:11px; padding:3px 8px;';
+    btn.onclick = abrirEdicao;
+    el.appendChild(btn);
+  }
+  return el;
+}
 function renderBotaoLinkDesenho(objeto, salvarCallback){
   const el = document.createElement('span');
   el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
@@ -3680,6 +3750,33 @@ function montarSeletorMotivo(tipo, onEscolher){
   };
   return sel;
 }
+// versão compacta: um seletor só, com os dois grupos de motivo juntos —
+// pra não ocupar duas caixas lado a lado no cabeçalho, que ficava
+// extenso. O valor escolhido já diz sozinho se é parada ou setup.
+function montarSeletorParadaOuSetupUnificado(onEscolherParada, onEscolherSetup){
+  const sel = document.createElement('select');
+  sel.style.cssText = 'font-size:12px; padding:5px 8px; max-width:170px;';
+  let opcoesHtml = '<option value="">';
+  opcoesHtml += (onEscolherParada && onEscolherSetup) ? '⏸🔧 registrar parada/setup...' : (onEscolherParada ? '⏸ Iniciar parada...' : '🔧 Iniciar setup...');
+  opcoesHtml += '</option>';
+  if (onEscolherParada) opcoesHtml += '<optgroup label="⏸ Parada">' + MOTIVOS_PARADA.map(m => '<option value="parada|' + m + '">' + m + '</option>').join('') + '</optgroup>';
+  if (onEscolherSetup) opcoesHtml += '<optgroup label="🔧 Setup">' + MOTIVOS_SETUP.map(m => '<option value="setup|' + m + '">' + m + '</option>').join('') + '</optgroup>';
+  sel.innerHTML = opcoesHtml;
+  sel.onchange = () => {
+    if (!sel.value) return;
+    const i = sel.value.indexOf('|');
+    const tipo = sel.value.slice(0, i);
+    let motivo = sel.value.slice(i+1);
+    if (motivo === 'Outro motivo...'){
+      motivo = window.prompt('Descreva rapidinho o motivo:');
+      if (!motivo || !motivo.trim()){ sel.value = ''; return; }
+      motivo = motivo.trim();
+    }
+    (tipo === 'parada' ? onEscolherParada : onEscolherSetup)(motivo);
+    sel.value = '';
+  };
+  return sel;
+}
 
 // controle rápido dentro da própria tela de trabalho — sem precisar abrir
 // outra tela. Mostra os botões de iniciar se nada estiver rolando na etapa
@@ -3752,10 +3849,16 @@ function renderBarraParadaSetup(){
       btnFim.onclick = () => finalizarParadaOuSetup(station.id, station.label, tipo, info.paradaId);
       chip.appendChild(texto); chip.appendChild(btnFim);
       el.appendChild(chip);
-    } else {
-      el.appendChild(montarSeletorMotivo(tipo, (motivo) => iniciarParadaOuSetup(station.id, station.label, tipo, motivo)));
     }
   });
+  // seletor único (compacto) — só oferece começar o(s) tipo(s) que ainda
+  // não estão rodando; se os dois já estiverem ativos, não mostra nada.
+  if (!ativo.parada || !ativo.setup){
+    el.appendChild(montarSeletorParadaOuSetupUnificado(
+      ativo.parada ? null : (motivo) => iniciarParadaOuSetup(station.id, station.label, 'parada', motivo),
+      ativo.setup ? null : (motivo) => iniciarParadaOuSetup(station.id, station.label, 'setup', motivo)
+    ));
+  }
   const btnManual = document.createElement('button');
   btnManual.textContent = '📝 registro manual de setup/parada';
   btnManual.title = 'Registrar uma parada ou setup que já aconteceu, com a data/hora certas';
