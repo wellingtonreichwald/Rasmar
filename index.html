@@ -2138,7 +2138,7 @@ function renderBlocoProjeto(pr, station, dinamico){
   if (descartadasEl) right.appendChild(descartadasEl);
   const baixaEl = renderBaixaPedido(pr);
   if (baixaEl) right.appendChild(baixaEl);
-  if (!pr.baixado) right.appendChild(renderBotaoCicloProjeto(pr));
+  // (tempo de ciclo do pedido agora é calculado no dashboard, sem cronômetro aqui)
   right.appendChild(renderBotaoLinkDesenho(pr, () => { registrarLog('atualizou o link do desenho do pedido ' + pr.codigo); agendarSincronizacaoRapida(); renderProjetos(); }));
   const btnEtiquetaPedido = document.createElement('button');
   btnEtiquetaPedido.textContent = '🖨️ Etiqueta';
@@ -3385,40 +3385,9 @@ function renderBotaoCicloModulo(mod, station){
   });
 }
 
-function cicloAtivoProjeto(pr){
-  const relevantes = movimentos.filter(m => (m.tipo === 'ciclo_inicio' || m.tipo === 'ciclo_fim') && !m.moduloId && m.clienteCodigo === pr.codigo && String(m.pecaCodigo||'').startsWith('cic_'));
-  const ordenados = relevantes.slice().sort((a,b) => a.em.localeCompare(b.em));
-  let ativo = null;
-  ordenados.forEach(m => {
-    if (m.tipo === 'ciclo_inicio') ativo = { cicloId: m.pecaCodigo, inicio: m.em };
-    else if (ativo && ativo.cicloId === m.pecaCodigo) ativo = null;
-  });
-  return ativo;
-}
-function iniciarCicloProjeto(pr){
-  if (cicloAtivoProjeto(pr)) return;
-  const cicloId = gerarIdCiclo();
-  registrarLog('iniciou o tempo de ciclo do pedido ' + pr.codigo + ' · ' + pr.cliente);
-  registrarMovimento('ciclo_inicio', { moduloId: '', moduloNome: '', pecaCodigo: cicloId, clienteCodigo: pr.codigo, cliente: pr.cliente, projeto: pr.projeto, detalhe: 'pedido inteiro' });
-  renderProjetos();
-}
-function fecharCicloProjetoSeAtivo(pr){
-  const ativo = cicloAtivoProjeto(pr);
-  if (!ativo) return;
-  registrarLog('fechou o tempo de ciclo do pedido ' + pr.codigo + ' · ' + pr.cliente);
-  registrarMovimento('ciclo_fim', { moduloId: '', moduloNome: '', pecaCodigo: ativo.cicloId, clienteCodigo: pr.codigo, cliente: pr.cliente, projeto: pr.projeto, detalhe: 'pedido inteiro' });
-}
-function renderBotaoCicloProjeto(pr){
-  const ativo = cicloAtivoProjeto(pr);
-  return renderControleCronometro({
-    rotulo: 'cronômetro deste pedido',
-    ativo,
-    tituloIniciar: 'Mede o tempo de trabalho só deste pedido, do início ao fim — não divide com nada nem ninguém.',
-    tituloEncerrar: 'Encerra o cronômetro agora, sem precisar dar baixa no pedido — útil se você iniciou por engano ou precisa parar antes de terminar.',
-    aoIniciar: () => iniciarCicloProjeto(pr),
-    aoEncerrar: () => { fecharCicloProjetoSeAtivo(pr); renderProjetos(); }
-  });
-}
+// (tempo de ciclo do pedido não tem mais cronômetro próprio — o dashboard
+// calcula ele sozinho, somando o tempo dos módulos e das peças desse
+// pedido. Não precisa de nada aqui pra isso funcionar.)
 
 // ---------- lote de corte (tempo de ciclo por peça, rateado por m²) ----------
 // pensado pra estações onde várias peças de módulos/pedidos diferentes são
@@ -3543,7 +3512,6 @@ function darBaixaPedido(pr, viaEtiqueta){
   pr.baixadoEm = formatarDataHora(new Date());
   registrarLog('gerou a baixa do pedido ' + pr.codigo + ' · ' + pr.cliente + ' · ' + pr.projeto + (viaEtiqueta ? ' (bipando a etiqueta)' : ''));
   registrarMovimento('baixa_pedido', { clienteCodigo: pr.codigo, cliente: pr.cliente, projeto: pr.projeto });
-  fecharCicloProjetoSeAtivo(pr);
   showFeedback('pedido ' + pr.codigo + ' · ' + pr.cliente + ' · ' + pr.projeto + ' baixado com sucesso', false);
   renderProjetos();
 }

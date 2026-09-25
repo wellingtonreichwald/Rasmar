@@ -690,7 +690,22 @@ function paresCiclo(){
   return Object.values(pares).map(p => ({ ...p, minutos: (p.inicio && p.fim) ? diffMinutos(p.inicio, p.fim) : null }));
 }
 function ciclosPorModulo(){ return paresCiclo().filter(p => p.moduloId && p.minutos !== null); }
-function ciclosPorPedido(){ return paresCiclo().filter(p => !p.moduloId && p.detalhe === 'pedido inteiro' && p.minutos !== null); }
+// tempo de ciclo do PEDIDO não tem cronômetro próprio — é a soma do que
+// já existe: os módulos dele (manual) + as peças dele (automático, pelos
+// lotes detectados). Nasce dos outros dois, não precisa de nada a mais.
+function ciclosPorPedido(){
+  const porPedido = {};
+  function somar(c){
+    if (!c.clienteCodigo) return;
+    if (!porPedido[c.clienteCodigo]) porPedido[c.clienteCodigo] = { clienteCodigo: c.clienteCodigo, cliente: c.cliente, projeto: c.projeto, minutos: 0, fim: null };
+    porPedido[c.clienteCodigo].minutos += c.minutos;
+    const quando = c.fim || c.em;
+    if (quando && (!porPedido[c.clienteCodigo].fim || quando > porPedido[c.clienteCodigo].fim)) porPedido[c.clienteCodigo].fim = quando;
+  }
+  ciclosPorModulo().forEach(somar);
+  ciclosPorPeca().forEach(somar);
+  return Object.values(porPedido);
+}
 function ciclosPorPeca(){
   return movimentosAtuais.filter(m => m.tipo === 'ciclo_peca_estimado').map(m => {
     const partes = (m.detalhe||'').split('|');
@@ -807,8 +822,8 @@ function renderListaCiclo(){
     if (termo) dados = dados.filter(d => ((d.clienteCodigo||'')+(d.cliente||'')+(d.projeto||'')).toLowerCase().includes(termo));
     dados.sort((a,b) => (b.fim||'').localeCompare(a.fim||''));
     if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
-    const linhas = dados.map(d => '<tr><td>' + d.clienteCodigo + '</td><td>' + (d.cliente||'') + ' · ' + (d.projeto||'') + '</td><td style="white-space:nowrap;">' + (d.fim||'').replace('T',' ') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td>' + (d.usuario||'') + '</td>' + (ehAdmin ? '<td>' + botaoExcluirRegistro([d.idInicio, d.idFim]) + '</td>' : '') + '</tr>').join('');
-    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>pedido</th><th>cliente/projeto</th><th>quando terminou</th><th>tempo de ciclo</th><th>usuário</th>' + (ehAdmin ? '<th></th>' : '') + '</tr></thead><tbody>' + linhas + '</tbody></table></div>';
+    const linhas = dados.map(d => '<tr><td>' + d.clienteCodigo + '</td><td>' + (d.cliente||'') + ' · ' + (d.projeto||'') + '</td><td style="white-space:nowrap;">' + (d.fim||'').replace('T',' ') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td></tr>').join('');
+    el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>pedido</th><th>cliente/projeto</th><th>última atividade</th><th>tempo de ciclo (soma módulos + peças)</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
   } else {
     let dados = ciclosPorPeca();
     if (termo) dados = dados.filter(d => ((d.pecaCodigo||'')+(d.moduloNome||'')+(d.cliente||'')).toLowerCase().includes(termo));
