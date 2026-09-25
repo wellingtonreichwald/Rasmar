@@ -145,6 +145,7 @@
       width: 100mm; height: 60mm; padding: 0; margin: 0;
     }
   }
+  @keyframes pulseAviso{ 0%,100%{ opacity:1; } 50%{ opacity:0.6; } }
   .etiqueta{
     width: 96mm; padding: 3mm; text-align: center; font-family: var(--font-body);
     display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1.2mm;
@@ -428,6 +429,7 @@
             <option value="volume">volume (m³) — furação, prensa</option>
             <option value="comprimento">comprimento (m)</option>
             <option value="largura">largura (m)</option>
+            <option value="espessura">espessura/altura (mm)</option>
             <option value="">nenhuma (divide igual entre as peças)</option>
           </select>
         </div>
@@ -823,8 +825,8 @@ function registrarMovimentoComHorario(tipo, detalhe, emIso){
 // 3 primeiras rastreiam por peça (sequenciais); as 2 últimas são escolha manual por módulo inteiro.
 // nomes/unidades das métricas de rateio — usados tanto ao finalizar um
 // lote quanto nos textos de ajuda dos botões.
-const UNIDADES_METRICA = { area: 'm²', bordaLinear: 'm linear', volume: 'm³', comprimento: 'm', largura: 'm' };
-const NOMES_METRICA = { area: 'área', bordaLinear: 'metro linear de borda', volume: 'volume', comprimento: 'comprimento', largura: 'largura' };
+const UNIDADES_METRICA = { area: 'm²', bordaLinear: 'm linear', volume: 'm³', comprimento: 'm', largura: 'm', espessura: 'mm' };
+const NOMES_METRICA = { area: 'área', bordaLinear: 'metro linear de borda', volume: 'volume', comprimento: 'comprimento (veio da madeira)', largura: 'largura', espessura: 'espessura/altura' };
 let stations = [
   {id:'cnc',      label:'CNC',                  type:'peca',   field:'cnc_em',       metricaRateio:'area'},
   {id:'coladeira',label:'Coladeira',             type:'peca',   field:'coladeira_em', metricaRateio:'bordaLinear'},
@@ -2364,7 +2366,16 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
       if (moduloCompletouAgora){
         detalheConfirmacao += (ehUltimaPeca ? ' — módulo completo, escolha o destino' : ' — módulo completo, envie pra próxima etapa');
       }
-      mostrarConfirmacaoBipagem(peca.codigo, peca.descricao, detalheConfirmacao, moduloCompletouAgora ? 'aviso' : 'ok');
+      // poka-yoke: essa etapa rateia tempo entre peças, mas não tem
+      // nenhum lote ativo agora — se continuar assim, essa peça (e as
+      // próximas) vão bipar normalmente, só que sem tempo de ciclo
+      // registrado. Avisa na hora, não depois.
+      let tipoConfirmacao = moduloCompletouAgora ? 'aviso' : 'ok';
+      if (station.metricaRateio && !cicloAtivoEstacao(station)){
+        detalheConfirmacao += ' · ⚠ sem lote ativo — o tempo de ciclo dessa peça não vai ser registrado';
+        tipoConfirmacao = 'aviso';
+      }
+      mostrarConfirmacaoBipagem(peca.codigo, peca.descricao, detalheConfirmacao, tipoConfirmacao);
       renderProjetos();
     }
     e.target.value = '';
@@ -3206,7 +3217,7 @@ function renderListaEstacoesAdmin(){
       const selMetrica = document.createElement('select');
       selMetrica.style.cssText = 'font-size:11px; padding:3px 4px;';
       selMetrica.title = 'métrica usada pra ratear o tempo do lote entre as peças';
-      [['area','área (m²)'], ['bordaLinear','metro linear de borda'], ['volume','volume (m³)'], ['comprimento','comprimento (m)'], ['largura','largura (m)'], ['','nenhuma (divide igual)']].forEach(([valor, texto]) => {
+      [['area','área (m²)'], ['bordaLinear','metro linear de borda'], ['volume','volume (m³)'], ['comprimento','comprimento (m)'], ['largura','largura (m)'], ['espessura','espessura/altura (mm)'], ['','nenhuma (divide igual)']].forEach(([valor, texto]) => {
         const opt = document.createElement('option');
         opt.value = valor; opt.textContent = texto;
         if ((s.metricaRateio || '') === valor) opt.selected = true;
@@ -3437,7 +3448,7 @@ function finalizarLoteEstacao(station){
   // área (m²), Coladeira rateia por metro linear de borda — cada etapa
   // decide isso sozinha (metricaRateio), então uma etapa nova criada pelo
   // admin também escolhe a sua na hora de ser criada.
-  const CAMPOS_METRICA = { area: 'areaM2', bordaLinear: 'metrosLinearesBorda', volume: 'volumeM3', comprimento: 'comprimentoM', largura: 'larguraM' };
+  const CAMPOS_METRICA = { area: 'areaM2', bordaLinear: 'metrosLinearesBorda', volume: 'volumeM3', comprimento: 'comprimentoM', largura: 'larguraM', espessura: 'espessuraMm' };
   const campoMetrica = CAMPOS_METRICA[station.metricaRateio] || null;
   const totalMetrica = campoMetrica ? pecasEnvolvidas.reduce((a,x) => a + (x.peca[campoMetrica] || 0), 0) : 0;
 
@@ -3641,6 +3652,30 @@ function montarSeletorMotivo(tipo, onEscolher){
 // controle rápido dentro da própria tela de trabalho — sem precisar abrir
 // outra tela. Mostra os botões de iniciar se nada estiver rolando na etapa
 // atual, ou um cronômetro com "Finalizar" se já tiver uma parada/setup ativo.
+// poka-yoke: detecta quando uma estação está parada (sem nenhuma
+// atividade) por um tempo, tem peça/módulo esperando, e ninguém marcou
+// parada — avisa na hora, sem travar nada, sem exigir clique nenhum.
+const LIMIAR_ESTACAO_PARADA_MIN = 20;
+function ultimaAtividadeEstacao(station){
+  const tipoEvento = station.type === 'peca' ? 'bipagem' : 'conclusao_modulo';
+  const relevantes = movimentos.filter(m => m.tipo === tipoEvento && m.detalhe === station.label);
+  if (!relevantes.length) return null;
+  return relevantes.reduce((max, m) => m.em > max ? m.em : max, relevantes[0].em);
+}
+function contagemWipEstacao(station){
+  let n = 0;
+  projetos.forEach(pr => {
+    if (pr.baixado) return;
+    pr.modulos.forEach(mod => {
+      if (station.type === 'peca'){
+        n += mod.pecas.filter(p => !p.descartada && p.estacaoAtual === station.id).length;
+      } else if (mod.fase === station.id){
+        n += 1;
+      }
+    });
+  });
+  return n;
+}
 function renderBarraParadaSetup(){
   const el = document.getElementById('barraParadaSetup');
   if (!el) return;
@@ -3648,6 +3683,28 @@ function renderBarraParadaSetup(){
   const ativo = paradasAtivasPorProcesso()[station.id];
   el.innerHTML = '';
   el.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;';
+
+  if (!ativo.parada && !ativo.setup){
+    const ultima = ultimaAtividadeEstacao(station);
+    const wip = contagemWipEstacao(station);
+    if (ultima && wip > 0){
+      const inicioParsed = parsearComoBrasilia(ultima);
+      const minutosParada = inicioParsed ? (Date.now() - inicioParsed.getTime()) / 60000 : null;
+      if (minutosParada !== null && minutosParada >= LIMIAR_ESTACAO_PARADA_MIN){
+        const avisoEl = document.createElement('div');
+        avisoEl.style.cssText = 'display:flex; align-items:center; gap:8px; background:#fdeecb; border:1px solid #8a6d1f; border-radius:999px; padding:5px 6px 5px 12px; font-size:12px; animation:pulseAviso 2s ease-in-out infinite;';
+        const texto = document.createElement('span');
+        texto.style.cssText = 'color:#6b5010; font-weight:600;';
+        texto.textContent = '⚠ ' + tempoDecorridoLegivel(ultima) + ' sem nenhuma bipagem aqui — foi parada?';
+        const btnMarcar = document.createElement('button');
+        btnMarcar.textContent = 'marcar parada agora';
+        btnMarcar.style.cssText = 'font-size:11px; padding:4px 10px; background:#8a6d1f; color:#fff; border:none; border-radius:999px;';
+        btnMarcar.onclick = () => abrirRegistroManualParada(station.id, station.label);
+        avisoEl.appendChild(texto); avisoEl.appendChild(btnMarcar);
+        el.appendChild(avisoEl);
+      }
+    }
+  }
 
   ['parada','setup'].forEach(tipo => {
     const info = ativo[tipo];

@@ -220,6 +220,7 @@
       <div class="abas ocultarNaImpressao" style="margin-bottom:14px;">
         <button id="subModoLeadTime" class="ativa">⏱ Lead Time</button>
         <button id="subModoCiclo">🔄 Tempo de Ciclo</button>
+        <button id="subModoComparar">⚖ Lead Time vs Ciclo</button>
       </div>
       <p id="explicacaoSubModo" style="font-size:12px; color:var(--text-muted); margin:0 0 12px;">Lead time é o tempo total, do início ao fim de cada etapa — inclui fila de espera. Tempo de ciclo é só o tempo realmente trabalhado (cronômetro que alguém iniciou e encerrou). A diferença entre os dois é quanto tempo ficou parado esperando.</p>
 
@@ -269,6 +270,16 @@
         <div class="secao" id="secaoDetalheCiclo" style="padding:12px 14px;">
           <input id="buscaCiclo" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar nessa lista..." style="margin-bottom:8px;" />
           <div id="listaCiclo"></div>
+        </div>
+      </div>
+
+      <div id="secaoComparacao" style="display:none;">
+        <div class="secao" style="padding:12px 14px; margin-bottom:14px;">
+          <p style="font-size:12px; color:var(--text-muted); margin:0;">Só módulos com os dois dados (lead time E tempo de ciclo) aparecem aqui — sem isso não dá pra calcular a fila. Ordenado do maior tempo de fila pro menor, pra mostrar onde está o maior desperdício primeiro.</p>
+        </div>
+        <div class="secao" id="secaoDetalheComparacao" style="padding:12px 14px;">
+          <input id="buscaComparacao" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar nessa lista..." style="margin-bottom:8px;" />
+          <div id="listaComparacao"></div>
         </div>
       </div>
     </div>
@@ -731,7 +742,7 @@ function apontamentosIncompletos(){
   conclusoesModulo.forEach(c => {
     const temCiclo = ciclosModulo.some(cm => cm.moduloId === c.moduloId && cm.detalhe === c.detalhe && cm.fim && Math.abs(new Date(cm.fim) - new Date(c.em)) < JANELA_MS);
     if (!temCiclo){
-      faltando.push({ tipo: 'módulo', label: '#' + c.moduloId + ' ' + (c.moduloNome||''), contexto: (c.clienteCodigo||'') + ' ' + (c.cliente||'') + ' — ' + c.detalhe, quando: c.em });
+      faltando.push({ tipo: 'módulo', label: '#' + c.moduloId + ' ' + (c.moduloNome||''), contexto: (c.clienteCodigo||'') + ' ' + (c.cliente||'') + ' — ' + c.detalhe, quando: c.em, usuario: c.usuario || '—', estacao: c.detalhe });
     }
   });
 
@@ -740,7 +751,7 @@ function apontamentosIncompletos(){
   baixas.forEach(b => {
     const temCiclo = ciclosPedido.some(cp => cp.clienteCodigo === b.clienteCodigo && cp.fim && Math.abs(new Date(cp.fim) - new Date(b.em)) < JANELA_MS);
     if (!temCiclo){
-      faltando.push({ tipo: 'pedido', label: b.clienteCodigo, contexto: (b.cliente||'') + ' · ' + (b.projeto||''), quando: b.em });
+      faltando.push({ tipo: 'pedido', label: b.clienteCodigo, contexto: (b.cliente||'') + ' · ' + (b.projeto||''), quando: b.em, usuario: b.usuario || '—', estacao: 'pedido inteiro' });
     }
   });
 
@@ -748,11 +759,19 @@ function apontamentosIncompletos(){
   const estacoesComMetrica = new Set(estacoesConfig.filter(s => s.metricaRateio).map(s => s.label));
   movimentosAtuais.filter(m => m.tipo === 'bipagem' && estacoesComMetrica.has(m.detalhe)).forEach(m => {
     if (!idsComRateio.has(m.pecaCodigo + '|' + m.detalhe)){
-      faltando.push({ tipo: 'peça', label: m.pecaCodigo + (m.pecaDescricao ? ' — ' + m.pecaDescricao : ''), contexto: '#' + m.moduloId + ' ' + (m.moduloNome||'') + ' — ' + m.detalhe, quando: m.em });
+      faltando.push({ tipo: 'peça', label: m.pecaCodigo + (m.pecaDescricao ? ' — ' + m.pecaDescricao : ''), contexto: '#' + m.moduloId + ' ' + (m.moduloNome||'') + ' — ' + m.detalhe, quando: m.em, usuario: m.usuario || '—', estacao: m.detalhe });
     }
   });
 
   return faltando.sort((a,b) => (b.quando||'').localeCompare(a.quando||''));
+}
+// agrupa quem/onde estão concentrados os apontamentos faltando — pro
+// admin saber ONDE focar (reforçar treinamento com uma pessoa, ou revisar
+// o fluxo de uma etapa específica), em vez de só ver o total.
+function agruparApontamentosFaltando(faltando, campo){
+  const contagem = {};
+  faltando.forEach(f => { contagem[f[campo]] = (contagem[f[campo]] || 0) + 1; });
+  return Object.entries(contagem).sort((a,b) => b[1]-a[1]);
 }
 function montarCartoesCiclo(){
   const cModulos = ciclosPorModulo();
@@ -770,7 +789,8 @@ function montarCartoesCiclo(){
    {chave:'bordaLinear', unidade:'m', sigla:'m/h', rotuloBase:'ritmo médio (borda linear)'},
    {chave:'volume', unidade:'m³', sigla:'m³/h', rotuloBase:'ritmo médio (volume)'},
    {chave:'comprimento', unidade:'m', sigla:'m/h', rotuloBase:'ritmo médio (comprimento)'},
-   {chave:'largura', unidade:'m', sigla:'m/h', rotuloBase:'ritmo médio (largura)'}].forEach(cfg => {
+   {chave:'largura', unidade:'m', sigla:'m/h', rotuloBase:'ritmo médio (largura)'},
+   {chave:'espessura', unidade:'mm', sigla:'mm/h', rotuloBase:'ritmo médio (espessura/altura)'}].forEach(cfg => {
     const doGrupo = cPecas.filter(c => c.metricaRateio === cfg.chave && c.medida > 0 && c.minutos > 0);
     if (!doGrupo.length) return;
     const medidaTotal = doGrupo.reduce((a,c)=>a+c.medida,0);
@@ -796,12 +816,18 @@ function montarCartoesCiclo(){
     elFaltando.innerHTML = '';
   } else {
     const linhas = faltando.slice(0, 50).map(f =>
-      '<tr><td>' + f.tipo + '</td><td>' + f.label + '</td><td>' + f.contexto + '</td><td style="white-space:nowrap;">' + (f.quando||'').replace('T',' ') + '</td></tr>'
+      '<tr><td>' + f.tipo + '</td><td>' + f.label + '</td><td>' + f.contexto + '</td><td>' + (f.usuario||'—') + '</td><td style="white-space:nowrap;">' + (f.quando||'').replace('T',' ') + '</td></tr>'
     ).join('');
+    const porPessoa = agruparApontamentosFaltando(faltando, 'usuario');
+    const porEtapa = agruparApontamentosFaltando(faltando, 'estacao');
+    const chipsPessoa = porPessoa.map(([nome, n]) => '<span style="display:inline-block; background:#fdeceb; color:var(--text-danger); border-radius:999px; padding:3px 10px; font-size:11.5px; margin:2px 4px 2px 0;">' + nome + ': ' + n + '</span>').join('');
+    const chipsEtapa = porEtapa.map(([nome, n]) => '<span style="display:inline-block; background:#fdeecb; color:#6b5010; border-radius:999px; padding:3px 10px; font-size:11.5px; margin:2px 4px 2px 0;">' + nome + ': ' + n + '</span>').join('');
     elFaltando.innerHTML = '<details class="secao" style="padding:12px 14px; margin-top:14px; border-left:4px solid var(--text-danger);" open>' +
       '<summary style="cursor:pointer; font-weight:700; font-size:13px;">⚠ ' + faltando.length + ' item(ns) concluído(s) sem tempo de ciclo registrado</summary>' +
       '<p style="font-size:12px; color:var(--text-muted); margin:8px 0;">Alguém esqueceu de apertar "Iniciar" antes de concluir esses — o trabalho foi feito normalmente, só não temos o tempo de ciclo dele.</p>' +
-      '<div class="tabela-wrap"><table><thead><tr><th>tipo</th><th>item</th><th>contexto</th><th>quando</th></tr></thead><tbody>' + linhas + '</tbody></table></div>' +
+      '<p style="font-size:11.5px; color:var(--text-muted); margin:10px 0 2px; font-weight:600;">por pessoa:</p><div>' + chipsPessoa + '</div>' +
+      '<p style="font-size:11.5px; color:var(--text-muted); margin:10px 0 2px; font-weight:600;">por etapa:</p><div>' + chipsEtapa + '</div>' +
+      '<div class="tabela-wrap" style="margin-top:10px;"><table><thead><tr><th>tipo</th><th>item</th><th>contexto</th><th>quem</th><th>quando</th></tr></thead><tbody>' + linhas + '</tbody></table></div>' +
     '</details>';
   }
 }
@@ -830,7 +856,7 @@ function renderListaCiclo(){
     dados.sort((a,b) => (b.em||'').localeCompare(a.em||''));
     if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum registro encontrado nesse período</p>'; return; }
     const linhas = dados.map(d => {
-      const UNIDADES = { bordaLinear: ' m', area: ' m²', volume: ' m³', comprimento: ' m', largura: ' m' };
+      const UNIDADES = { bordaLinear: ' m', area: ' m²', volume: ' m³', comprimento: ' m', largura: ' m', espessura: ' mm' };
       const unidade = UNIDADES[d.metricaRateio] || '';
       return '<tr><td>' + d.pecaCodigo + (d.pecaDescricao ? ' — ' + d.pecaDescricao : '') + '</td><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + d.estacao + '</td><td>' + (d.medida ? d.medida.toFixed(4) + unidade : '—') + '</td><td><strong>' + minutosLegivel(d.minutos) + '</strong></td><td style="white-space:nowrap;">' + (d.em||'').replace('T',' ') + '</td>' + (ehAdmin ? '<td>' + botaoExcluirRegistro([d.id]) + '</td>' : '') + '</tr>';
     }).join('');
@@ -853,20 +879,79 @@ document.getElementById('subModoLeadTime').onclick = () => {
   subModoTempos = 'leadtime';
   document.getElementById('subModoLeadTime').classList.add('ativa');
   document.getElementById('subModoCiclo').classList.remove('ativa');
+  document.getElementById('subModoComparar').classList.remove('ativa');
   document.getElementById('secaoLeadTime').style.display = 'block';
   document.getElementById('secaoTempoCiclo').style.display = 'none';
+  document.getElementById('secaoComparacao').style.display = 'none';
   document.getElementById('cartoes').style.display = 'grid';
 };
 document.getElementById('subModoCiclo').onclick = () => {
   subModoTempos = 'ciclo';
   document.getElementById('subModoCiclo').classList.add('ativa');
   document.getElementById('subModoLeadTime').classList.remove('ativa');
+  document.getElementById('subModoComparar').classList.remove('ativa');
   document.getElementById('secaoLeadTime').style.display = 'none';
   document.getElementById('secaoTempoCiclo').style.display = 'block';
+  document.getElementById('secaoComparacao').style.display = 'none';
   document.getElementById('cartoes').style.display = 'none';
   montarCartoesCiclo();
   renderListaCiclo();
 };
+document.getElementById('subModoComparar').onclick = () => {
+  subModoTempos = 'comparar';
+  document.getElementById('subModoComparar').classList.add('ativa');
+  document.getElementById('subModoLeadTime').classList.remove('ativa');
+  document.getElementById('subModoCiclo').classList.remove('ativa');
+  document.getElementById('secaoLeadTime').style.display = 'none';
+  document.getElementById('secaoTempoCiclo').style.display = 'none';
+  document.getElementById('secaoComparacao').style.display = 'block';
+  document.getElementById('cartoes').style.display = 'none';
+  renderListaComparacao();
+};
+document.getElementById('buscaComparacao').addEventListener('input', renderListaComparacao);
+
+// junta lead time (tempo total, com fila) e tempo de ciclo (só o tempo
+// trabalhado) do MESMO módulo, pra mostrar quanto desse tempo total foi
+// fila de espera de verdade — o que Lean chama de "não valor agregado".
+function comparacaoLeadTimeCiclo(){
+  const porModulo = {};
+  movimentosAtuais.forEach(m => {
+    if (!m.moduloId) return;
+    const chave = m.clienteCodigo + '#' + m.moduloId;
+    if (!porModulo[chave]) porModulo[chave] = { moduloId: m.moduloId, moduloNome: m.moduloNome, clienteCodigo: m.clienteCodigo, cliente: m.cliente, projeto: m.projeto, eventos: [] };
+    porModulo[chave].eventos.push(m);
+  });
+  const ciclosDoModulo = ciclosPorModulo();
+  const resultados = [];
+  Object.values(porModulo).forEach(grupo => {
+    const datas = PONTOS_FIXOS.map(p => acharDataPonto(grupo.eventos, p.valor)).filter(Boolean);
+    if (datas.length < 2) return;
+    const leadTime = diffMinutos(datas[0], datas[datas.length-1]);
+    if (leadTime === null) return;
+    const tempoCiclo = ciclosDoModulo.filter(c => c.moduloId === grupo.moduloId && c.clienteCodigo === grupo.clienteCodigo).reduce((a,c) => a + c.minutos, 0);
+    resultados.push({
+      moduloId: grupo.moduloId, moduloNome: grupo.moduloNome, clienteCodigo: grupo.clienteCodigo, cliente: grupo.cliente, projeto: grupo.projeto,
+      leadTime, tempoCiclo, fila: Math.max(leadTime - tempoCiclo, 0)
+    });
+  });
+  return resultados.sort((a,b) => b.fila - a.fila);
+}
+function renderListaComparacao(){
+  const termo = document.getElementById('buscaComparacao').value.trim().toLowerCase();
+  const el = document.getElementById('listaComparacao');
+  let dados = comparacaoLeadTimeCiclo();
+  if (termo) dados = dados.filter(d => ((d.moduloNome||'')+(d.cliente||'')+(d.projeto||'')).toLowerCase().includes(termo));
+  if (!dados.length){ el.innerHTML = '<p class="tagMuted">nenhum módulo com lead time E tempo de ciclo registrados ainda nesse período — precisa dos dois pra comparar.</p>'; return; }
+  const linhas = dados.map(d => {
+    const pctFila = d.leadTime > 0 ? Math.round(100 * d.fila / d.leadTime) : 0;
+    const cor = pctFila >= 70 ? 'var(--text-danger)' : (pctFila >= 40 ? 'var(--fill-warning)' : 'var(--text-success)');
+    return '<tr><td>#' + d.moduloId + ' ' + (d.moduloNome||'') + '</td><td>' + (d.clienteCodigo||'') + ' ' + (d.cliente||'') + '</td>' +
+      '<td>' + minutosLegivel(d.leadTime) + '</td><td>' + minutosLegivel(d.tempoCiclo) + '</td>' +
+      '<td><strong style="color:' + cor + ';">' + minutosLegivel(d.fila) + '</strong></td>' +
+      '<td><strong style="color:' + cor + ';">' + pctFila + '%</strong></td></tr>';
+  }).join('');
+  el.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>módulo</th><th>cliente</th><th>lead time (total)</th><th>tempo de ciclo (trabalhado)</th><th>fila (diferença)</th><th>% do tempo foi fila</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+}
 
 function montarTempoMedioProcesso(){
   const movimentos = movimentosTempos();
