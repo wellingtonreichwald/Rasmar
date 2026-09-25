@@ -120,7 +120,7 @@
   .headerProjeto{ transition:background 0.15s ease; }
   .headerProjeto:hover{ background:var(--brand-soft) !important; }
   .headerModulo{ transition:background 0.15s ease; }
-  .headerModulo:hover{ background:var(--surface-1) !important; }
+  .headerModulo:hover{ background:var(--surface-1); }
 
   @media (max-width: 640px){
     body{ padding:14px; }
@@ -433,6 +433,11 @@
             <option value="">nenhuma (divide igual entre as peças)</option>
           </select>
         </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">aparece no dashboard em</label>
+        <label style="font-size:12px; margin-right:14px;"><input type="checkbox" id="novaEstacaoAbaKanban" checked /> Kanban</label>
+        <label style="font-size:12px;"><input type="checkbox" id="novaEstacaoAbaOee" checked /> OEE</label>
       </div>
       <button id="btnAdicionarEstacao" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Adicionar etapa</button>
       <p id="statusEstacoes" style="font-size:12px; margin:8px 0 0; display:none;"></p>
@@ -828,11 +833,11 @@ function registrarMovimentoComHorario(tipo, detalhe, emIso){
 const UNIDADES_METRICA = { area: 'm²', bordaLinear: 'm linear', volume: 'm³', comprimento: 'm', largura: 'm', espessura: 'mm' };
 const NOMES_METRICA = { area: 'área', bordaLinear: 'metro linear de borda', volume: 'volume', comprimento: 'comprimento (veio da madeira)', largura: 'largura', espessura: 'espessura/altura' };
 let stations = [
-  {id:'cnc',      label:'CNC',                  type:'peca',   field:'cnc_em',       metricaRateio:'area'},
-  {id:'coladeira',label:'Coladeira',             type:'peca',   field:'coladeira_em', metricaRateio:'bordaLinear'},
-  {id:'limpeza',  label:'Limpeza e Separação',   type:'peca',   field:'limpeza_em',   metricaRateio:'area'},
-  {id:'pre',      label:'Pré Montagem',          type:'modulo', completaField:'preCompleta',  completaEmField:'preCompletaEm'},
-  {id:'final',    label:'Montagem Final',        type:'modulo', completaField:'finalCompleta', completaEmField:'finalCompletaEm'}
+  {id:'cnc',      label:'CNC',                  type:'peca',   field:'cnc_em',       metricaRateio:'area', abasDashboard:['kanban','oee']},
+  {id:'coladeira',label:'Coladeira',             type:'peca',   field:'coladeira_em', metricaRateio:'bordaLinear', abasDashboard:['kanban','oee']},
+  {id:'limpeza',  label:'Limpeza e Separação',   type:'peca',   field:'limpeza_em',   metricaRateio:'area', abasDashboard:['kanban','oee']},
+  {id:'pre',      label:'Pré Montagem',          type:'modulo', completaField:'preCompleta',  completaEmField:'preCompletaEm', abasDashboard:['kanban','oee']},
+  {id:'final',    label:'Montagem Final',        type:'modulo', completaField:'finalCompleta', completaEmField:'finalCompletaEm', abasDashboard:['kanban','oee']}
 ];
 // funções auxiliares — sempre usar essas em vez de filtrar "stations" na
 // mão, porque agora as etapas podem mudar (o admin pode adicionar novas).
@@ -2017,6 +2022,7 @@ function renderModuloCard(pr, mod, station){
     modHeader.className = 'headerModulo';
     modHeader.style.width = '100%'; modHeader.style.display = 'flex'; modHeader.style.justifyContent = 'space-between'; modHeader.style.alignItems = 'center';
     modHeader.style.padding = '10px 14px'; modHeader.style.cursor = 'pointer'; modHeader.style.flexWrap = 'wrap'; modHeader.style.gap = '6px';
+    if (isConcluidoNaEstacao(mod, station)) modHeader.style.background = '#c9e3d6';
     modHeader.onclick = () => { mod.aberto = !mod.aberto; renderProjetos(); };
     const esquerda = document.createElement('span');
     esquerda.style.display = 'flex'; esquerda.style.flexDirection = 'column';
@@ -2066,6 +2072,7 @@ function renderModuloCard(pr, mod, station){
     header.className = 'headerModulo';
     header.style.padding = '10px 14px'; header.style.display = 'flex'; header.style.justifyContent = 'space-between'; header.style.alignItems = 'center';
     header.style.cursor = 'pointer';
+    if (isConcluidoNaEstacao(mod, station)) header.style.background = '#c9e3d6';
     header.onclick = () => { mod.aberto = !mod.aberto; renderProjetos(); };
     const titulo = document.createElement('span');
     titulo.style.fontSize = '13px'; titulo.style.fontWeight = '500';
@@ -2104,7 +2111,10 @@ function renderBlocoProjeto(pr, station, dinamico){
   // um módulo aparece numa estação sempre que tiver alguma peça (ou, nas
   // etapas finais, o módulo inteiro) presente ali agora — pode aparecer em
   // mais de uma estação ao mesmo tempo se as peças estiverem divididas.
-  const modulosVisiveis = pr.modulos.filter(m => moduloTemPresencaEm(m, station));
+  // os que já estão prontos pra seguir pra próxima etapa sobem pro topo
+  // da lista, pra ficarem visíveis na hora — sem precisar catar um por um.
+  const modulosVisiveis = pr.modulos.filter(m => moduloTemPresencaEm(m, station))
+    .sort((a, b) => isConcluidoNaEstacao(b, station) - isConcluidoNaEstacao(a, station));
 
   const header = document.createElement('div');
   header.className = 'headerProjeto';
@@ -3229,6 +3239,21 @@ function renderListaEstacoesAdmin(){
       };
       acoes.appendChild(selMetrica);
     }
+    const abasAtuais = s.abasDashboard || ['kanban','oee']; // sem config salva ainda = como sempre foi, aparece em tudo
+    [['kanban','Kanban'], ['oee','OEE']].forEach(([valorAba, textoAba]) => {
+      const label = document.createElement('label');
+      label.style.cssText = 'font-size:10.5px; color:var(--text-muted); display:flex; align-items:center; gap:2px;';
+      const chk = document.createElement('input');
+      chk.type = 'checkbox'; chk.checked = abasAtuais.includes(valorAba);
+      chk.onchange = () => {
+        const atual = new Set(s.abasDashboard || ['kanban','oee']);
+        if (chk.checked) atual.add(valorAba); else atual.delete(valorAba);
+        s.abasDashboard = Array.from(atual);
+        salvarEstacoes('mudou onde ' + s.label + ' aparece no dashboard (' + (s.abasDashboard.join(', ') || 'nenhuma aba') + ')');
+      };
+      label.appendChild(chk); label.appendChild(document.createTextNode(textoAba));
+      acoes.appendChild(label);
+    });
     const btnCima = document.createElement('button');
     btnCima.textContent = '↑'; btnCima.title = 'mover pra cima (só dentro do mesmo tipo)';
     btnCima.style.cssText = 'font-size:12px; padding:3px 8px;';
@@ -3278,12 +3303,15 @@ document.getElementById('btnAdicionarEstacao').onclick = () => {
   const tipo = document.getElementById('novaEstacaoTipo').value;
   const depoisDeId = document.getElementById('novaEstacaoDepoisDe').value;
   const metricaRateio = document.getElementById('novaEstacaoMetrica').value;
+  const abasDashboard = [];
+  if (document.getElementById('novaEstacaoAbaKanban').checked) abasDashboard.push('kanban');
+  if (document.getElementById('novaEstacaoAbaOee').checked) abasDashboard.push('oee');
   const status = document.getElementById('statusEstacoes');
   if (!nome){ status.style.display = 'block'; status.style.color = 'var(--text-danger)'; status.textContent = 'digite um nome pra etapa'; return; }
   const id = slugificarEstacao(nome);
   const nova = tipo === 'peca'
-    ? { id, label: nome, type: 'peca', field: 'campo_' + id + '_em', metricaRateio: metricaRateio || null }
-    : { id, label: nome, type: 'modulo', completaField: 'completa_' + id, completaEmField: 'completaEm_' + id };
+    ? { id, label: nome, type: 'peca', field: 'campo_' + id + '_em', metricaRateio: metricaRateio || null, abasDashboard }
+    : { id, label: nome, type: 'modulo', completaField: 'completa_' + id, completaEmField: 'completaEm_' + id, abasDashboard };
   // já cria os campos correspondentes nas peças/módulos que já existem, senão
   // fica undefined em vez de null (o que quebraria as checagens de "vazio")
   projetos.forEach(pr => pr.modulos.forEach(mod => {
@@ -3362,22 +3390,22 @@ function fecharCicloModuloSeAtivo(mod, station){
 // visível junto, nunca escondido atrás de outro clique). ----------
 function renderControleCronometro(opcoes){
   const el = document.createElement('span');
-  el.style.cssText = 'display:inline-flex; align-items:center; font-size:12px; border-radius:999px; overflow:hidden; border:1.5px solid ' + (opcoes.ativo ? 'var(--text-danger)' : 'var(--brand2)') + '; flex-shrink:0;';
+  el.style.cssText = 'display:inline-flex; align-items:center; font-size:13px; border-radius:999px; overflow:hidden; border:2px solid ' + (opcoes.ativo ? 'var(--text-danger)' : 'var(--brand2)') + '; flex-shrink:0; box-shadow:0 1px 3px rgba(0,0,0,0.12);';
   if (opcoes.ativo){
     const texto = document.createElement('span');
-    texto.style.cssText = 'padding:5px 10px 5px 12px; background:#fdeceb; color:var(--text-danger); font-weight:600; white-space:nowrap;';
+    texto.style.cssText = 'padding:7px 12px 7px 14px; background:#fdeceb; color:var(--text-danger); font-weight:700; white-space:nowrap;';
     texto.textContent = '⏱ ' + opcoes.rotulo + ' — ' + tempoDecorridoLegivel(opcoes.ativo.inicio);
     const btn = document.createElement('button');
     btn.textContent = '⏹ Encerrar';
     btn.title = opcoes.tituloEncerrar || '';
-    btn.style.cssText = 'font-size:12px; padding:5px 12px; background:var(--text-danger); color:#fff; border:none; font-weight:600; cursor:pointer;';
+    btn.style.cssText = 'font-size:13px; padding:7px 16px; background:var(--text-danger); color:#fff; border:none; font-weight:700; cursor:pointer;';
     btn.onclick = (e) => { e.stopPropagation(); opcoes.aoEncerrar(); };
     el.appendChild(texto); el.appendChild(btn);
   } else {
     const btn = document.createElement('button');
     btn.textContent = '▶ ' + opcoes.rotulo;
     btn.title = opcoes.tituloIniciar || '';
-    btn.style.cssText = 'font-size:12px; padding:5px 14px; background:#fff; color:var(--brand-dark); border:none; font-weight:600; cursor:pointer; white-space:nowrap;';
+    btn.style.cssText = 'font-size:13px; padding:7px 18px; background:var(--brand2); color:#fff; border:none; font-weight:700; cursor:pointer; white-space:nowrap;';
     btn.onclick = (e) => { e.stopPropagation(); opcoes.aoIniciar(); };
     el.appendChild(btn);
   }
@@ -3469,14 +3497,18 @@ function finalizarLoteEstacao(station){
   const unidadeMetrica = UNIDADES_METRICA[station.metricaRateio] || 'm²';
   const nomeMetrica = NOMES_METRICA[station.metricaRateio] || 'área';
   registrarLog('finalizou o lote em ' + station.label + ' — ' + pecasEnvolvidas.length + ' peça(s), ' + totalMinutos.toFixed(1) + 'min no total' + (totalMetrica > 0 ? ' (' + totalMetrica.toFixed(3) + ' ' + unidadeMetrica + ')' : ''));
-  showFeedback('lote finalizado: ' + pecasEnvolvidas.length + ' peça(s) em ' + station.label + (totalMetrica > 0 ? ', tempo rateado por ' + nomeMetrica : ', dividido igualmente (sem medida cadastrada)'), false);
+  if (!pecasEnvolvidas.length){
+    showFeedback('tempo de ciclo encerrado em ' + station.label + ', mas nenhuma peça foi bipada nesse intervalo — nada foi registrado. Da próxima vez, bipe as peças DEPOIS de apertar iniciar.', true);
+  } else {
+    showFeedback('tempo de ciclo encerrado: ' + pecasEnvolvidas.length + ' peça(s) em ' + station.label + (totalMetrica > 0 ? ', rateado por ' + nomeMetrica : ', dividido igualmente entre elas (essa etapa não tem uma medida configurada)'), false);
+  }
   renderTudo();
 }
 function renderBotaoLoteEstacao(station){
   const ativo = cicloAtivoEstacao(station);
   const nomeMetrica = NOMES_METRICA[station.metricaRateio] || null;
   return renderControleCronometro({
-    rotulo: 'cronômetro do lote (várias peças)',
+    rotulo: 'tempo de ciclo',
     ativo,
     tituloIniciar: 'Marca o início de um lote — todas as peças bipadas aqui até você finalizar entram automaticamente nele, e o tempo é dividido entre elas' + (nomeMetrica ? ' pela ' + nomeMetrica + ' de cada uma.' : ' igualmente (essa etapa não tem uma medida configurada).'),
     tituloEncerrar: 'Fecha o lote agora — o tempo é rateado entre as peças que foram bipadas aqui desde o início.',
@@ -3724,21 +3756,18 @@ function renderBarraParadaSetup(){
       el.appendChild(montarSeletorMotivo(tipo, (motivo) => iniciarParadaOuSetup(station.id, station.label, tipo, motivo)));
     }
   });
+  const btnManual = document.createElement('button');
+  btnManual.textContent = '📝 registro manual de setup/parada';
+  btnManual.title = 'Registrar uma parada ou setup que já aconteceu, com a data/hora certas';
+  btnManual.style.cssText = 'font-size:11px; padding:4px 9px;';
+  btnManual.onclick = () => abrirRegistroManualParada(station.id, station.label);
+  el.appendChild(btnManual);
   if (station.type === 'peca'){
     const separador = document.createElement('span');
     separador.style.cssText = 'width:1px; height:18px; background:var(--border-strong);';
     el.appendChild(separador);
     el.appendChild(renderBotaoLoteEstacao(station));
   }
-  const separador2 = document.createElement('span');
-  separador2.style.cssText = 'width:1px; height:18px; background:var(--border-strong);';
-  el.appendChild(separador2);
-  const btnManual = document.createElement('button');
-  btnManual.textContent = '📝 registro manual';
-  btnManual.title = 'Registrar uma parada ou setup que já aconteceu, com a data/hora certas';
-  btnManual.style.cssText = 'font-size:11px; padding:4px 9px;';
-  btnManual.onclick = () => abrirRegistroManualParada(station.id, station.label);
-  el.appendChild(btnManual);
 }
 // atualiza o cronômetro a cada 30s enquanto a tela estiver montada
 setInterval(() => {

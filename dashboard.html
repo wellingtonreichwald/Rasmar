@@ -492,9 +492,13 @@ function regenerarEstruturasEstacoes(){
     nivel: s.type === 'peca' ? 'peca' : 'modulo'
   }));
   ORDEM_ETAPAS_PECA = estacoesConfig.map(s => s.label);
-  ESTACOES_KANBAN = estacoesConfig.map(s => ({ id: s.id, label: s.label, tipo: s.type }));
-  ESTACOES_OEE = estacoesConfig.filter(s => s.type === 'peca').map(s => ({ id: s.id, label: s.label }));
-  ORDEM_ESTACOES_KANBAN = estacoesConfig.map(s => s.id);
+  // abasDashboard controla se essa etapa aparece no Kanban e/ou no OEE —
+  // sem essa config salva (etapas antigas), continua aparecendo em tudo,
+  // igual sempre foi.
+  const apareceEm = (s, aba) => !s.abasDashboard || s.abasDashboard.includes(aba);
+  ESTACOES_KANBAN = estacoesConfig.filter(s => apareceEm(s, 'kanban')).map(s => ({ id: s.id, label: s.label, tipo: s.type }));
+  ESTACOES_OEE = estacoesConfig.filter(s => s.type === 'peca' && apareceEm(s, 'oee')).map(s => ({ id: s.id, label: s.label }));
+  ORDEM_ESTACOES_KANBAN = ESTACOES_KANBAN.map(s => s.id);
   // pontos "de/até" pro filtro processo-a-processo e pra tabela de tempo
   // médio — inclui o cadastro/importação como primeiro ponto possível,
   // além de todas as etapas configuradas (não fica mais preso a 5).
@@ -742,7 +746,7 @@ function apontamentosIncompletos(){
   conclusoesModulo.forEach(c => {
     const temCiclo = ciclosModulo.some(cm => cm.moduloId === c.moduloId && cm.detalhe === c.detalhe && cm.fim && Math.abs(new Date(cm.fim) - new Date(c.em)) < JANELA_MS);
     if (!temCiclo){
-      faltando.push({ tipo: 'módulo', label: '#' + c.moduloId + ' ' + (c.moduloNome||''), contexto: (c.clienteCodigo||'') + ' ' + (c.cliente||'') + ' — ' + c.detalhe, quando: c.em, usuario: c.usuario || '—', estacao: c.detalhe });
+      faltando.push({ tipo: 'módulo', label: '#' + c.moduloId + ' ' + (c.moduloNome||''), contexto: (c.clienteCodigo||'') + ' ' + (c.cliente||'') + ' — ' + c.detalhe, quando: c.em, usuario: c.usuario || '—', estacao: c.detalhe, idMovimento: c.id });
     }
   });
 
@@ -751,7 +755,7 @@ function apontamentosIncompletos(){
   baixas.forEach(b => {
     const temCiclo = ciclosPedido.some(cp => cp.clienteCodigo === b.clienteCodigo && cp.fim && Math.abs(new Date(cp.fim) - new Date(b.em)) < JANELA_MS);
     if (!temCiclo){
-      faltando.push({ tipo: 'pedido', label: b.clienteCodigo, contexto: (b.cliente||'') + ' · ' + (b.projeto||''), quando: b.em, usuario: b.usuario || '—', estacao: 'pedido inteiro' });
+      faltando.push({ tipo: 'pedido', label: b.clienteCodigo, contexto: (b.cliente||'') + ' · ' + (b.projeto||''), quando: b.em, usuario: b.usuario || '—', estacao: 'pedido inteiro', idMovimento: b.id });
     }
   });
 
@@ -759,7 +763,7 @@ function apontamentosIncompletos(){
   const estacoesComMetrica = new Set(estacoesConfig.filter(s => s.metricaRateio).map(s => s.label));
   movimentosAtuais.filter(m => m.tipo === 'bipagem' && estacoesComMetrica.has(m.detalhe)).forEach(m => {
     if (!idsComRateio.has(m.pecaCodigo + '|' + m.detalhe)){
-      faltando.push({ tipo: 'peça', label: m.pecaCodigo + (m.pecaDescricao ? ' — ' + m.pecaDescricao : ''), contexto: '#' + m.moduloId + ' ' + (m.moduloNome||'') + ' — ' + m.detalhe, quando: m.em, usuario: m.usuario || '—', estacao: m.detalhe });
+      faltando.push({ tipo: 'peça', label: m.pecaCodigo + (m.pecaDescricao ? ' — ' + m.pecaDescricao : ''), contexto: '#' + m.moduloId + ' ' + (m.moduloNome||'') + ' — ' + m.detalhe, quando: m.em, usuario: m.usuario || '—', estacao: m.detalhe, idMovimento: m.id });
     }
   });
 
@@ -816,21 +820,27 @@ function montarCartoesCiclo(){
     elFaltando.innerHTML = '';
   } else {
     const linhas = faltando.slice(0, 50).map(f =>
-      '<tr><td>' + f.tipo + '</td><td>' + f.label + '</td><td>' + f.contexto + '</td><td>' + (f.usuario||'—') + '</td><td style="white-space:nowrap;">' + (f.quando||'').replace('T',' ') + '</td></tr>'
+      '<tr><td>' + f.tipo + '</td><td>' + f.label + '</td><td>' + f.contexto + '</td><td>' + (f.usuario||'—') + '</td><td style="white-space:nowrap;">' + (f.quando||'').replace('T',' ') + '</td>' + (usuarioEhAdmin() ? '<td>' + botaoExcluirRegistro([f.idMovimento]) + '</td>' : '') + '</tr>'
     ).join('');
     const porPessoa = agruparApontamentosFaltando(faltando, 'usuario');
     const porEtapa = agruparApontamentosFaltando(faltando, 'estacao');
     const chipsPessoa = porPessoa.map(([nome, n]) => '<span style="display:inline-block; background:#fdeceb; color:var(--text-danger); border-radius:999px; padding:3px 10px; font-size:11.5px; margin:2px 4px 2px 0;">' + nome + ': ' + n + '</span>').join('');
     const chipsEtapa = porEtapa.map(([nome, n]) => '<span style="display:inline-block; background:#fdeecb; color:#6b5010; border-radius:999px; padding:3px 10px; font-size:11.5px; margin:2px 4px 2px 0;">' + nome + ': ' + n + '</span>').join('');
-    elFaltando.innerHTML = '<details class="secao" style="padding:12px 14px; margin-top:14px; border-left:4px solid var(--text-danger);" open>' +
+    // guarda se a pessoa já fechou isso manualmente antes — senão, toda
+    // atualização de dados reabre sozinho, o que parece "não consigo
+    // minimizar". O estado fica só na tela (não precisa persistir).
+    elFaltando.innerHTML = '<details class="secao" style="padding:12px 14px; margin-top:14px; border-left:4px solid var(--text-danger);"' + (apontamentosFaltandoAberto ? ' open' : '') + '>' +
       '<summary style="cursor:pointer; font-weight:700; font-size:13px;">⚠ ' + faltando.length + ' item(ns) concluído(s) sem tempo de ciclo registrado</summary>' +
-      '<p style="font-size:12px; color:var(--text-muted); margin:8px 0;">Alguém esqueceu de apertar "Iniciar" antes de concluir esses — o trabalho foi feito normalmente, só não temos o tempo de ciclo dele.</p>' +
+      '<p style="font-size:12px; color:var(--text-muted); margin:8px 0;">Alguém esqueceu de apertar "Iniciar" antes de concluir esses — o trabalho foi feito normalmente, só não temos o tempo de ciclo dele. Se não dá pra recuperar isso (já passou muito tempo), pode simplesmente excluir a linha — ela some daqui.</p>' +
       '<p style="font-size:11.5px; color:var(--text-muted); margin:10px 0 2px; font-weight:600;">por pessoa:</p><div>' + chipsPessoa + '</div>' +
       '<p style="font-size:11.5px; color:var(--text-muted); margin:10px 0 2px; font-weight:600;">por etapa:</p><div>' + chipsEtapa + '</div>' +
-      '<div class="tabela-wrap" style="margin-top:10px;"><table><thead><tr><th>tipo</th><th>item</th><th>contexto</th><th>quem</th><th>quando</th></tr></thead><tbody>' + linhas + '</tbody></table></div>' +
+      '<div class="tabela-wrap" style="margin-top:10px;"><table><thead><tr><th>tipo</th><th>item</th><th>contexto</th><th>quem</th><th>quando</th>' + (usuarioEhAdmin() ? '<th></th>' : '') + '</tr></thead><tbody>' + linhas + '</tbody></table></div>' +
     '</details>';
+    elFaltando.querySelector('details').addEventListener('toggle', (e) => { apontamentosFaltandoAberto = e.target.open; });
+    ativarExclusaoNaLista('listaApontamentosFaltando', () => { montarCartoesCiclo(); });
   }
 }
+let apontamentosFaltandoAberto = true;
 let abaCicloAtiva = 'modulos';
 function renderListaCiclo(){
   const termo = document.getElementById('buscaCiclo').value.trim().toLowerCase();
