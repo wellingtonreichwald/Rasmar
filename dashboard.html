@@ -281,14 +281,23 @@
     </div>
 
     <div id="secaoDefeitos" style="display:none;">
-      <div class="secao" id="secaoIshikawa" style="padding:16px; margin-bottom:14px;">
-        <h3 style="font-size:13px; margin:0 0 4px;">Diagrama de Ishikawa — causa e sub-causa</h3>
-        <p style="font-size:11px; color:var(--text-muted); margin:0 0 10px;">Cada "espinha" é uma categoria de causa; os ramos menores são as observações mais repetidas dentro dela (sub-causas). Quanto mais grossa/escura a espinha, mais defeitos vieram dali.</p>
-        <div id="diagramaIshikawa" style="overflow-x:auto;"></div>
+      <div class="abas ocultarNaImpressao" style="margin-bottom:14px;">
+        <button id="subModoDefeitosLista" class="ativa">📋 Lista de defeitos</button>
+        <button id="subModoDefeitosIshikawa">🐟 Ishikawa (causa e sub-causa)</button>
       </div>
-      <div class="secao" id="secaoDetalheDefeitos" style="padding:12px 14px;">
-        <input id="buscaDefeitos" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar por peça, módulo, categoria..." style="margin-bottom:8px;" />
-        <div id="listaDefeitos"></div>
+      <div id="secaoIshikawa" style="display:none;">
+        <div class="secao" style="padding:16px; margin-bottom:14px;">
+          <h3 style="font-size:13px; margin:0 0 4px;">Diagrama de Ishikawa — causa e sub-causa</h3>
+          <p style="font-size:11px; color:var(--text-muted); margin:0 0 10px;">Cada "espinha" é uma categoria de causa; os ramos menores são as observações mais repetidas dentro dela (sub-causas). Quanto mais grossa/escura a espinha, mais defeitos vieram dali. Clique numa sub-causa pra ver as observações originais por trás dela.</p>
+          <div id="diagramaIshikawa" style="overflow-x:auto;"></div>
+          <div id="detalheSubCausa" style="margin-top:14px;"></div>
+        </div>
+      </div>
+      <div id="secaoListaDefeitos">
+        <div class="secao" id="secaoDetalheDefeitos" style="padding:12px 14px;">
+          <input id="buscaDefeitos" class="buscaLista ocultarNaImpressao" type="text" placeholder="buscar por peça, módulo, categoria..." style="margin-bottom:8px;" />
+          <div id="listaDefeitos"></div>
+        </div>
       </div>
     </div>
 
@@ -1273,6 +1282,22 @@ function aplicarModo(){
 }
 document.getElementById('modoTempos').onclick = () => { modoAtivo = 'tempos'; aplicarModo(); };
 document.getElementById('modoDefeitos').onclick = () => { modoAtivo = 'defeitos'; aplicarModo(); };
+let subModoDefeitos = 'lista';
+document.getElementById('subModoDefeitosLista').onclick = () => {
+  subModoDefeitos = 'lista';
+  document.getElementById('subModoDefeitosLista').classList.add('ativa');
+  document.getElementById('subModoDefeitosIshikawa').classList.remove('ativa');
+  document.getElementById('secaoListaDefeitos').style.display = 'block';
+  document.getElementById('secaoIshikawa').style.display = 'none';
+};
+document.getElementById('subModoDefeitosIshikawa').onclick = () => {
+  subModoDefeitos = 'ishikawa';
+  document.getElementById('subModoDefeitosIshikawa').classList.add('ativa');
+  document.getElementById('subModoDefeitosLista').classList.remove('ativa');
+  document.getElementById('secaoListaDefeitos').style.display = 'none';
+  document.getElementById('secaoIshikawa').style.display = 'block';
+  montarIshikawa(movimentosAtuais);
+};
 document.getElementById('modoKanban').onclick = () => { modoAtivo = 'kanban'; aplicarModo(); };
 document.getElementById('modoOee').onclick = () => { modoAtivo = 'oee'; aplicarModo(); };
 document.getElementById('modoVsm').onclick = () => { modoAtivo = 'vsm'; aplicarModo(); };
@@ -1451,6 +1476,29 @@ function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo, clienteCodigoCon
   const wipInicial = dadosCaixas.length ? dadosCaixas[0].wip : 0;
   const wipFinal = dadosCaixas.length ? dadosCaixas[dadosCaixas.length-1].wip : 0;
 
+  // "auto aprimoramento": o VSM aponta sozinho, toda vez que é visto, onde
+  // está o maior problema agora — sem precisar de ninguém procurando. É o
+  // "kaizen burst" clássico de um VSM de papel, só que automático: a
+  // etapa com pior OEE (se tiver dado de verdade e estiver ruim) e o maior
+  // gargalo de espera entre etapas ganham uma marcação.
+  let idxPiorOee = -1, piorOee = 1;
+  dadosCaixas.forEach((d, i) => { if (d.oee !== null && d.oee < piorOee){ piorOee = d.oee; idxPiorOee = i; } });
+  if (piorOee >= 0.70) idxPiorOee = -1; // só marca se realmente estiver ruim, senão vira ruído
+  let idxPiorEspera = -1, piorEspera = 0;
+  esperas.forEach((e, i) => { if (e !== null && e > piorEspera){ piorEspera = e; idxPiorEspera = i; } });
+  function desenharKaizenBurst(cx, cy, texto){
+    const raio = 11;
+    let pontos = '';
+    for (let k = 0; k < 12; k++){
+      const ang = (Math.PI*2*k)/12;
+      const r = k % 2 === 0 ? raio : raio*0.55;
+      pontos += (cx + r*Math.cos(ang)) + ',' + (cy + r*Math.sin(ang)) + ' ';
+    }
+    svg += '<polygon points="' + pontos + '" fill="#e8b400" stroke="#8a6a1f" stroke-width="1"/>';
+    svg += '<text x="' + cx + '" y="' + (cy+3.5) + '" text-anchor="middle" font-size="11" font-weight="900" fill="#3d2f0a">!</text>';
+    svg += '<title>' + escapar(texto) + '</title>';
+  }
+
   let svg = '<svg viewBox="0 0 ' + larguraSvg + ' ' + alturaSvg + '" width="100%" style="min-width:' + Math.min(960, Math.max(620, larguraSvg)) + 'px; font-family:var(--font-body);">';
 
   // fluxo de informação (linha tracejada no topo, ligando fornecedor a cliente)
@@ -1491,6 +1539,7 @@ function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo, clienteCodigoCon
     svg += '<text x="' + (x+6) + '" y="' + (y0+45) + '" font-size="8.5" fill="#3d2f0a">T/R: ' + escapar(d.tr !== null ? minutosLegivel(d.tr) : '—') + '</text>';
     svg += '<text x="' + (x+6) + '" y="' + (y0+59) + '" font-size="8.5" fill="#3d2f0a">OEE: ' + escapar(d.oee !== null ? (d.oee*100).toFixed(0) + '%' : '—') + '</text>';
     svg += '<text x="' + (x+6) + '" y="' + (y0+73) + '" font-size="8.5" fill="#3d2f0a">WIP: ' + d.wip + '</text>';
+    if (i === idxPiorOee) desenharKaizenBurst(x+larguraCaixa-2, y0-2, 'Oportunidade de melhoria: OEE de ' + (d.oee*100).toFixed(0) + '% em ' + d.label + ' — a pior do fluxo');
     x += larguraCaixa;
 
     // seta listrada de fluxo de material (empurrado) até o próximo triângulo
@@ -1506,6 +1555,7 @@ function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo, clienteCodigoCon
       desenharTriangulo(cx, wipFinal + ' peça(s)', 'estoque');
     } else {
       desenharTriangulo(cx, esperas[i] !== null ? minutosLegivel(esperas[i]) : '—', 'espera');
+      if (i === idxPiorEspera) desenharKaizenBurst(cx+18, y0+alturaCaixa-28, 'Oportunidade de melhoria: maior espera do fluxo, ' + minutosLegivel(esperas[i]) + ', entre ' + d.label + ' e a próxima etapa');
     }
     x += larguraTriangulo;
   });
@@ -1534,8 +1584,12 @@ function renderVsmLean(pontos, tipoNivel, moduloId, pecaCodigo, clienteCodigoCon
   svg += '<text x="' + margem + '" y="' + (yLinha+42) + '" font-size="11" font-weight="700" fill="var(--brand)">Processamento (Σ T/C): ' + escapar(minutosLegivel(tempoProcessamentoTotal)) + '</text>';
 
   svg += '</svg>';
-  return '<div style="overflow-x:auto;">' + svg + '</div>' +
-    '<p style="font-size:10.5px; color:var(--text-muted); margin-top:6px;"><strong>T/C</strong> tempo de ciclo · <strong>T/R</strong> tempo de troca/setup · <strong>OEE</strong> da etapa no período · <strong>WIP</strong> peças ali agora, na fábrica toda · os triângulos de estoque antes/depois mostram quantas peças estão esperando pra entrar/sair agora · "—" = essa etapa ainda não tem esse dado.</p>';
+  const insights = [];
+  if (idxPiorOee >= 0) insights.push('⚠ <strong>' + dadosCaixas[idxPiorOee].label + '</strong> está com o pior OEE do fluxo (' + (dadosCaixas[idxPiorOee].oee*100).toFixed(0) + '%) — vale olhar essa etapa primeiro.');
+  if (idxPiorEspera >= 0) insights.push('⚠ O maior tempo parado do fluxo é entre <strong>' + dadosCaixas[idxPiorEspera].label + '</strong> e a próxima etapa (' + minutosLegivel(esperas[idxPiorEspera]) + ') — maior chance de ganho rápido reduzindo essa fila.');
+  const blocoInsights = insights.length ? '<div style="background:#fff8e6; border-left:3px solid #e8b400; padding:8px 12px; margin-top:8px; font-size:12px;">' + insights.join('<br>') + '</div>' : '';
+  return '<div style="overflow-x:auto;">' + svg + '</div>' + blocoInsights +
+    '<p style="font-size:10.5px; color:var(--text-muted); margin-top:6px;"><strong>T/C</strong> tempo de ciclo · <strong>T/R</strong> tempo de troca/setup · <strong>OEE</strong> da etapa no período · <strong>WIP</strong> peças ali agora, na fábrica toda · os triângulos de estoque antes/depois mostram quantas peças estão esperando pra entrar/sair agora · "—" = essa etapa ainda não tem esse dado · <span style="color:#8a6a1f;">★ marca o maior ponto de melhoria, calculado sozinho toda vez que os dados mudam.</span></p>';
 }
 
 function renderVsm(){
@@ -2177,11 +2231,29 @@ function montarIshikawa(movimentos){
       const tx = bx + 20, ty = by + perp*16;
       svg += '<line x1="' + bx + '" y1="' + by + '" x2="' + tx + '" y2="' + ty + '" stroke="#999" stroke-width="1.5" />';
       const textoCurto = s.texto.length > 24 ? s.texto.slice(0,22) + '…' : s.texto;
-      svg += '<text x="' + (tx+4) + '" y="' + (ty + perp*3) + '" font-size="10.5" fill="#555">' + escapar(textoCurto) + ' (' + s.n + 'x)</text>';
+      svg += '<text class="subCausaClicavel" data-cat="' + escapar(cat) + '" data-sub="' + escapar(s.texto.toLowerCase()) + '" style="cursor:pointer; text-decoration:underline; text-decoration-style:dotted;" x="' + (tx+4) + '" y="' + (ty + perp*3) + '" font-size="10.5" fill="#0a4a3e">' + escapar(textoCurto) + ' (' + s.n + 'x)</text>';
     });
   });
   svg += '</svg>';
   document.getElementById('diagramaIshikawa').innerHTML = svg;
+  document.getElementById('detalheSubCausa').innerHTML = '';
+  document.getElementById('diagramaIshikawa').querySelectorAll('.subCausaClicavel').forEach(elTexto => {
+    elTexto.addEventListener('click', () => {
+      const cat = elTexto.dataset.cat, sub = elTexto.dataset.sub;
+      const originais = eventosDefeito.filter(m => {
+        const c = (m.detalhe||'').split(' — ')[0].split(' → ')[0].trim();
+        const s = extrairSubCausa(m.detalhe);
+        return c === cat && s && s.toLowerCase() === sub;
+      }).sort((a,b) => (b.em||'').localeCompare(a.em||''));
+      const linhas = originais.map(m => '<tr><td>' + (m.pecaCodigo || ('#'+m.moduloId)) + (m.pecaDescricao || m.moduloNome ? ' — ' + (m.pecaDescricao||m.moduloNome) : '') + '</td><td>' + nomeTipo(m.tipo) + '</td><td style="white-space:nowrap;">' + (m.em||'').replace('T',' ') + '</td><td>' + (m.usuario||'') + '</td></tr>').join('');
+      document.getElementById('detalheSubCausa').innerHTML =
+        '<div class="secao" style="padding:12px 14px; border-left:4px solid var(--brand);">' +
+        '<p style="font-size:13px; font-weight:700; margin:0 0 8px;">📋 Observações originais — "' + sub + '" (' + cat + ') — ' + originais.length + ' registro(s)</p>' +
+        '<div class="tabela-wrap"><table><thead><tr><th>peça/módulo</th><th>tipo</th><th>quando</th><th>quem</th></tr></thead><tbody>' + linhas + '</tbody></table></div>' +
+        '</div>';
+      document.getElementById('detalheSubCausa').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
 }
 
 function montarCartoesDefeitos(movimentos){

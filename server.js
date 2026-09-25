@@ -45,7 +45,10 @@ function estadoPadrao(){
     ],
     // nome da marcenaria que está usando esse app — aparece no rodapé e
     // no cabeçalho; editável pelo admin na Administração.
-    nomeMarcenaria: ''
+    nomeMarcenaria: '',
+    // onde uma peça nova nasce ao importar CSV ou cadastrar manualmente —
+    // null = primeira etapa por peça configurada (como sempre foi).
+    estacaoInicialId: null
   };
 }
 
@@ -200,13 +203,13 @@ function tratarGet(url, res){
     resultado = {
       projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido,
       usuarios: db.usuarios, logs: db.logs, movimentos: db.movimentos,
-      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, nomeMarcenaria: db.nomeMarcenaria,
+      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId,
       geradoEm: timestampLocal()
     };
   } else if (acao === 'listarBackups'){
     resultado = { backups: listarArquivosBackup() };
   } else {
-    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria };
+    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId };
   }
   resultado.chamadasHoje = chamadasHoje;
   const json = JSON.stringify(resultado);
@@ -275,6 +278,7 @@ function aplicarPost(corpo){
       configuracaoHorario: (b.configuracaoHorario && typeof b.configuracaoHorario === 'object') ? b.configuracaoHorario : estadoPadrao().configuracaoHorario,
       estacoes: (Array.isArray(b.estacoes) && b.estacoes.length) ? b.estacoes : estadoPadrao().estacoes,
       nomeMarcenaria: (typeof b.nomeMarcenaria === 'string') ? b.nomeMarcenaria : '',
+      estacaoInicialId: (typeof b.estacaoInicialId === 'string') ? b.estacaoInicialId : null,
       salvoEm: timestampLocal()
     };
     salvarDB(novoDb);
@@ -303,6 +307,9 @@ function aplicarPost(corpo){
   }
   if (typeof corpo.nomeMarcenaria === 'string'){
     db.nomeMarcenaria = corpo.nomeMarcenaria;
+  }
+  if (typeof corpo.estacaoInicialId === 'string' || corpo.estacaoInicialId === null){
+    db.estacaoInicialId = corpo.estacaoInicialId;
   }
 
   db.logs = anexarNovosPorId(db.logs, corpo.logsNovos);
