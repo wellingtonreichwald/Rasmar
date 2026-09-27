@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Rasmar - Rastreio na marcenaria</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='120' x2='120' y2='0' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0%25' stop-color='%230a4a3e'/%3E%3Cstop offset='55%25' stop-color='%2312695a'/%3E%3Cstop offset='100%25' stop-color='%231c8a6d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='120' height='120' rx='28' fill='url(%23g)'/%3E%3Cpath d='M 26 94 L 50 76 L 74 54 L 90 34' stroke='white' stroke-width='4' stroke-linecap='round' stroke-dasharray='1 12' fill='none'/%3E%3Ccircle cx='26' cy='94' r='6' fill='white' opacity='0.55'/%3E%3Ccircle cx='50' cy='76' r='6' fill='white' opacity='0.75'/%3E%3Ccircle cx='74' cy='54' r='6.5' fill='white' opacity='0.92'/%3E%3Ccircle cx='91' cy='32' r='14' fill='white'/%3E%3Cpath d='M 85 32 L 89.5 37 L 98 26' stroke='%230a4a3e' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E" />
+<!-- PWA: deixa instalável na tela inicial do celular. Precisa dos
+     arquivos manifest.json, sw.js, icon-192.png e icon-512.png subidos
+     junto do index.html, na mesma pasta, senão isso aqui é ignorado
+     silenciosamente (sem quebrar nada). -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#12695a" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Rasmar" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -130,6 +140,13 @@
     button, select, input[type=text], input[type=password], input[type=date]{ padding:10px 12px !important; font-size:14px !important; min-height:40px; }
     input[type=checkbox]{ width:20px; height:20px; }
     .cabecalho .marca img{ height:44px !important; }
+    /* no celular, a barra de ações vira só um botão de menu — os outros
+       (Dashboard, Trocar senha, Ajuda, Paradas/Setup) ficam dentro dele,
+       senão o cabeçalho toma a tela toda e empurra o campo de bipar pra
+       baixo, que é a ação mais importante no celular. */
+    #btnAbrirDashboard, #btnTrocarSenha, #btnAjuda, #btnAbrirParadas{ display:none !important; }
+    #btnMenuAdmin{ display:inline-block !important; }
+    .itemMenuMobile.temAcaoMobile{ display:block !important; }
   }
 
   /* etiqueta de código de barras — aumentada de novo (100mm x 60mm), com o
@@ -232,37 +249,44 @@
     </div>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">1. O caminho de uma peça</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Toda peça passa por 5 etapas, sempre nessa ordem: <strong>CNC → Coladeira → Limpeza e Separação → Pré Montagem → Montagem Final</strong>. Nas três primeiras, você bipa peça por peça. Nas duas últimas, o módulo inteiro (todas as peças já juntas) é concluído de uma vez, não peça por peça.</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">As etapas de produção são configuráveis (a Administração pode adicionar, remover e reordenar) — os nomes exatos podem variar, mas existem 3 tipos: <strong>por peça</strong> (ex: CNC, Coladeira — você bipa peça por peça), <strong>por módulo</strong> (ex: Pré Montagem, Montagem Final — o módulo inteiro é concluído de uma vez) e <strong>por pedido inteiro</strong> (ex: Entrega, Instalação — só aparece depois que todos os módulos do pedido terminarem as etapas de módulo).</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">2. Como bipar</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Digite ou bipe o código da peça no campo do topo da tela e aperte Enter. Aparece na hora um aviso grande e verde confirmando qual peça foi registrada e em qual etapa — não precisa clicar em nada pra confirmar. Se a peça já foi concluída em outro lugar, ou não pertence a essa etapa, o sistema avisa e não deixa duplicar.</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Digite ou bipe o código da peça no campo do topo da tela e aperte Enter. Aparece na hora um aviso grande e verde confirmando qual peça foi registrada e em qual etapa — não precisa clicar em nada pra confirmar. Se a peça já foi concluída em outro lugar, ou não pertence a essa etapa, o sistema avisa e não deixa duplicar. Se uma etapa ficar muito tempo sem nenhuma bipagem e tiver peça esperando, aparece um aviso pulsante perguntando se foi parada — é só clicar pra já registrar.</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">3. Etiquetas (código de barras e QR code)</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Cada módulo e cada pedido tem um botão 🖨️ pra imprimir uma etiqueta. Bipando a etiqueta de um <strong>módulo</strong> na Pré Montagem, ele é marcado como concluído inteiro. Bipando a etiqueta de um <strong>pedido</strong> na Montagem Final, o pedido é dado como entregue (só funciona se já estiver tudo pronto). A etiqueta também tem um <strong>QR code</strong> — qualquer celular que apontar a câmera pra ele abre o histórico daquele módulo ou pedido na hora, sem precisar de login.</p>
-
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">4. Parou a máquina? Registre</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Embaixo do campo de bipar aparece um aviso rápido pra registrar <strong>parada</strong> (quebra, falta de material, falta de energia, etc.) ou <strong>setup</strong> (troca de ferramenta, ajuste de máquina). Escolha o motivo numa lista pronta — não precisa digitar nada na maioria das vezes — e clique em "Finalizar" quando a máquina voltar a rodar. Isso ajuda a empresa a entender onde o tempo está sendo perdido de verdade.</p>
-
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5. Quando uma peça tem defeito</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Clique em "Defeito" na peça (ou "⚠ Defeito no módulo" se o problema for no módulo inteiro). Escolha a causa — método, máquina, mão de obra, material, medição ou meio ambiente — escreva uma observação se quiser, e escolha entre <strong>retrabalhar</strong> (a peça volta pra uma etapa escolhida por você) ou <strong>descartar</strong> (a peça é jogada fora e recriada do zero, voltando pro CNC).</p>
-
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">6. Administração (só pra quem é admin)</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Criar e editar usuários (login, senha, e-mail, quais etapas cada um pode ver), configurar o <strong>horário de trabalho</strong> da empresa (usado pra calcular tempo útil no dashboard), fazer backup manual dos dados, e a "Zona de risco" pra apagar tudo e recomeçar do zero, se um dia precisar.</p>
-
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">7. O Dashboard — o que cada aba mostra</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 6px;">O Dashboard é onde dá pra ver como a produção está indo. Qualquer usuário logado pode abrir. Tem várias abas:</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">3. Cronômetro — tempo de ciclo</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Além da bipagem (que mede o <strong>lead time</strong>, incluindo filas de espera), dá pra medir o <strong>tempo de ciclo</strong> — só o tempo de trabalho de verdade. Aperte "▶" pra iniciar e "⏹ Encerrar" quando terminar:</p>
     <ul style="font-size:13px; line-height:1.75; margin:0 0 10px; padding-left:20px;">
-      <li><strong>📊 Tempos</strong> — mostra, peça por peça, quanto tempo ela levou em cada etapa, com o tempo entre uma e outra. É como um raio-x do processo, do início ao fim.</li>
-      <li><strong>⚠ Defeitos</strong> — a lista de tudo que deu problema, com a causa e quem registrou. Mostra também um "índice de qualidade" geral.</li>
-      <li><strong>🗂️ Kanban</strong> — mostra o que está em cada etapa <strong>agora mesmo</strong>, em tempo real. Dá pra ver por peça, por módulo ou por pedido inteiro (o padrão é por pedido). Também mostra uma previsão de quando cada pedido deve ficar pronto, calculada pelo histórico.</li>
-      <li><strong>⚙️ OEE</strong> — um número que junta três coisas: quanto tempo a máquina ficou disponível (sem parada), quão rápido ela produziu comparado ao seu melhor ritmo, e quantas peças saíram boas. Quanto mais perto de 100%, melhor.</li>
-      <li><strong>🧭 VSM</strong> — escolha uma peça, módulo ou pedido específico e veja o caminho completo dele, etapa por etapa, com o tempo de espera entre cada uma.</li>
-      <li><strong>🔧 Setups/Paradas</strong> — todas as paradas e setups registrados, com motivo, duração e quem registrou.</li>
-      <li><strong>💡 Conselhos</strong> — o sistema olha os dados e aponta sozinho onde vale a pena focar (etapa mais parada, causa de defeito mais comum, etc.), sem precisar analisar nada manualmente.</li>
+      <li>Nas etapas <strong>por peça</strong>, é um cronômetro de <strong>lote</strong> — inicia antes de cortar/processar uma leva de peças (podem ser de módulos diferentes, misturadas), e o tempo é dividido entre elas proporcionalmente (por área, borda, volume, comprimento, largura ou espessura, conforme configurado). Dá pra pausar e retomar quantas vezes precisar no mesmo dia.</li>
+      <li>Nas etapas <strong>por módulo</strong> e <strong>por pedido inteiro</strong>, o cronômetro é 1 pra 1 — não precisa dividir nada.</li>
     </ul>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Dá pra exportar qualquer coisa da aba Tempos em PDF ou Excel, e filtrar tudo por período (a data padrão é sempre o dia de hoje, pra não vir uma quantidade enorme de informação de uma vez).</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">8. Se a internet cair</h3>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">4. Etiquetas (QR code e código de barras)</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Cada módulo e cada pedido tem um botão 🖨️ pra imprimir uma etiqueta. Bipando a etiqueta de um <strong>módulo</strong> na última etapa de módulo, ele é marcado como concluído inteiro. Bipando a etiqueta de um <strong>pedido</strong>, o pedido é dado como entregue (só funciona se já estiver tudo pronto). O <strong>QR code</strong> vem em destaque — qualquer celular que apontar a câmera pra ele abre o histórico daquele módulo ou pedido na hora, sem precisar de login. Se um leitor de código de barras acabar lendo o QR sem querer, o sistema reconhece e funciona do mesmo jeito.</p>
+
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5. Parou a máquina? Registre</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Embaixo do campo de bipar tem um seletor único pra registrar <strong>parada</strong> (quebra, falta de material, falta de energia, etc.) ou <strong>setup</strong> (troca de ferramenta, ajuste de máquina) — escolha o motivo numa lista pronta e clique em "Finalizar" quando a máquina voltar a rodar. Se esqueceu de registrar na hora, use o botão "📝 registro manual de setup/parada" pra lançar com a data e hora certas, retroativamente.</p>
+
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">6. Quando uma peça tem defeito</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Clique em "Defeito" na peça (ou "⚠ Defeito no módulo" se o problema for no módulo inteiro). Escolha a causa — método, máquina, mão de obra, material, medição ou meio ambiente — escreva uma observação se quiser, e escolha entre <strong>retrabalhar</strong> (a peça volta pra uma etapa escolhida por você) ou <strong>descartar</strong> (a peça é jogada fora e recriada do zero).</p>
+
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">7. Administração (só pra quem é admin)</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Criar e editar usuários (login, senha, e-mail, se pode excluir/cadastrar/concluir sem bipar/acessar o dashboard, e quais etapas cada um pode ver), configurar o <strong>nome da marcenaria</strong>, o <strong>horário de trabalho</strong>, <strong>onde uma peça nova nasce</strong> ao importar CSV ou cadastrar manualmente, e as <strong>etapas de produção</strong> — adicionar, remover, reordenar, escolher o tipo (peça/módulo/pedido inteiro), a métrica de rateio, e em quais abas do dashboard (Kanban, OEE) cada uma aparece. Também tem backup manual e a "Zona de risco" pra apagar tudo, se precisar.</p>
+
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">8. O Dashboard — o que cada aba mostra</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 6px;">O Dashboard é onde dá pra ver como a produção está indo. Só quem tem a permissão "ver dashboard" (ou é admin) consegue entrar. Tem várias abas:</p>
+    <ul style="font-size:13px; line-height:1.75; margin:0 0 10px; padding-left:20px;">
+      <li><strong>📊 Tempos</strong> — três visões: <strong>Lead Time</strong> (tempo total, com fila), <strong>Tempo de Ciclo</strong> (só trabalho de verdade, por módulo/pedido/peça) e <strong>Lead Time vs Ciclo</strong> (compara os dois lado a lado e calcula quanto foi fila de espera, ordenado do pior caso pro melhor).</li>
+      <li><strong>⚠ Defeitos</strong> — a lista de tudo que deu problema, e numa sub-aba própria, o <strong>diagrama de Ishikawa</strong> (causa e sub-causa) — clique numa sub-causa pra ver as observações originais por trás dela.</li>
+      <li><strong>🗂️ Kanban</strong> — mostra o que está em cada etapa <strong>agora mesmo</strong>, em tempo real, com previsão de entrega.</li>
+      <li><strong>⚙️ OEE</strong> — Disponibilidade × Performance × Qualidade de cada etapa.</li>
+      <li><strong>🧭 VSM</strong> — escolha uma peça, módulo ou pedido específico e veja o mapa completo do fluxo: fornecedor/cliente, PCP ligado a cada processo, tempo de ciclo/troca/disponibilidade/qualidade/OEE/estoque de cada etapa, e Lead Time total + tempo de processamento em destaque embaixo. Uma estrela ⭐ aparece sozinha marcando o maior ponto de melhoria.</li>
+      <li><strong>🔧 Setups/Paradas</strong> — todas as paradas e setups registrados, com motivo, duração e quem registrou.</li>
+      <li><strong>💡 Conselhos</strong> — o sistema aponta sozinho onde vale a pena focar, incluindo quando módulos/pedidos/peças foram concluídos sem ninguém ter apontado o tempo de ciclo.</li>
+    </ul>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Quem é admin também pode excluir registros individualmente em qualquer lista do dashboard. Dá pra exportar qualquer coisa da aba Tempos em PDF ou Excel, e filtrar tudo por período.</p>
+
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">9. Se a internet cair</h3>
     <p style="font-size:13px; line-height:1.6; margin:0;">O ícone 🟢/🟡/🔴 no cabeçalho mostra a conexão. Se ficar vermelho, a tela trava as ações até reconectar sozinha — isso é de propósito, pra evitar salvar algo errado sem querer. Nada do que você já fez se perde, só fica esperando a conexão voltar pra confirmar.</p>
   </div>
 </div>
@@ -352,6 +376,7 @@
         <label style="font-size:13px; display:flex; align-items:center; gap:6px;"><input id="novoUsuExcluir" type="checkbox" /> pode excluir módulos/peças</label>
         <label style="font-size:13px; display:flex; align-items:center; gap:6px;"><input id="novoUsuCadastrar" type="checkbox" /> pode cadastrar peça manualmente</label>
         <label style="font-size:13px; display:flex; align-items:center; gap:6px;"><input id="novoUsuConcluirSemBipar" type="checkbox" /> pode concluir módulos/pedidos sem bipar ou selecionar as peças</label>
+        <label style="font-size:13px; display:flex; align-items:center; gap:6px;"><input id="novoUsuVerDashboard" type="checkbox" /> pode acessar o dashboard (análise/relatórios)</label>
         <p style="font-size:12px; color:var(--text-muted); margin:8px 0 2px;">Importar CSV é uma função exclusiva de administrador.</p>
         <p style="font-size:12px; color:var(--text-muted); margin:6px 0 2px;">Setores que esse usuário pode ver:</p>
         <div id="novoUsuSetores" style="display:flex; gap:12px; flex-wrap:wrap;"></div>
@@ -600,6 +625,10 @@
       <button id="btnMenuAdmin" style="font-size:12px; padding:5px 10px; display:none;">☰ Menu</button>
 
       <div id="blocoMenuAdmin" style="display:none; position:absolute; top:100%; right:0; margin-top:8px; width:200px; background:var(--surface-2); border:1px solid var(--border-accent); border-radius:var(--radius); box-shadow:var(--shadow-md); padding:6px; z-index:20; text-align:left;">
+        <button id="btnMenuDashboard" class="itemMenuMobile" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:none;">Dashboard</button>
+        <button id="btnMenuTrocarSenha" class="itemMenuMobile" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:none;">Trocar senha</button>
+        <button id="btnMenuAjuda" class="itemMenuMobile" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:none;">❓ Ajuda</button>
+        <button id="btnMenuParadas" class="itemMenuMobile" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:none;">⏱ Paradas/Setup</button>
         <button id="btnAbrirAdmin" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:block;">Administração</button>
         <button id="btnAbrirHistorico" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:block;">Histórico</button>
       </div>
@@ -735,6 +764,14 @@
 </div>
 
 <script>
+// PWA: registra o service worker (deixa instalável no celular). Se o
+// arquivo sw.js não existir ainda no servidor (por exemplo, alguém só
+// subiu o index.html), isso falha silenciosamente sem quebrar o app.
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
 // ---------- usuários, sessão e logs ----------
 // Nenhuma credencial fica guardada no código-fonte — os usuários só existem
 // de verdade na planilha sincronizada (Google Sheets). O array começa vazio
@@ -1599,7 +1636,6 @@ function renderListaPecas(mod, station, comBorda){
 
     row.appendChild(chk); row.appendChild(span); row.appendChild(dataSpan);
     if (p[field]) row.appendChild(renderEnvioPecaIndividual(mod, p, station.id));
-    row.appendChild(renderBotaoLinkDesenho(p, () => { registrarLog('atualizou o link do desenho da peça ' + p.codigo); agendarSincronizacaoRapida(); renderProjetos(); }));
     row.appendChild(btnDefeito);
     if (temPermissao('excluir')) row.appendChild(btnExcluir);
     linha.appendChild(row);
@@ -2099,7 +2135,6 @@ function renderModuloCard(pr, mod, station){
       direita.appendChild(btnForcar);
     }
     direita.appendChild(renderBotaoEtiquetaModulo(pr, mod));
-    direita.appendChild(renderBotaoLinkDesenho(mod, () => { registrarLog('atualizou o link do desenho do módulo #' + mod.id); agendarSincronizacaoRapida(); renderProjetos(); }));
     direita.appendChild(renderBotaoDefeitoModulo(mod));
     direita.appendChild(renderBotaoExcluir(pr, mod));
     modHeader.appendChild(esquerda); modHeader.appendChild(direita);
@@ -2129,7 +2164,6 @@ function renderModuloCard(pr, mod, station){
       acoes.appendChild(renderBotaoOutroSetorToggle(mod));
     }
     acoes.appendChild(renderBotaoEtiquetaModulo(pr, mod));
-    acoes.appendChild(renderBotaoLinkDesenho(mod, () => { registrarLog('atualizou o link do desenho do módulo #' + mod.id); agendarSincronizacaoRapida(); renderProjetos(); }));
     acoes.appendChild(renderBotaoDefeitoModulo(mod));
     acoes.appendChild(renderBotaoExcluir(pr, mod));
     header.appendChild(titulo);
@@ -2195,7 +2229,6 @@ function renderBlocoProjeto(pr, station, dinamico){
   const baixaEl = renderBaixaPedido(pr);
   if (baixaEl) right.appendChild(baixaEl);
   // (tempo de ciclo do pedido agora é calculado no dashboard, sem cronômetro aqui)
-  right.appendChild(renderBotaoLinkDesenho(pr, () => { registrarLog('atualizou o link do desenho do pedido ' + pr.codigo); agendarSincronizacaoRapida(); renderProjetos(); }));
   right.appendChild(renderBotaoDataEntrega(pr, () => { agendarSincronizacaoRapida(); renderProjetos(); }));
   const btnEtiquetaPedido = document.createElement('button');
   btnEtiquetaPedido.textContent = '🖨️ Etiqueta';
@@ -3171,6 +3204,13 @@ function mostrarApp(){
   document.getElementById('btnAbrirHistorico').style.display = (u && u.admin) ? 'block' : 'none';
   document.getElementById('btnAbrirParadas').style.display = u ? 'inline-block' : 'none';
   document.getElementById('btnAbrirDashboard').style.display = u ? 'inline-block' : 'none';
+  // duplicatas dentro do menu (☰), usadas só no celular — mesmas condições
+  // de visibilidade dos botões originais, só que escondidas em telas
+  // grandes via CSS (ver .itemMenuMobile na media query).
+  document.getElementById('btnMenuTrocarSenha').classList.add('temAcaoMobile');
+  document.getElementById('btnMenuAjuda').classList.add('temAcaoMobile');
+  document.getElementById('btnMenuParadas').classList.toggle('temAcaoMobile', !!u);
+  document.getElementById('btnMenuDashboard').classList.toggle('temAcaoMobile', !!u);
   document.getElementById('btnImportar').style.display = (u && u.admin) ? 'inline-block' : 'none';
   document.getElementById('btnCadastroManual').style.display = temPermissao('cadastrarManual') ? 'inline-block' : 'none';
   document.getElementById('btnToggleSync').style.display = u ? 'inline-block' : 'none';
@@ -3295,6 +3335,13 @@ document.getElementById('btnMenuAdmin').onclick = () => {
   const bloco = document.getElementById('blocoMenuAdmin');
   bloco.style.display = bloco.style.display === 'none' ? 'block' : 'none';
 };
+// as duplicatas dentro do menu só existem pra funcionar no celular — o
+// clique delas simplesmente "aperta" o botão original, sem duplicar
+// nenhuma lógica.
+document.getElementById('btnMenuDashboard').onclick = () => { document.getElementById('blocoMenuAdmin').style.display = 'none'; document.getElementById('btnAbrirDashboard').click(); };
+document.getElementById('btnMenuTrocarSenha').onclick = () => { document.getElementById('blocoMenuAdmin').style.display = 'none'; document.getElementById('btnTrocarSenha').click(); };
+document.getElementById('btnMenuAjuda').onclick = () => { document.getElementById('blocoMenuAdmin').style.display = 'none'; document.getElementById('btnAjuda').click(); };
+document.getElementById('btnMenuParadas').onclick = () => { document.getElementById('blocoMenuAdmin').style.display = 'none'; document.getElementById('btnAbrirParadas').click(); };
 
 document.getElementById('btnAbrirAdmin').onclick = () => {
   document.getElementById('blocoMenuAdmin').style.display = 'none';
@@ -3401,19 +3448,6 @@ function renderListaEstacoesAdmin(){
         salvarEstacoes('mudou a métrica de rateio de ' + s.label + ' para ' + (selMetrica.value || 'nenhuma'));
       };
       acoes.appendChild(selMetrica);
-
-      const inputCiclo = document.createElement('input');
-      inputCiclo.type = 'number'; inputCiclo.min = '0.1'; inputCiclo.step = '0.1';
-      inputCiclo.placeholder = 'ciclo ideal (min)';
-      inputCiclo.title = 'Tempo ideal de engenharia por peça, em minutos — usado no cálculo de OEE (Performance). Sem isso, o sistema estima usando o intervalo mais rápido já observado, o que é menos confiável.';
-      inputCiclo.style.cssText = 'font-size:11px; padding:3px 4px; width:110px;';
-      if (s.cicloIdealMin) inputCiclo.value = s.cicloIdealMin;
-      inputCiclo.onchange = () => {
-        const v = parseFloat(inputCiclo.value);
-        s.cicloIdealMin = (v && v > 0) ? v : null;
-        salvarEstacoes('definiu o ciclo ideal de ' + s.label + ' como ' + (s.cicloIdealMin ? s.cicloIdealMin + 'min/peça' : 'automático (estimado)'));
-      };
-      acoes.appendChild(inputCiclo);
     }
     const abasAtuais = s.abasDashboard || ['kanban','oee']; // sem config salva ainda = como sempre foi, aparece em tudo
     [['kanban','Kanban'], ['oee','OEE']].forEach(([valorAba, textoAba]) => {
@@ -3714,13 +3748,7 @@ function renderBotaoDataEntrega(pr, salvarCallback){
   const el = document.createElement('span');
   el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
   if (!(getUsuarioLogado() && getUsuarioLogado().admin)){
-    if (pr.dataPrevisaoEntrega){
-      const span = document.createElement('span');
-      span.style.cssText = 'color:var(--text-accent); font-weight:600;';
-      span.textContent = '📅 entrega prevista: ' + formatarDataBr(pr.dataPrevisaoEntrega);
-      el.appendChild(span);
-    }
-    return el;
+    return el; // só o admin vê e mexe nisso — pros outros usuários nem aparece
   }
   const abrirEdicao = (e) => {
     e.stopPropagation();
@@ -3758,35 +3786,8 @@ function renderBotaoDataEntrega(pr, salvarCallback){
   }
   return el;
 }
-function renderBotaoLinkDesenho(objeto, salvarCallback){
-  const el = document.createElement('span');
-  el.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:11px;';
-  const editar = (e) => {
-    e.stopPropagation();
-    const novo = window.prompt('Link do desenho (Sketchup, imagem, PDF...):', objeto.linkDesenho || '');
-    if (novo === null) return;
-    objeto.linkDesenho = novo.trim() || null;
-    salvarCallback();
-  };
-  if (objeto.linkDesenho){
-    const link = document.createElement('a');
-    link.href = objeto.linkDesenho; link.target = '_blank'; link.rel = 'noopener noreferrer';
-    link.textContent = '📐 ver desenho';
-    link.style.cssText = 'color:var(--text-accent);';
-    link.onclick = (e) => e.stopPropagation();
-    const btnEditar = document.createElement('button');
-    btnEditar.textContent = 'editar'; btnEditar.style.cssText = 'font-size:10px; padding:2px 6px;';
-    btnEditar.onclick = editar;
-    el.appendChild(link); el.appendChild(btnEditar);
-  } else {
-    const btn = document.createElement('button');
-    btn.textContent = '📐 + link do desenho';
-    btn.style.cssText = 'font-size:11px; padding:3px 8px;';
-    btn.onclick = editar;
-    el.appendChild(btn);
-  }
-  return el;
-}
+// (renderBotaoLinkDesenho removido por enquanto — o campo linkDesenho
+// continua nos objetos, então nada se perde se voltar depois)
 
 function darBaixaPedido(pr, viaEtiqueta){
   pr.baixado = true;
@@ -3923,7 +3924,7 @@ function montarSeletorMotivo(tipo, onEscolher){
 // extenso. O valor escolhido já diz sozinho se é parada ou setup.
 function montarSeletorParadaOuSetupUnificado(onEscolherParada, onEscolherSetup){
   const sel = document.createElement('select');
-  sel.style.cssText = 'font-size:12px; padding:5px 8px; max-width:170px;';
+  sel.style.cssText = 'font-size:12px; padding:5px 8px; min-width:230px;';
   let opcoesHtml = '<option value="">';
   opcoesHtml += (onEscolherParada && onEscolherSetup) ? '⏸🔧 registrar parada/setup...' : (onEscolherParada ? '⏸ Iniciar parada...' : '🔧 Iniciar setup...');
   opcoesHtml += '</option>';
@@ -4050,7 +4051,7 @@ function renderTelaParadas(){
   const el = document.getElementById('listaProcessosParadas');
   el.innerHTML = '';
   const ativos = paradasAtivasPorProcesso();
-  stations.forEach(s => {
+  stations.filter(s => s.type !== 'projeto').forEach(s => {
     const card = document.createElement('div');
     card.style.cssText = 'border:1px solid var(--border-strong); border-radius:var(--radius); padding:10px 14px;';
     const titulo = document.createElement('p');
@@ -4061,22 +4062,30 @@ function renderTelaParadas(){
     const ativo = ativos[s.id];
     ['parada','setup'].forEach(tipo => {
       const info = ativo[tipo];
+      if (!info) return;
       const linha = document.createElement('div');
       linha.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:12px;';
-      if (info){
-        const texto = document.createElement('span');
-        texto.style.color = 'var(--text-danger)';
-        texto.textContent = '🔴 ' + (tipo === 'setup' ? 'Setup' : 'Parada') + ' em andamento — ' + info.motivo + ' (' + tempoDecorridoLegivel(info.inicio) + ')';
-        const btnFim = document.createElement('button');
-        btnFim.textContent = 'Finalizar';
-        btnFim.style.cssText = 'font-size:12px; padding:4px 10px; color:var(--text-danger);';
-        btnFim.onclick = () => finalizarParadaOuSetup(s.id, s.label, tipo, info.paradaId);
-        linha.appendChild(texto); linha.appendChild(btnFim);
-      } else {
-        linha.appendChild(montarSeletorMotivo(tipo, (motivo) => iniciarParadaOuSetup(s.id, s.label, tipo, motivo)));
-      }
+      const texto = document.createElement('span');
+      texto.style.color = 'var(--text-danger)';
+      texto.textContent = '🔴 ' + (tipo === 'setup' ? 'Setup' : 'Parada') + ' em andamento — ' + info.motivo + ' (' + tempoDecorridoLegivel(info.inicio) + ')';
+      const btnFim = document.createElement('button');
+      btnFim.textContent = 'Finalizar';
+      btnFim.style.cssText = 'font-size:12px; padding:4px 10px; color:var(--text-danger);';
+      btnFim.onclick = () => finalizarParadaOuSetup(s.id, s.label, tipo, info.paradaId);
+      linha.appendChild(texto); linha.appendChild(btnFim);
       card.appendChild(linha);
     });
+    // seletor único (compacto) — só oferece começar o(s) tipo(s) que ainda
+    // não estão rodando pra essa etapa
+    if (!ativo.parada || !ativo.setup){
+      const linhaSeletor = document.createElement('div');
+      linhaSeletor.style.cssText = 'margin-top:4px;';
+      linhaSeletor.appendChild(montarSeletorParadaOuSetupUnificado(
+        ativo.parada ? null : (motivo) => iniciarParadaOuSetup(s.id, s.label, 'parada', motivo),
+        ativo.setup ? null : (motivo) => iniciarParadaOuSetup(s.id, s.label, 'setup', motivo)
+      ));
+      card.appendChild(linhaSeletor);
+    }
     el.appendChild(card);
   });
 }
@@ -4271,6 +4280,13 @@ function renderListaUsuarios(){
       lblCadastrar.appendChild(chkCadastrar); lblCadastrar.appendChild(document.createTextNode('cadastrar peça'));
       linha.appendChild(lblExcluir); linha.appendChild(lblCadastrar);
 
+      const lblDashboard = document.createElement('label');
+      lblDashboard.style.fontSize = '12px'; lblDashboard.style.display = 'flex'; lblDashboard.style.gap = '4px'; lblDashboard.style.alignItems = 'center';
+      const chkDashboard = document.createElement('input'); chkDashboard.type = 'checkbox'; chkDashboard.checked = !!u.permissoes.verDashboard;
+      chkDashboard.onchange = () => { u.permissoes.verDashboard = chkDashboard.checked; registrarLog('alterou permissão de ' + u.usuario + ': verDashboard=' + chkDashboard.checked); agendarSincronizacaoRapida(); };
+      lblDashboard.appendChild(chkDashboard); lblDashboard.appendChild(document.createTextNode('ver dashboard'));
+      linha.appendChild(lblDashboard);
+
       const setoresTxt = document.createElement('span');
       setoresTxt.style.fontSize = '11px'; setoresTxt.style.color = 'var(--text-muted)';
       const listaSetores = (u.permissoes.setores && Array.isArray(u.permissoes.setores))
@@ -4329,6 +4345,7 @@ document.getElementById('novoUsuAdmin').addEventListener('change', (e) => {
   document.getElementById('novoUsuExcluir').checked = true;
   document.getElementById('novoUsuCadastrar').checked = true;
   document.getElementById('novoUsuConcluirSemBipar').checked = true;
+  document.getElementById('novoUsuVerDashboard').checked = true;
   document.querySelectorAll('.chkSetorUsuario').forEach(c => { c.checked = true; });
 });
 
@@ -4340,6 +4357,7 @@ function limparFormUsuario(){
   document.getElementById('novoUsuExcluir').checked = false;
   document.getElementById('novoUsuCadastrar').checked = false;
   document.getElementById('novoUsuConcluirSemBipar').checked = false;
+  document.getElementById('novoUsuVerDashboard').checked = false;
   document.getElementById('novoUsuErro').style.display = 'none';
   popularSetoresCheckboxes(stations.map(s => s.id)); // novo usuário começa vendo tudo por padrão
 }
@@ -4355,6 +4373,7 @@ function abrirEdicaoUsuario(u){
   document.getElementById('novoUsuExcluir').checked = !!u.permissoes.excluir;
   document.getElementById('novoUsuCadastrar').checked = !!u.permissoes.cadastrarManual;
   document.getElementById('novoUsuConcluirSemBipar').checked = !!u.permissoes.concluirSemBipar;
+  document.getElementById('novoUsuVerDashboard').checked = !!u.permissoes.verDashboard;
   const setoresAtuais = (u.permissoes.setores && Array.isArray(u.permissoes.setores)) ? u.permissoes.setores : stations.map(s=>s.id);
   popularSetoresCheckboxes(setoresAtuais);
   document.getElementById('novoUsuErro').style.display = 'none';
@@ -4392,6 +4411,7 @@ document.getElementById('btnCriarUsuario').onclick = () => {
     excluir: document.getElementById('novoUsuExcluir').checked,
     cadastrarManual: document.getElementById('novoUsuCadastrar').checked,
     concluirSemBipar: document.getElementById('novoUsuConcluirSemBipar').checked,
+    verDashboard: document.getElementById('novoUsuVerDashboard').checked,
     setores: setoresEscolhidos
   };
   if (usuarioEditando){
