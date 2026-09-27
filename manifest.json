@@ -1,0 +1,15 @@
+{
+  "name": "Rasmar - Rastreio na Marcenaria",
+  "short_name": "Rasmar",
+  "description": "Rastreamento de peças de marcenaria por QR/código de barras",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef1ee",
+  "theme_color": "#12695a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
