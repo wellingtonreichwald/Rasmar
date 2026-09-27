@@ -52,6 +52,39 @@
   .badge.pronto{background:#dcf3e7; color:var(--text-success);}
   .badge.andamento{background:#fdf1da; color:var(--text-accent);}
   footer{margin-top:24px; padding:14px 0 8px; text-align:center; border-top:1px solid var(--border); font-size:11px; color:var(--text-muted);}
+
+  /* ---- cartão de status grande, é a primeira coisa que a pessoa vê ---- */
+  .cartaoStatus{ text-align:center; padding:26px 18px; }
+  .cartaoStatus .rotuloTipo{ font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted); font-weight:700; margin:0 0 4px; }
+  .cartaoStatus .tituloItem{ font-family:var(--font-display); font-size:22px; font-weight:800; margin:0 0 6px; }
+  .cartaoStatus .subInfo{ font-size:13px; color:var(--text-secondary); margin:0 0 16px; }
+  .statusGrande{ display:inline-flex; align-items:center; gap:8px; font-size:15px; font-weight:800; padding:10px 22px; border-radius:999px; }
+  .statusGrande.pronto{ background:#dcf3e7; color:var(--text-success); }
+  .statusGrande.andamento{ background:#fdf1da; color:var(--text-accent); }
+
+  /* ---- barra de progresso visual (stepper) ---- */
+  .stepperWrap{ overflow-x:auto; padding:4px 2px 8px; }
+  .stepper{ display:flex; align-items:flex-start; min-width:min-content; }
+  .step{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; width:82px; text-align:center; }
+  .step .bolha{ width:34px; height:34px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; background:var(--surface-1); color:var(--text-muted); border:2px solid var(--border-strong); }
+  .step.feito .bolha{ background:var(--brand); color:#fff; border-color:var(--brand); }
+  .step.atual .bolha{ background:var(--brand2); color:#fff; border-color:var(--brand2); box-shadow:0 0 0 5px rgba(28,138,109,0.22); }
+  .step .rotulo{ font-size:10.5px; margin-top:6px; color:var(--text-secondary); line-height:1.25; }
+  .step.feito .rotulo, .step.atual .rotulo{ color:var(--text-primary); font-weight:600; }
+  .linhaStep{ flex:1; height:2px; background:var(--border-strong); margin-top:16px; min-width:14px; }
+  .linhaStep.feito{ background:var(--brand); }
+
+  /* ---- números rápidos ---- */
+  .statsRapidas{ display:flex; gap:10px; flex-wrap:wrap; }
+  .statCard{ flex:1; min-width:130px; background:var(--surface-1); border-radius:var(--radius); padding:12px 14px; text-align:center; }
+  .statCard .numero{ font-family:var(--font-display); font-size:18px; font-weight:800; color:var(--brand-dark); }
+  .statCard .rotulo{ font-size:10.5px; color:var(--text-muted); margin-top:2px; }
+
+  details.secao > summary{ cursor:pointer; font-family:var(--font-display); font-size:15px; font-weight:700; list-style:none; }
+  details.secao > summary::-webkit-details-marker{ display:none; }
+  details.secao > summary::before{ content:'▸ '; }
+  details.secao[open] > summary::before{ content:'▾ '; }
+  details.secao[open] > summary{ margin-bottom:12px; }
 </style>
 </head>
 <body>
@@ -123,6 +156,43 @@ function nomeTipoEvento(t){
   return nomes[t] || t;
 }
 
+// tempo decorrido "há Xh Ymin" — usado nos números rápidos, mais fácil de
+// ler rápido do que uma data/hora completa.
+function decorridoLegivel(desdeIso, ateIso){
+  const desde = new Date((desdeIso||'').replace(' ', 'T'));
+  const ate = ateIso ? new Date((ateIso||'').replace(' ', 'T')) : new Date();
+  if (isNaN(desde.getTime())) return '—';
+  const min = Math.max(0, (ate - desde) / 60000);
+  const dias = Math.floor(min / 1440);
+  const horas = Math.floor((min % 1440) / 60);
+  const minutos = Math.round(min % 60);
+  if (dias > 0) return dias + 'd ' + horas + 'h';
+  if (horas > 0) return horas + 'h ' + minutos + 'min';
+  return minutos + 'min';
+}
+
+// monta a barra de progresso visual (stepper) — uma bolinha por etapa
+// configurada, marcando quais esse módulo/pedido já passou.
+function renderStepper(estacoesOrdenadas, labelsAlcancados){
+  if (!estacoesOrdenadas.length) return '';
+  const idxAtual = (() => {
+    for (let i = estacoesOrdenadas.length - 1; i >= 0; i--){
+      if (labelsAlcancados.has(estacoesOrdenadas[i].label)) return i;
+    }
+    return -1;
+  })();
+  let html = '<div class="stepperWrap"><div class="stepper">';
+  estacoesOrdenadas.forEach((s, i) => {
+    const feito = i < idxAtual;
+    const atual = i === idxAtual;
+    const classe = feito ? 'feito' : (atual ? 'atual' : '');
+    html += '<div class="step ' + classe + '"><div class="bolha">' + (feito ? '✓' : (i+1)) + '</div><div class="rotulo">' + s.label + '</div></div>';
+    if (i < estacoesOrdenadas.length - 1) html += '<div class="linhaStep ' + (i < idxAtual ? 'feito' : '') + '"></div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
 async function iniciar(){
   const params = new URLSearchParams(window.location.search);
   const syncUrl = params.get('servidor');
@@ -142,6 +212,7 @@ async function iniciar(){
     ]);
     const projetos = Array.isArray(estado.projetos) ? estado.projetos : [];
     const movimentos = Array.isArray(movs.movimentos) ? movs.movimentos : [];
+    const estacoesConfig = Array.isArray(estado.estacoes) ? estado.estacoes : [];
 
     if (typeof estado.nomeMarcenaria === 'string' && estado.nomeMarcenaria){
       document.querySelectorAll('.nomeMarcenariaInline').forEach(el => {
@@ -163,14 +234,29 @@ async function iniciar(){
       }
       const eventos = movimentos.filter(m => String(m.moduloId) === String(mod.id) && m.clienteCodigo === pr.codigo)
         .sort((a,b) => a.em.localeCompare(b.em));
-      const status = mod.finalCompleta ? '<span class="badge pronto">concluído</span>' : '<span class="badge andamento">em andamento</span>';
+      const concluido = !!mod.finalCompleta;
+      const status = concluido ? '<span class="statusGrande pronto">✅ Concluído</span>' : '<span class="statusGrande andamento">🔵 Em andamento</span>';
+
+      const labelsAlcancados = new Set(eventos.filter(ev => ev.tipo === 'bipagem' || ev.tipo === 'conclusao_modulo' || ev.tipo === 'conclusao_forcada_modulo').map(ev => ev.detalhe));
+      const stepperHtml = renderStepper(estacoesConfig, labelsAlcancados);
+
+      const primeiro = eventos[0], ultimo = eventos[eventos.length-1];
+      const statsHtml = '<div class="statsRapidas">' +
+        '<div class="statCard"><div class="numero">' + mod.pecas.length + '</div><div class="rotulo">peça(s)</div></div>' +
+        (primeiro ? '<div class="statCard"><div class="numero">' + decorridoLegivel(primeiro.em, concluido ? ultimo.em : null) + '</div><div class="rotulo">' + (concluido ? 'levou no total' : 'em andamento há') + '</div></div>' : '') +
+        (ultimo ? '<div class="statCard"><div class="numero">' + decorridoLegivel(ultimo.em) + '</div><div class="rotulo">desde a última atividade</div></div>' : '') +
+      '</div>';
+
       el.innerHTML =
-        '<div class="secao">' +
-          '<h2>Módulo #' + mod.id + ' — ' + (mod.nome||'') + ' ' + status + '</h2>' +
-          '<p class="tagMuted">Pedido ' + pr.codigo + ' · ' + (pr.cliente||'') + ' · ' + (pr.projeto||'') + '</p>' +
-          '<p class="tagMuted">' + mod.pecas.length + ' peça(s) neste módulo</p>' +
+        '<div class="secao cartaoStatus">' +
+          '<p class="rotuloTipo">Módulo</p>' +
+          '<p class="tituloItem">#' + mod.id + ' — ' + (mod.nome||'') + '</p>' +
+          '<p class="subInfo">Pedido ' + pr.codigo + ' · ' + (pr.cliente||'') + ' · ' + (pr.projeto||'') + '</p>' +
+          status +
         '</div>' +
-        '<div class="secao"><h2>Histórico</h2>' + renderEventos(eventos) + '</div>';
+        '<div class="secao">' + stepperHtml + '</div>' +
+        '<div class="secao">' + statsHtml + '</div>' +
+        '<details class="secao"><summary>Histórico completo (' + eventos.length + ' evento(s))</summary>' + renderEventos(eventos) + '</details>';
     } else {
       const pr = projetos.find(p => p.codigo === codigo);
       if (!pr){
@@ -178,14 +264,35 @@ async function iniciar(){
         return;
       }
       const eventos = movimentos.filter(m => m.clienteCodigo === pr.codigo).sort((a,b) => a.em.localeCompare(b.em));
-      const status = pr.baixado ? '<span class="badge pronto">entregue</span>' : '<span class="badge andamento">em andamento</span>';
+      const status = pr.baixado ? '<span class="statusGrande pronto">📦 Entregue</span>' : '<span class="statusGrande andamento">🔵 Em andamento</span>';
+
+      // pro pedido, o "step" concluído considera a etapa mais avançada
+      // entre TODOS os módulos dele — dá o retrato geral do pedido.
+      const labelsAlcancados = new Set();
+      pr.modulos.forEach(mod => {
+        movimentos.filter(m => String(m.moduloId) === String(mod.id) && m.clienteCodigo === pr.codigo && (m.tipo === 'bipagem' || m.tipo === 'conclusao_modulo' || m.tipo === 'conclusao_forcada_modulo'))
+          .forEach(ev => labelsAlcancados.add(ev.detalhe));
+      });
+      const stepperHtml = renderStepper(estacoesConfig, labelsAlcancados);
+
+      const primeiro = eventos[0], ultimo = eventos[eventos.length-1];
+      const totalPecas = pr.modulos.reduce((a,m) => a + m.pecas.length, 0);
+      const statsHtml = '<div class="statsRapidas">' +
+        '<div class="statCard"><div class="numero">' + pr.modulos.length + '</div><div class="rotulo">módulo(s)</div></div>' +
+        '<div class="statCard"><div class="numero">' + totalPecas + '</div><div class="rotulo">peça(s)</div></div>' +
+        (primeiro ? '<div class="statCard"><div class="numero">' + decorridoLegivel(primeiro.em, pr.baixado ? ultimo.em : null) + '</div><div class="rotulo">' + (pr.baixado ? 'levou no total' : 'em andamento há') + '</div></div>' : '') +
+      '</div>';
+
       el.innerHTML =
-        '<div class="secao">' +
-          '<h2>Pedido ' + pr.codigo + ' ' + status + '</h2>' +
-          '<p class="tagMuted">' + (pr.cliente||'') + ' · ' + (pr.projeto||'') + '</p>' +
-          '<p class="tagMuted">' + pr.modulos.length + ' módulo(s)' + (pr.baixado ? (' · entregue em ' + formatarEm(pr.baixadoEm)) : '') + '</p>' +
+        '<div class="secao cartaoStatus">' +
+          '<p class="rotuloTipo">Pedido</p>' +
+          '<p class="tituloItem">' + pr.codigo + '</p>' +
+          '<p class="subInfo">' + (pr.cliente||'') + ' · ' + (pr.projeto||'') + (pr.baixado ? (' · entregue em ' + formatarEm(pr.baixadoEm)) : '') + '</p>' +
+          status +
         '</div>' +
-        '<div class="secao"><h2>Histórico</h2>' + renderEventos(eventos) + '</div>';
+        '<div class="secao">' + stepperHtml + '</div>' +
+        '<div class="secao">' + statsHtml + '</div>' +
+        '<details class="secao"><summary>Histórico completo (' + eventos.length + ' evento(s))</summary>' + renderEventos(eventos) + '</details>';
     }
   } catch (err) {
     el.innerHTML = '<div class="secao"><p class="tagMuted">Não consegui buscar os dados agora (' + err.message + '). Tente de novo em alguns segundos.</p></div>';
