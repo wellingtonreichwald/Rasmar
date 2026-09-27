@@ -267,12 +267,17 @@ async function iniciar(){
       const status = pr.baixado ? '<span class="statusGrande pronto">📦 Entregue</span>' : '<span class="statusGrande andamento">🔵 Em andamento</span>';
 
       // pro pedido, o "step" concluído considera a etapa mais avançada
-      // entre TODOS os módulos dele — dá o retrato geral do pedido.
+      // entre TODOS os módulos dele — dá o retrato geral do pedido. Além
+      // disso, conclusões de etapas de PROJETO INTEIRO (ex: Entrega,
+      // Instalação) não têm moduloId — são registradas direto no pedido —
+      // então entram à parte, olhando só o clienteCodigo.
       const labelsAlcancados = new Set();
       pr.modulos.forEach(mod => {
         movimentos.filter(m => String(m.moduloId) === String(mod.id) && m.clienteCodigo === pr.codigo && (m.tipo === 'bipagem' || m.tipo === 'conclusao_modulo' || m.tipo === 'conclusao_forcada_modulo'))
           .forEach(ev => labelsAlcancados.add(ev.detalhe));
       });
+      eventos.filter(m => !m.moduloId && (m.tipo === 'conclusao_modulo' || m.tipo === 'conclusao_forcada_modulo'))
+        .forEach(ev => labelsAlcancados.add(ev.detalhe));
       const stepperHtml = renderStepper(estacoesConfig, labelsAlcancados);
 
       const primeiro = eventos[0], ultimo = eventos[eventos.length-1];

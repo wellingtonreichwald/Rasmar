@@ -37,11 +37,24 @@ echo " Instalando o Rasmar — isso leva uns 2 minutos"
 echo "=============================================="
 echo ""
 
-# ---------- 1) descobre quem é o usuário atual e onde vai instalar ----------
-USUARIO_ATUAL=$(whoami)
-PASTA_RASMAR="/home/$USUARIO_ATUAL/rasmar"
-echo "👉 Vou instalar em: $PASTA_RASMAR"
-mkdir -p "$PASTA_RASMAR"
+# ---------- 1) decide onde instalar ----------
+# se a máquina já foi criada pelo provisionar-vm.sh (fluxo novo, tudo em
+# /root/rasmar rodando como root), continua usando o MESMO lugar — senão
+# criaria uma segunda cópia solta e o serviço ia confundir qual delas usar.
+# Senão, mantém o comportamento de sempre (pasta do próprio usuário), pra
+# não bagunçar quem já instalou pelo jeito antigo.
+if [ -f "/root/rasmar/server.js" ]; then
+  MODO_ROOT=1
+  PASTA_RASMAR="/root/rasmar"
+  USUARIO_SERVICO="root"
+  echo "👉 Detectei uma instalação existente em /root/rasmar — vou atualizar ali."
+else
+  MODO_ROOT=0
+  USUARIO_SERVICO=$(whoami)
+  PASTA_RASMAR="/home/$USUARIO_SERVICO/rasmar"
+  echo "👉 Vou instalar em: $PASTA_RASMAR"
+fi
+if [ "$MODO_ROOT" = "1" ]; then sudo mkdir -p "$PASTA_RASMAR"; else mkdir -p "$PASTA_RASMAR"; fi
 
 # ---------- 2) instala o Node.js, se ainda não tiver ----------
 if command -v node >/dev/null 2>&1; then
@@ -69,7 +82,7 @@ fi
 
 # ---------- 4) baixa a versão mais recente do server.js do GitHub ----------
 echo "⬇️  Baixando o server.js do seu GitHub..."
-curl -fsSL "$URL_SERVER_JS" -o "$PASTA_RASMAR/server.js"
+if [ "$MODO_ROOT" = "1" ]; then sudo curl -fsSL "$URL_SERVER_JS" -o "$PASTA_RASMAR/server.js"; else curl -fsSL "$URL_SERVER_JS" -o "$PASTA_RASMAR/server.js"; fi
 echo "✅ server.js baixado"
 
 # ---------- 5) descobre o endereço público dessa máquina ----------
@@ -92,7 +105,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=$USUARIO_ATUAL
+User=$USUARIO_SERVICO
 WorkingDirectory=$PASTA_RASMAR
 ExecStart=$(command -v node) $PASTA_RASMAR/server.js
 Restart=always
