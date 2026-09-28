@@ -88,7 +88,7 @@
   .fluxoSetaIcone{ font-size:15px; color:var(--border-strong); display:block; line-height:1; }
   .fluxoDelta{ color:var(--brand); font-weight:700; font-size:10.5px; }
   .fluxoTotal{ margin:10px 0 0; font-size:12.5px; border-top:1px dashed var(--border); padding-top:8px; }
-  #telaBloqueada, #telaLoginDash{position:fixed; inset:0; background:radial-gradient(circle at 20% 10%, rgba(28,138,109,0.16), transparent 45%), radial-gradient(circle at 100% 100%, rgba(207,168,99,0.14), transparent 40%), var(--bg); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;}
+  #telaBloqueada, #telaLoginDash, #telaConectarDash{position:fixed; inset:0; background:radial-gradient(circle at 20% 10%, rgba(28,138,109,0.16), transparent 45%), radial-gradient(circle at 100% 100%, rgba(207,168,99,0.14), transparent 40%), var(--bg); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;}
   .caixaLogin{background:var(--surface-2); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:36px 32px; max-width:360px; width:100%; text-align:center; border-top:4px solid var(--brand2);}
   .caixaLogin input{width:100%; margin-bottom:8px;}
   .caixaLogin h1{ font-size:22px; }
@@ -123,6 +123,7 @@
     #btnMenuDash{ display:inline-block !important; }
   }
 </style>
+<script src="rasmar-config.js"></script>
 </head>
 <body>
 
@@ -131,6 +132,17 @@
     <h1 style="margin-bottom:8px;">Acesso ao Dashboard</h1>
     <p id="mensagemBloqueio" style="font-size:14px; color:var(--text-secondary);"></p>
     <a class="voltar" href="index.html">← voltar pro Rasmar</a>
+  </div>
+</div>
+
+<div id="telaConectarDash" style="display:none;">
+  <div class="caixaLogin">
+    <h1 style="margin:0 0 8px;">Conectar ao servidor</h1>
+    <p style="font-size:13px; color:var(--text-secondary); margin:0 0 14px;">Esse aparelho ainda não sabe qual é o servidor do Rasmar. Cole abaixo o endereço que o administrador te passou — ou abra o Rasmar pelo link de acesso da equipe, que já conecta sozinho.</p>
+    <input id="conectarDashUrl" type="text" placeholder="https://...nip.io/" />
+    <p id="conectarDashErro" style="font-size:13px; color:var(--text-danger); display:none; margin:0 0 8px;"></p>
+    <button id="btnConectarDash" style="width:100%; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700; padding:11px;">Conectar</button>
+    <p style="margin-top:14px;"><a class="voltar" href="index.html">← voltar pro Rasmar</a></p>
   </div>
 </div>
 
@@ -184,11 +196,13 @@
         </svg>
         <div>
           <h1>Dashboard<span class="versao">V2</span></h1>
-          <p class="sub">Rasmar — análise de produção · Marcenaria Cireneu Liebl</p>
+          <p class="sub">Rasmar — análise de produção<span class="nomeMarcenariaInline"></span></p>
         </div>
       </div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; position:relative;" class="ocultarNaImpressao">
         <span id="usuarioTexto" style="font-size:12px; color:var(--text-secondary);"></span>
+        <span id="statusSyncDash" title="Estado da conexão com o servidor" style="font-size:12px; white-space:nowrap; padding:4px 12px; border-radius:999px; background:rgba(255,255,255,0.92); color:#0a4a3e; font-weight:600;">⚪ conectando...</span>
+        <button id="btnSincronizarDash" title="Buscar agora os dados mais recentes do servidor" style="font-size:12px; padding:5px 10px;">🔄 Sincronizar</button>
         <button id="btnExportarPdf" style="font-size:12px; padding:5px 10px;">Exportar PDF</button>
         <button id="btnExportarExcel" style="font-size:12px; padding:5px 10px;">Exportar Excel</button>
         <button id="btnSairDash" style="font-size:12px; padding:5px 10px;">Sair</button>
@@ -377,14 +391,45 @@
     </div>
 
     <footer class="ocultarNaImpressao" style="margin-top:32px; padding:16px 0 8px; text-align:center; border-top:1px solid var(--border);">
-      <p style="font-size:11px; color:var(--text-muted); margin:0;">Rasmar <span style="font-weight:600;">V2</span> — Sistema de rastreamento de peças · Marcenaria Cireneu Liebl</p>
+      <p style="font-size:11px; color:var(--text-muted); margin:0;">Rasmar <span style="font-weight:600;">V2</span> — Sistema de rastreamento de peças<span class="nomeMarcenariaInline"></span></p>
       <p style="font-size:11px; color:var(--text-muted); margin:4px 0 0;">Todos os direitos reservados © 2026 · Criador: Wellington Reichwald — SENAI · Brasil + Produtivo</p>
     </footer>
   </div>
 </div>
 
 <script>
-const syncUrl = localStorage.getItem('rasmar_sync_url') || '';
+
+// ---------- endereço do servidor: como cada aparelho descobre ----------
+// 1) link com ?servidor=... (o admin compartilha esse link com a equipe);
+// 2) o que o aparelho já guardou;
+// 3) arquivo rasmar-config.js ao lado do index.html (window.RASMAR_SERVIDOR_PADRAO);
+// 4) se o site está hospedado no próprio servidor (endereço .nip.io), ele mesmo.
+// Não existe mais endereço de servidor escrito "de fábrica" dentro do código —
+// senão cada empresa nova acabava conectando no servidor de outra.
+function normalizarUrlServidor(txt){
+  let t = String(txt || '').trim();
+  if (!t) return '';
+  if (!/^https?:\/\//i.test(t)) t = 'https://' + t;
+  try { const u = new URL(t); if (u.pathname === '') u.pathname = '/'; return u.href; } catch (e) { return ''; }
+}
+function resolverUrlServidorInicial(){
+  try {
+    const params = new URLSearchParams(location.search);
+    const daUrl = normalizarUrlServidor(params.get('servidor'));
+    if (daUrl){
+      localStorage.setItem('rasmar_sync_url', daUrl);
+      params.delete('servidor');
+      history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash);
+    }
+  } catch (e) {}
+  const guardada = localStorage.getItem('rasmar_sync_url');
+  if (guardada) return guardada;
+  const config = normalizarUrlServidor(window.RASMAR_SERVIDOR_PADRAO);
+  if (config) return config;
+  if (/\.nip\.io$/i.test(location.hostname) && /^https?:$/.test(location.protocol)) return location.origin + '/';
+  return '';
+}
+let syncUrl = resolverUrlServidorInicial();
 let usuarioLogadoNome = sessionStorage.getItem('rasmar_usuario') || '';
 let usuariosCache = [];
 let movimentosAtuais = [];
@@ -2357,6 +2402,17 @@ function renderListaDefeitos(){
 document.getElementById('buscaDefeitos').addEventListener('input', renderListaDefeitos);
 
 let projetosAtuais = [];
+function aplicarNomeMarcenariaDash(nome){
+  document.querySelectorAll('.nomeMarcenariaInline').forEach(el => { el.textContent = nome ? ' · ' + nome : ''; });
+}
+let falhasSeguidasDash = 0;
+function atualizarStatusSyncDash(tipo, msg){
+  const el = document.getElementById('statusSyncDash'); if (!el) return;
+  const icone = tipo === 'ok' ? '🟢' : (tipo === 'erro' ? '🔴' : '🟡');
+  el.textContent = icone + ' ' + msg;
+  el.style.cssText = 'font-size:12px; white-space:nowrap; padding:4px 12px; border-radius:999px; font-weight:600; ' +
+    (tipo === 'erro' ? 'background:#fdeceb; color:#c22f24;' : (tipo === 'aviso' ? 'background:#fdf1da; color:#8a6a1f;' : 'background:rgba(255,255,255,0.92); color:#0a4a3e;'));
+}
 async function carregar(){
   const de = document.getElementById('filtroDe').value;
   const ate = document.getElementById('filtroAte').value;
@@ -2368,15 +2424,27 @@ async function carregar(){
     ]);
     movimentosAtuais = Array.isArray(dados.movimentos) ? dados.movimentos : [];
     projetosAtuais = Array.isArray(estado.projetos) ? estado.projetos : [];
+    if (typeof estado.nomeMarcenaria === 'string') aplicarNomeMarcenariaDash(estado.nomeMarcenaria);
     if (estado.configuracaoHorario && typeof estado.configuracaoHorario === 'object') configuracaoHorario = estado.configuracaoHorario;
     if (Array.isArray(estado.estacoes) && estado.estacoes.length){ estacoesConfig = estado.estacoes; regenerarEstruturasEstacoes(); }
     popularSelectsDePontos(movimentosTempos());
     aplicarModo();
     document.getElementById('statusCarregando').textContent = movimentosAtuais.length + ' evento(s) carregado(s)';
+    falhasSeguidasDash = 0;
+    atualizarStatusSyncDash('ok', 'sincronizado · ' + new Date().toLocaleTimeString('pt-BR'));
   } catch (err) {
     document.getElementById('statusCarregando').textContent = 'erro: ' + err.message;
+    falhasSeguidasDash++;
+    atualizarStatusSyncDash('erro', 'sem conexão com o servidor — tentando de novo sozinho');
   }
 }
+document.getElementById('btnSincronizarDash').onclick = async () => {
+  const b = document.getElementById('btnSincronizarDash');
+  b.disabled = true; b.textContent = '🔄 Sincronizando...';
+  atualizarStatusSyncDash('aviso', 'sincronizando...');
+  await carregar();
+  b.disabled = false; b.textContent = '🔄 Sincronizar';
+};
 document.getElementById('btnAtualizar').onclick = carregar;
 function calcularComparacaoPontos(){
   const pontoDe = document.getElementById('pontoDe').value;
@@ -2557,14 +2625,16 @@ function mostrarConteudo(u){
 
 async function iniciar(){
   if (!syncUrl){
-    bloquear('A sincronização ainda não foi configurada. Volte pro Rasmar principal, faça login como admin e configure a sincronização primeiro.');
+    document.getElementById('telaConectarDash').style.display = 'flex';
     return;
   }
   try {
     const dados = await buscarNoServidor({});
     usuariosCache = Array.isArray(dados.usuarios) ? dados.usuarios : [];
+    if (typeof dados.nomeMarcenaria === 'string' && dados.nomeMarcenaria) aplicarNomeMarcenariaDash(dados.nomeMarcenaria);
   } catch (err) {
-    bloquear('Não consegui conectar com o servidor: ' + err.message);
+    bloquear('Não consegui conectar com o servidor (' + err.message + '). Confira a internet e o endereço do servidor. Se o endereço mudou, abra o Rasmar pelo link de acesso da equipe.');
+    document.getElementById('telaBloqueada').insertAdjacentHTML('beforeend','');
     return;
   }
   if (usuariosCache.length === 0){
@@ -2579,6 +2649,14 @@ async function iniciar(){
     mostrarLoginDash();
   }
 }
+document.getElementById('btnConectarDash').onclick = () => {
+  const url = normalizarUrlServidor(document.getElementById('conectarDashUrl').value);
+  const erro = document.getElementById('conectarDashErro');
+  if (!url){ erro.textContent = 'esse endereço não parece válido — cole o link completo (https://...)'; erro.style.display = 'block'; return; }
+  localStorage.setItem('rasmar_sync_url', url);
+  window.location.reload();
+};
+document.getElementById('conectarDashUrl').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnConectarDash').click(); });
 iniciar();
 </script>
 </body>

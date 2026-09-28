@@ -203,13 +203,13 @@ function tratarGet(url, res){
     resultado = {
       projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido,
       usuarios: db.usuarios, logs: db.logs, movimentos: db.movimentos,
-      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId,
+      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido,
       geradoEm: timestampLocal()
     };
   } else if (acao === 'listarBackups'){
     resultado = { backups: listarArquivosBackup() };
   } else {
-    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId };
+    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido };
   }
   resultado.chamadasHoje = chamadasHoje;
   const json = JSON.stringify(resultado);
@@ -279,6 +279,7 @@ function aplicarPost(corpo){
       estacoes: (Array.isArray(b.estacoes) && b.estacoes.length) ? b.estacoes : estadoPadrao().estacoes,
       nomeMarcenaria: (typeof b.nomeMarcenaria === 'string') ? b.nomeMarcenaria : '',
       estacaoInicialId: (typeof b.estacaoInicialId === 'string') ? b.estacaoInicialId : null,
+      onboardingConcluido: (typeof b.onboardingConcluido === 'boolean') ? b.onboardingConcluido : undefined,
       salvoEm: timestampLocal()
     };
     salvarDB(novoDb);
@@ -310,6 +311,11 @@ function aplicarPost(corpo){
   }
   if (typeof corpo.estacaoInicialId === 'string' || corpo.estacaoInicialId === null){
     db.estacaoInicialId = corpo.estacaoInicialId;
+  }
+  // marca de "assistente de primeira configuração concluído" — só existe (false/true)
+  // em servidores novos; em instalações antigas fica sem valor e o assistente não aparece.
+  if (typeof corpo.onboardingConcluido === 'boolean'){
+    db.onboardingConcluido = corpo.onboardingConcluido;
   }
 
   db.logs = anexarNovosPorId(db.logs, corpo.logsNovos);

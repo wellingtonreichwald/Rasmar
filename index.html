@@ -10,6 +10,7 @@
      junto do index.html, na mesma pasta, senão isso aqui é ignorado
      silenciosamente (sem quebrar nada). -->
 <link rel="manifest" href="manifest.json" />
+<script src="rasmar-config.js"></script>
 <meta name="theme-color" content="#12695a" />
 <link rel="apple-touch-icon" href="icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -154,13 +155,107 @@
      etiqueta for outro tamanho, ajuste nas configurações de impressão da
      impressora térmica (tamanho do papel), que a etiqueta se adapta. */
   @page { size: 100mm 60mm; margin: 2mm; }
+  /* Impressão da etiqueta: tira TUDO o resto da página do fluxo (display:none,
+     não visibility:hidden — esconder só "no visual" mantém o espaço e a
+     impressora gera várias páginas, cada uma repetindo a etiqueta). Assim
+     sai UMA página, do tamanho exato da etiqueta. */
+  @page{ size: 100mm 60mm; margin: 0; }
   @media print{
-    body *{ visibility: hidden; }
-    #areaEtiquetaImpressao, #areaEtiquetaImpressao *{ visibility: visible; }
+    html, body{ margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important; }
+    body > *:not(#areaEtiquetaImpressao){ display: none !important; }
     #areaEtiquetaImpressao{
-      display: block !important; position: fixed; inset: 0;
-      width: 100mm; height: 60mm; padding: 0; margin: 0;
+      display: flex !important; align-items: center; justify-content: center;
+      position: static; width: 100mm; height: 60mm; padding: 0; margin: 0;
+      overflow: hidden; page-break-after: avoid; page-break-inside: avoid; break-inside: avoid;
     }
+  }
+
+  /* ---- tela de etapas (Administração): colunas fixas, tudo alinhado ---- */
+  .listaEtapas{ container-type:inline-size; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:var(--surface-2); }
+  .linhaEtapa, .cabEtapas{
+    display:grid; align-items:center; column-gap:10px; padding:9px 12px;
+    grid-template-columns: 22px minmax(0,1fr) 150px 50px 42px 66px 66px;
+  }
+  .linhaEtapa{ border-top:1px solid var(--border); font-size:13px; }
+  .cabEtapas{ background:var(--surface-1); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); }
+  .linhaEtapa .colNum{ color:var(--text-muted); font-weight:700; }
+  .linhaEtapa .colNome{ min-width:0; overflow-wrap:anywhere; }
+  .linhaEtapa .colNome small{ display:block; font-size:11px; color:var(--text-muted); margin-top:1px; }
+  .linhaEtapa select{ width:100%; font-size:11.5px; padding:5px 6px; min-height:32px; }
+  .chkEtapa{ display:flex; align-items:center; justify-content:center; }
+  .chkEtapa input{ width:18px; height:18px; margin:0; accent-color:var(--brand); }
+  .colOrdem{ display:flex; gap:4px; justify-content:center; }
+  .colOrdem button{ width:29px; height:30px; padding:0; font-size:13px; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
+  .colRemover{ display:flex; justify-content:flex-end; }
+  .colRemover button{ font-size:11.5px; padding:5px 8px; color:var(--text-danger); min-height:30px; }
+  .cabEtapas .c{ text-align:center; }
+  /* no celular o CSS geral engorda todo botão (40px) — aqui não, senão a linha quebra */
+  .linhaEtapa .colOrdem button{ padding:0 !important; min-height:32px !important; height:32px; width:30px; }
+  .linhaEtapa .colRemover button{ padding:0 8px !important; min-height:32px !important; height:32px; }
+  .linhaEtapa select{ min-height:32px !important; padding:4px 8px !important; font-size:12px !important; }
+  .chkEtapa span.txtChk{ display:none; font-size:11px; color:var(--text-muted); margin-left:4px; }
+  @container (max-width: 560px){
+    .cabEtapas{ display:none; }
+    .linhaEtapa{
+      display:grid; column-gap:8px; row-gap:8px; align-items:center; padding:10px;
+      grid-template-columns: 22px auto auto 1fr auto;
+      grid-template-areas:
+        "num nome nome nome rem"
+        ".   met  met  met  met"
+        ".   kan  oee  .    ord";
+    }
+    .linhaEtapa .colNum{ grid-area:num; }
+    .linhaEtapa .colNome{ grid-area:nome; }
+    .linhaEtapa .colMetrica{ grid-area:met; }
+    .linhaEtapa .colMetrica:empty{ display:none; }
+    .linhaEtapa .chk_kanban{ grid-area:kan; justify-content:flex-start; }
+    .linhaEtapa .chk_oee{ grid-area:oee; justify-content:flex-start; }
+    .linhaEtapa .colOrdem{ grid-area:ord; }
+    .linhaEtapa .colRemover{ grid-area:rem; }
+    .chkEtapa span.txtChk{ display:inline; }
+  }
+  /* formulário de adicionar etapa */
+  .formEtapa{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px 14px; align-items:end; }
+  .formEtapa label.rot{ font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px; }
+  .formEtapa input[type=text], .formEtapa select{ width:100%; min-height:38px; box-sizing:border-box; }
+  .formEtapa .linhaChk{ display:flex; gap:18px; align-items:center; min-height:38px; }
+  .formEtapa .linhaChk label{ display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; }
+  .formEtapa .linhaChk input{ width:18px; height:18px; margin:0; accent-color:var(--brand); }
+  @media (max-width: 760px){ .formEtapa{ grid-template-columns:1fr; } }
+
+  /* ---- assistente de primeira configuração ---- */
+  .asCard{ background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:22px 24px; width:100%; max-width:660px; margin:auto; border-top:5px solid var(--brand2); }
+  .asPassos{ display:flex; gap:6px; margin-bottom:16px; }
+  .asPassos span{ flex:1; height:6px; border-radius:99px; background:var(--border-strong); }
+  .asPassos span.feito{ background:var(--brand); }
+  .asPassos span.atual{ background:var(--brand2); }
+  .asCard h2{ font-size:18px; margin:0 0 4px; }
+  .asCard .asSub{ font-size:12px; color:var(--text-muted); margin:0 0 14px; text-transform:uppercase; letter-spacing:0.04em; font-weight:700; }
+  .asCard p.asTexto{ font-size:13px; color:var(--text-secondary); line-height:1.55; margin:0 0 12px; }
+  .asCard label.asRot{ font-size:12px; color:var(--text-muted); display:block; margin:10px 0 4px; }
+  .asCard input[type=text], .asCard input[type=time], .asCard select{ width:100%; min-height:38px; box-sizing:border-box; }
+  .asHorarios{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px 14px; }
+  .asGrupo{ border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; margin-bottom:12px; background:var(--surface-1); }
+  .asGrupoTit{ font-weight:700; font-size:13px; color:var(--brand-dark); }
+  .asAjuda{ font-size:11.5px; color:var(--text-muted); margin:2px 0 8px; line-height:1.4; }
+  .asLinha{ display:flex; gap:6px; align-items:center; margin-bottom:6px; }
+  .asLinha input[type=text]{ flex:1 1 auto; min-width:0; }
+  .asLinha select{ flex:0 0 150px; font-size:12px; }
+  .asLinha button{ width:32px; height:32px; padding:0 !important; min-height:32px !important; flex:0 0 auto; }
+  .asLinha .asEmUso{ font-size:10.5px; color:var(--text-muted); width:32px; text-align:center; }
+  .asAdd{ font-size:12px; padding:6px 12px; }
+  .asErro{ font-size:13px; color:var(--text-danger); background:#fdeceb; border-radius:var(--radius); padding:8px 12px; margin:12px 0 0; }
+  .asOk{ font-size:13px; color:var(--text-success); background:#e3f2ec; border-radius:var(--radius); padding:8px 12px; margin:10px 0; }
+  .asRodape{ display:flex; justify-content:space-between; gap:10px; margin-top:18px; }
+  .asRodape button{ padding:10px 18px; }
+  .asPrimario{ background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700; box-shadow:0 4px 14px rgba(18,105,90,0.3); }
+  @media (max-width: 560px){
+    .asHorarios{ grid-template-columns:1fr; }
+    .asLinha{ flex-wrap:wrap; padding:8px 0 10px; border-bottom:1px dashed var(--border-strong); margin-bottom:2px; }
+    .asLinha input[type=text]{ flex:1 1 100%; }
+    .asLinha select{ flex:1 1 100%; }
+    .asLinha button:first-of-type{ margin-left:0; }
+    .asCard{ padding:18px 16px; }
   }
   @keyframes pulseAviso{ 0%,100%{ opacity:1; } 50%{ opacity:0.6; } }
   .etiqueta{
@@ -241,6 +336,18 @@
   </div>
 </div>
 
+<div id="modalAssistente" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.6); z-index:230; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;">
+  <div class="asCard">
+    <div id="asPassos" class="asPassos"></div>
+    <div id="asCorpo"></div>
+    <p id="asErro" class="asErro" style="display:none;"></p>
+    <div class="asRodape">
+      <button id="asVoltar">← Voltar</button>
+      <button id="asProximo" class="asPrimario">Próximo →</button>
+    </div>
+  </div>
+</div>
+
 <div id="modalAjuda" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.5); z-index:210; align-items:center; justify-content:center; padding:20px; overflow-y:auto;">
   <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:28px; max-width:640px; width:100%; max-height:85vh; overflow-y:auto; margin:auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -252,13 +359,13 @@
     <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">As etapas de produção são configuráveis (a Administração pode adicionar, remover e reordenar) — os nomes exatos podem variar, mas existem 3 tipos: <strong>por peça</strong> (ex: CNC, Coladeira — você bipa peça por peça), <strong>por módulo</strong> (ex: Pré Montagem, Montagem Final — o módulo inteiro é concluído de uma vez) e <strong>por pedido inteiro</strong> (ex: Entrega, Instalação — só aparece depois que todos os módulos do pedido terminarem as etapas de módulo).</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">2. Como bipar</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Digite ou bipe o código da peça no campo do topo da tela e aperte Enter. Aparece na hora um aviso grande e verde confirmando qual peça foi registrada e em qual etapa — não precisa clicar em nada pra confirmar. Se a peça já foi concluída em outro lugar, ou não pertence a essa etapa, o sistema avisa e não deixa duplicar. Se uma etapa ficar muito tempo sem nenhuma bipagem e tiver peça esperando, aparece um aviso pulsante perguntando se foi parada — é só clicar pra já registrar.</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Digite ou bipe o código da peça no campo do topo da tela e aperte Enter. Aparece na hora um aviso grande e verde confirmando qual peça foi registrada e em qual etapa — não precisa clicar em nada pra confirmar. Se a peça já foi concluída em outro lugar, ou não pertence a essa etapa, o sistema avisa e não deixa duplicar. Se uma etapa ficar mais de <strong>5 minutos</strong> sem nenhuma bipagem e tiver peça esperando, aparece um aviso pulsante perguntando se foi parada — é só clicar pra já registrar.</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">3. Cronômetro — tempo de ciclo</h3>
     <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Além da bipagem (que mede o <strong>lead time</strong>, incluindo filas de espera), dá pra medir o <strong>tempo de ciclo</strong> — só o tempo de trabalho de verdade. Aperte "▶" pra iniciar e "⏹ Encerrar" quando terminar:</p>
     <ul style="font-size:13px; line-height:1.75; margin:0 0 10px; padding-left:20px;">
       <li>Nas etapas <strong>por peça</strong>, é um cronômetro de <strong>lote</strong> — inicia antes de cortar/processar uma leva de peças (podem ser de módulos diferentes, misturadas), e o tempo é dividido entre elas proporcionalmente (por área, borda, volume, comprimento, largura ou espessura, conforme configurado). Dá pra pausar e retomar quantas vezes precisar no mesmo dia.</li>
-      <li>Nas etapas <strong>por módulo</strong> (Pré Montagem, Montagem Final...), tem o botão "▶ cronômetro deste módulo" no cabeçalho de cada módulo (visível mesmo com ele fechado) e o "▶ tempo de ciclo do pedido" no cabeçalho do pedido, pra medir o pedido inteiro. Se você usar o do pedido numa etapa, o dashboard usa ele no lugar da soma dos módulos daquela etapa (não conta em dobro). Nas etapas <strong>por pedido inteiro</strong> (Entrega, Instalação), o cronômetro é do pedido, 1 pra 1.</li>
+      <li>Nas etapas <strong>por módulo</strong> (Pré Montagem, Montagem Final...), o controle fica na barra de cima, igual ao do lote: escolha no seletor "▶ tempo de ciclo — escolha o módulo..." o módulo (ou o pedido inteiro) que vai começar, e os cronômetros que estão rodando aparecem ali mesmo com o botão Encerrar. Os mesmos botões também existem no cabeçalho de cada módulo e do pedido. Se você usar o do pedido numa etapa, o dashboard usa ele no lugar da soma dos módulos daquela etapa (não conta em dobro). Nas etapas <strong>por pedido inteiro</strong> (Entrega, Instalação), o cronômetro é do pedido, 1 pra 1.</li>
     </ul>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">4. Etiquetas (QR code e código de barras)</h3>
@@ -271,10 +378,10 @@
     <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Clique em "Defeito" na peça (ou "⚠ Defeito no módulo" se o problema for no módulo inteiro). Escolha a causa — método, máquina, mão de obra, material, medição ou meio ambiente — escreva uma observação se quiser, e escolha entre <strong>retrabalhar</strong> (a peça volta pra uma etapa escolhida por você) ou <strong>descartar</strong> (a peça é jogada fora e recriada do zero).</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">7. Administração (só pra quem é admin)</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Criar e editar usuários (login, senha, e-mail, se pode excluir/cadastrar/concluir sem bipar/acessar o dashboard, e quais etapas cada um pode ver), configurar o <strong>nome da marcenaria</strong>, o <strong>horário de trabalho</strong>, <strong>onde uma peça nova nasce</strong> ao importar CSV ou cadastrar manualmente, e as <strong>etapas de produção</strong> — adicionar, remover, reordenar, escolher o tipo (peça/módulo/pedido inteiro), a métrica de rateio, e em quais abas do dashboard (Kanban, OEE) cada uma aparece. Também tem backup manual e a "Zona de risco" pra apagar tudo, se precisar.</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Na primeira vez num servidor novo, um <strong>assistente de configuração</strong> abre sozinho e guia tudo (nome, horário, etapas, onde a peça nasce e o primeiro CSV) — dá pra refazer depois pelo botão 🧭 no topo da Administração. Aqui também: o <strong>link de acesso da equipe</strong> (mande no WhatsApp: quem abre por ele já fica conectado ao servidor certo, sem digitar nada), e criar/editar usuários (login, senha, e-mail, se pode excluir/cadastrar/concluir sem bipar/acessar o dashboard, e quais etapas cada um pode ver), configurar o <strong>nome da marcenaria</strong>, o <strong>horário de trabalho</strong>, <strong>onde uma peça nova nasce</strong> ao importar CSV ou cadastrar manualmente, e as <strong>etapas de produção</strong> — adicionar, remover, reordenar, escolher o tipo (peça/módulo/pedido inteiro), a métrica de rateio, e em quais abas do dashboard (Kanban, OEE) cada uma aparece. Também tem backup manual e a "Zona de risco" pra apagar tudo, se precisar.</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">8. O Dashboard — o que cada aba mostra</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 6px;">O Dashboard é onde dá pra ver como a produção está indo. Só quem tem a permissão "ver dashboard" (ou é admin) consegue entrar. Tem várias abas:</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 6px;">O Dashboard é onde dá pra ver como a produção está indo. Só quem tem a permissão "ver dashboard" (ou é admin) consegue entrar. No topo tem o botão <strong>🔄 Sincronizar</strong> e o estado da conexão (🟢 sincronizado / 🔴 sem conexão) — qualquer usuário pode usar, não precisa passar pela Administração. Tem várias abas:</p>
     <ul style="font-size:13px; line-height:1.75; margin:0 0 10px; padding-left:20px;">
       <li><strong>📊 Tempos</strong> — três visões: <strong>Lead Time</strong> (tempo total, com fila), <strong>Tempo de Ciclo</strong> (só trabalho de verdade, por módulo/pedido/peça) e <strong>Lead Time vs Ciclo</strong> (compara os dois lado a lado e calcula quanto foi fila de espera, ordenado do pior caso pro melhor).</li>
       <li><strong>⚠ Defeitos</strong> — a lista de tudo que deu problema, e numa sub-aba própria, o <strong>diagrama de Ishikawa</strong> (causa e sub-causa) — clique numa sub-causa pra ver as observações originais por trás dela.</li>
@@ -321,6 +428,14 @@
       carregando...
     </div>
 
+    <div id="loginConectar" style="display:none; flex-direction:column; gap:10px;">
+      <p style="font-size:13px; color:var(--text-secondary); margin:0;">Esse aparelho ainda não sabe qual é o servidor do Rasmar. Cole o endereço que o administrador te passou — ou abra o Rasmar pelo <strong>link de acesso da equipe</strong>, que já conecta sozinho.</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0;">Está instalando pela primeira vez? É o endereço que apareceu no final da instalação do servidor (termina em .nip.io).</p>
+      <input id="conectarUrl" type="text" placeholder="https://...nip.io/" style="width:100%;" />
+      <p id="conectarErro" style="font-size:13px; color:var(--text-danger); margin:0; display:none;"></p>
+      <button id="btnConectar" style="background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700; padding:11px 16px; box-shadow:0 4px 14px rgba(18,105,90,0.35);">Conectar</button>
+    </div>
+
     <div id="loginFormNormal" style="display:none; flex-direction:column; gap:10px;">
       <div>
         <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">usuário</label>
@@ -360,7 +475,8 @@
   <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-md); padding:24px; max-width:720px; margin:0 auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
       <h1 style="font-size:16px;">Administração</h1>
-      <button id="btnFecharAdmin" style="font-size:13px; padding:6px 12px;">Fechar</button>
+      <span style="display:flex; gap:8px;"><button id="btnReabrirAssistente" title="Refaz o passo a passo de configuração inicial" style="font-size:13px; padding:6px 12px;">🧭 Assistente de configuração</button>
+      <button id="btnFecharAdmin" style="font-size:13px; padding:6px 12px;">Fechar</button></span>
     </div>
 
     <p style="font-weight:600; font-size:14px; margin:0 0 8px;">Usuários</p>
@@ -394,11 +510,21 @@
       <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
         <div style="flex:1; min-width:200px;">
           <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">nome da marcenaria</label>
-          <input id="nomeMarcenariaInput" type="text" placeholder="ex: Marcenaria Cireneu Liebl" style="width:100%;" />
+          <input id="nomeMarcenariaInput" type="text" placeholder="ex: Marcenaria Silva" style="width:100%;" />
         </div>
         <button id="btnSalvarNomeMarcenaria" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Salvar</button>
       </div>
       <p id="statusNomeMarcenaria" style="font-size:12px; margin:8px 0 0; display:none;"></p>
+    </div>
+
+    <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Link de acesso da equipe</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Mande esse link pra equipe (WhatsApp, por exemplo). Abrindo por ele, o celular ou computador já fica conectado ao servidor certo — ninguém precisa digitar endereço nem mexer em configuração. Vale pro Dashboard também.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input id="linkAcessoEquipe" type="text" readonly style="flex:1; min-width:200px; font-size:12px;" />
+        <button id="btnCopiarLinkAcesso" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Copiar link</button>
+      </div>
+      <p id="statusLinkAcesso" style="font-size:12px; margin:8px 0 0; display:none; color:var(--text-success);"></p>
     </div>
 
     <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
@@ -442,28 +568,28 @@
     <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
       <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Etapas / processos de produção</p>
       <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">A ordem abaixo é a ordem real da linha de produção. Adicionar uma etapa nova afeta tudo que depende dela — abas de bipagem, envio de módulo, etiquetas e o dashboard.</p>
-      <div id="listaEstacoesAdmin" style="margin-bottom:14px;"></div>
-      <p style="font-weight:600; font-size:12px; margin:14px 0 8px;">Adicionar nova etapa</p>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:10px;">
+      <div id="listaEstacoesAdmin" style="margin-bottom:16px;"></div>
+      <p style="font-weight:600; font-size:12px; margin:16px 0 10px;">Adicionar nova etapa</p>
+      <div class="formEtapa">
         <div>
-          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">nome da etapa</label>
-          <input id="novaEstacaoNome" type="text" placeholder="ex: Pintura" style="width:100%;" />
+          <label class="rot" for="novaEstacaoNome">nome da etapa</label>
+          <input id="novaEstacaoNome" type="text" placeholder="ex: Pintura" />
         </div>
         <div>
-          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">tipo</label>
-          <select id="novaEstacaoTipo" style="width:100%;">
-            <option value="peca">por peça (como CNC, Coladeira...)</option>
-            <option value="modulo">por módulo inteiro (como Pré Montagem, Montagem Final)</option>
-            <option value="projeto">por pedido inteiro (só depois que todos os módulos terminarem — ex: Entrega, Instalação)</option>
+          <label class="rot" for="novaEstacaoTipo">tipo</label>
+          <select id="novaEstacaoTipo">
+            <option value="peca">Por peça (CNC, Coladeira...)</option>
+            <option value="modulo">Por módulo (Pré Montagem...)</option>
+            <option value="projeto">Por pedido inteiro (Entrega...)</option>
           </select>
         </div>
         <div>
-          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">posição: logo depois de</label>
-          <select id="novaEstacaoDepoisDe" style="width:100%;"></select>
+          <label class="rot" for="novaEstacaoDepoisDe">posição: logo depois de</label>
+          <select id="novaEstacaoDepoisDe"></select>
         </div>
         <div id="wrapNovaEstacaoMetrica">
-          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">ratear tempo do lote por</label>
-          <select id="novaEstacaoMetrica" style="width:100%;">
+          <label class="rot" for="novaEstacaoMetrica">ratear tempo do lote por</label>
+          <select id="novaEstacaoMetrica">
             <option value="area">área (m²) — corte, usinagem</option>
             <option value="bordaLinear">metro linear de borda — coladeira</option>
             <option value="volume">volume (m³) — furação, prensa</option>
@@ -473,14 +599,18 @@
             <option value="">nenhuma (divide igual entre as peças)</option>
           </select>
         </div>
+        <div>
+          <span class="rot" style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">aparece no dashboard em</span>
+          <div class="linhaChk">
+            <label><input type="checkbox" id="novaEstacaoAbaKanban" checked /> Kanban</label>
+            <label><input type="checkbox" id="novaEstacaoAbaOee" checked /> OEE</label>
+          </div>
+        </div>
+        <div>
+          <button id="btnAdicionarEstacao" style="font-size:13px; padding:8px 16px; min-height:38px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Adicionar etapa</button>
+        </div>
       </div>
-      <div style="margin-bottom:10px;">
-        <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">aparece no dashboard em</label>
-        <label style="font-size:12px; margin-right:14px;"><input type="checkbox" id="novaEstacaoAbaKanban" checked /> Kanban</label>
-        <label style="font-size:12px;"><input type="checkbox" id="novaEstacaoAbaOee" checked /> OEE</label>
-      </div>
-      <button id="btnAdicionarEstacao" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Adicionar etapa</button>
-      <p id="statusEstacoes" style="font-size:12px; margin:8px 0 0; display:none;"></p>
+      <p id="statusEstacoes" style="font-size:12px; margin:10px 0 0; display:none;"></p>
     </div>
 
     <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
@@ -784,6 +914,9 @@ let nomeMarcenaria = '';
 // onde uma peça nova "nasce" — ao importar CSV ou cadastrar manualmente.
 // null = usa a primeira etapa por peça configurada (como sempre foi).
 let estacaoInicialId = null;
+// marca de "assistente de primeira configuração concluído": undefined = servidor antigo
+// (não mostra o assistente), false = servidor novo ainda por configurar, true = pronto.
+let onboardingConcluido;
 function estacaoInicialPeca(){
   const daConfig = estacaoInicialId ? estacoesPeca().find(s => s.id === estacaoInicialId) : null;
   return daConfig || estacoesPeca()[0] || null;
@@ -2432,6 +2565,7 @@ function showFeedback(msg, isError, mostrarLink){
   }
 }
 function showImportFeedback(msg, isError){
+  if (typeof assistenteAvisarCsv === 'function') assistenteAvisarCsv(msg, isError);
   const el = document.getElementById('importFeedback');
   el.style.display = 'block'; el.textContent = msg;
   el.style.color = isError ? 'var(--text-danger)' : 'var(--text-success)';
@@ -2721,8 +2855,38 @@ document.getElementById('fileInput').addEventListener('change', e => {
 // tem prioridade sobre esse padrão. É o servidor próprio na nuvem (não mais
 // o Google Sheets) — assim, computadores novos já conectam direto no
 // servidor certo, sem precisar colar o endereço nem criar admin de novo.
-const SYNC_URL_PADRAO = 'https://136-66-221-83.nip.io/';
-let syncUrl = localStorage.getItem('rasmar_sync_url') || SYNC_URL_PADRAO;
+
+// ---------- endereço do servidor: como cada aparelho descobre ----------
+// 1) link com ?servidor=... (o admin compartilha esse link com a equipe);
+// 2) o que o aparelho já guardou;
+// 3) arquivo rasmar-config.js ao lado do index.html (window.RASMAR_SERVIDOR_PADRAO);
+// 4) se o site está hospedado no próprio servidor (endereço .nip.io), ele mesmo.
+// Não existe mais endereço de servidor escrito "de fábrica" dentro do código —
+// senão cada empresa nova acabava conectando no servidor de outra.
+function normalizarUrlServidor(txt){
+  let t = String(txt || '').trim();
+  if (!t) return '';
+  if (!/^https?:\/\//i.test(t)) t = 'https://' + t;
+  try { const u = new URL(t); if (u.pathname === '') u.pathname = '/'; return u.href; } catch (e) { return ''; }
+}
+function resolverUrlServidorInicial(){
+  try {
+    const params = new URLSearchParams(location.search);
+    const daUrl = normalizarUrlServidor(params.get('servidor'));
+    if (daUrl){
+      localStorage.setItem('rasmar_sync_url', daUrl);
+      params.delete('servidor');
+      history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash);
+    }
+  } catch (e) {}
+  const guardada = localStorage.getItem('rasmar_sync_url');
+  if (guardada) return guardada;
+  const config = normalizarUrlServidor(window.RASMAR_SERVIDOR_PADRAO);
+  if (config) return config;
+  if (/\.nip\.io$/i.test(location.hostname) && /^https?:$/.test(location.protocol)) return location.origin + '/';
+  return '';
+}
+let syncUrl = resolverUrlServidorInicial();
 let ultimoSalvoConhecido = null;
 let ultimoConteudoSincronizado = null; // "retrato" do que já está igual no servidor — só envia de novo se mudou
 let syncEmAndamento = false;
@@ -2830,6 +2994,7 @@ function buscarEstadoServidor(){
 function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios){
   return new Promise((resolve, reject) => {
     const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, configuracaoHorario, estacoes: stations, nomeMarcenaria, estacaoInicialId };
+    if (typeof onboardingConcluido === 'boolean') corpo.onboardingConcluido = onboardingConcluido;
     if (confirmarZerarTudo) corpo.confirmarZerarTudo = true;
     if (confirmarZerarUsuarios) corpo.confirmarZerarUsuarios = true;
     let iframe = document.getElementById('rasmarSyncFrame');
@@ -2885,6 +3050,7 @@ async function carregarDoServidorAgora_lancaErro(){
   if (Array.isArray(dados.estacoes) && dados.estacoes.length) stations = dados.estacoes;
   if (typeof dados.nomeMarcenaria === 'string') nomeMarcenaria = dados.nomeMarcenaria;
   if (typeof dados.estacaoInicialId === 'string' || dados.estacaoInicialId === null) estacaoInicialId = dados.estacaoInicialId;
+  if (typeof dados.onboardingConcluido === 'boolean') onboardingConcluido = dados.onboardingConcluido;
   aplicarNomeMarcenariaNaTela();
   if (usuarioLogadoNome && !getUsuarioLogado()){
     usuarioLogadoNome = null;
@@ -3186,7 +3352,10 @@ async function iniciarApp(){
     iniciarSincronizacaoAutomatica();
   } else {
     document.getElementById('loginStatusIcone').textContent = '⚪';
-    document.getElementById('loginStatusTexto').textContent = 'sincronização não configurada';
+    document.getElementById('loginStatusTexto').textContent = 'servidor não configurado neste aparelho';
+    document.getElementById('loginCarregando').style.display = 'none';
+    document.getElementById('loginConectar').style.display = 'flex';
+    return; // nada mais a fazer até conectar (o botão recarrega a página)
   }
   cargaInicialCompleta = true; // a partir daqui, escrever no servidor é seguro
   document.getElementById('loginCarregando').style.display = 'none'; // sempre esconde, não importa o caminho que seguiu daqui pra baixo
@@ -3198,6 +3367,7 @@ async function iniciarApp(){
   }
   usuarioLogadoNome = null;
   if (usuarios.length === 0){
+    document.getElementById('primeiroAdminCampoProprio').style.display = syncUrl ? 'none' : 'block';
     document.getElementById('loginPrimeiroAdmin').style.display = 'flex';
   } else {
     document.getElementById('loginFormNormal').style.display = 'flex';
@@ -3209,6 +3379,7 @@ iniciarApp();
 function mostrarApp(){
   document.getElementById('telaLogin').style.display = 'none';
   const u = getUsuarioLogado();
+  if (u && u.admin && onboardingConcluido === false) setTimeout(abrirAssistente, 0);
   document.getElementById('usuarioLogadoTexto').textContent = u ? (u.usuario + (u.admin ? ' · admin' : '')) : '';
   document.getElementById('btnSair').style.display = 'inline-block';
   document.getElementById('btnTrocarSenha').style.display = 'inline-block';
@@ -3228,6 +3399,7 @@ function mostrarApp(){
   document.getElementById('btnImportar').style.display = (u && u.admin) ? 'inline-block' : 'none';
   document.getElementById('btnCadastroManual').style.display = temPermissao('cadastrarManual') ? 'inline-block' : 'none';
   document.getElementById('btnToggleSync').style.display = u ? 'inline-block' : 'none';
+  document.getElementById('btnConfigurarSync').style.display = (u && u.admin) ? 'inline-block' : 'none'; // todo mundo vê o status e sincroniza; só o admin muda o servidor
   document.getElementById('btnConfigurarSync').style.display = (u && u.admin) ? 'inline-block' : 'none';
   renderTudo();
   renderSeletor();
@@ -3369,6 +3541,7 @@ document.getElementById('btnAbrirAdmin').onclick = () => {
   document.getElementById('nomeMarcenariaInput').value = nomeMarcenaria;
   renderListaEstacoesAdmin();
   popularSelectEstacaoInicial();
+  popularLinkAcessoEquipe();
 };
 document.getElementById('btnFecharAdmin').onclick = () => { document.getElementById('telaAdmin').style.display = 'none'; };
 
@@ -3400,6 +3573,268 @@ document.getElementById('btnSalvarNomeMarcenaria').onclick = () => {
   status.style.display = 'block'; status.style.color = 'var(--text-success)';
   status.textContent = 'nome salvo — já vale pro app e pro dashboard de todo mundo';
 };
+
+function montarLinkAcessoEquipe(){
+  if (!syncUrl) return '';
+  const u = new URL('index.html', window.location.href);
+  u.search = ''; u.hash = '';
+  u.searchParams.set('servidor', syncUrl);
+  return u.href;
+}
+function popularLinkAcessoEquipe(){ document.getElementById('linkAcessoEquipe').value = montarLinkAcessoEquipe(); }
+document.getElementById('btnCopiarLinkAcesso').onclick = async () => {
+  const campo = document.getElementById('linkAcessoEquipe'); const st = document.getElementById('statusLinkAcesso');
+  try { await navigator.clipboard.writeText(campo.value); } catch (e) { campo.select(); document.execCommand('copy'); }
+  st.textContent = 'link copiado — agora é só colar e mandar'; st.style.display = 'block';
+};
+
+// ============================================================================
+// ASSISTENTE DE PRIMEIRA CONFIGURAÇÃO
+// Abre sozinho pro administrador num servidor novo (e não fecha até terminar):
+// nome da marcenaria → horário → etapas (em ordem) → onde a peça nasce →
+// primeiro projeto (CSV). Cada passo já grava e sincroniza na hora.
+// ============================================================================
+const PASSOS_ASSISTENTE = ['Sua marcenaria', 'Horário de trabalho', 'Etapas da produção', 'Onde a peça nasce', 'Primeiro projeto'];
+const OPCOES_RATEIO_ASSISTENTE = [['area','área (m²)'], ['bordaLinear','metro linear de borda'], ['volume','volume (m³)'], ['comprimento','comprimento (m)'], ['largura','largura (m)'], ['espessura','espessura/altura (mm)'], ['','nenhuma (divide igual)']];
+let assistenteEstado = null;
+function asEsc(t){ return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function assistenteAberto(){ return !!assistenteEstado; }
+
+function abrirAssistente(){
+  if (assistenteEstado) return;
+  const copia = s => Object.assign({}, s, { _novo: false });
+  assistenteEstado = {
+    passo: 0, erro: '', csvMsg: null, csvOk: 0,
+    nome: nomeMarcenaria || '',
+    horario: Object.assign({}, configuracaoHorario),
+    grupos: { peca: stations.filter(s => s.type === 'peca').map(copia), modulo: stations.filter(s => s.type === 'modulo').map(copia), projeto: stations.filter(s => s.type === 'projeto').map(copia) },
+    inicialId: estacaoInicialId
+  };
+  document.getElementById('telaAdmin').style.display = 'none';
+  document.getElementById('modalAssistente').style.display = 'flex';
+  renderAssistente();
+}
+function fecharAssistente(){
+  assistenteEstado = null;
+  document.getElementById('modalAssistente').style.display = 'none';
+}
+
+function htmlGrupoAssistente(tipo, titulo, ajuda, textoAdd){
+  const lista = assistenteEstado.grupos[tipo];
+  let h = '<div class="asGrupo"><div class="asGrupoTit">' + titulo + '</div><p class="asAjuda">' + ajuda + '</p>';
+  lista.forEach((s, i) => {
+    const emUso = !s._novo && algumaPecaOuModuloUsaEstacao(s.id);
+    h += '<div class="asLinha">' +
+      '<input type="text" class="asNomeEtapa" data-tipo="' + tipo + '" data-i="' + i + '" value="' + asEsc(s.label) + '" placeholder="nome da etapa"' + (emUso ? ' readonly title="tem peça/módulo usando essa etapa — o nome não pode mudar"' : '') + ' />';
+    if (tipo === 'peca'){
+      h += '<select class="asMetrica" data-i="' + i + '" title="como dividir o tempo do lote entre as peças">' +
+        OPCOES_RATEIO_ASSISTENTE.map(([v, t]) => '<option value="' + v + '"' + ((s.metricaRateio || '') === v ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
+    }
+    h += '<button data-acao="cima" data-tipo="' + tipo + '" data-i="' + i + '" title="subir"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+         '<button data-acao="baixo" data-tipo="' + tipo + '" data-i="' + i + '" title="descer"' + (i === lista.length - 1 ? ' disabled' : '') + '>↓</button>' +
+         (emUso ? '<span class="asEmUso">em uso</span>' : '<button data-acao="remover" data-tipo="' + tipo + '" data-i="' + i + '" title="remover essa etapa" style="color:var(--text-danger);">✕</button>') +
+      '</div>';
+  });
+  h += '<button class="asAdd" data-acao="adicionar" data-tipo="' + tipo + '">+ ' + textoAdd + '</button></div>';
+  return h;
+}
+
+function renderAssistente(){
+  const e = assistenteEstado; if (!e) return;
+  document.getElementById('asPassos').innerHTML = PASSOS_ASSISTENTE.map((_, i) => '<span class="' + (i < e.passo ? 'feito' : (i === e.passo ? 'atual' : '')) + '"></span>').join('');
+  const corpo = document.getElementById('asCorpo');
+  const sub = '<p class="asSub">Passo ' + (e.passo + 1) + ' de ' + PASSOS_ASSISTENTE.length + ' · ' + PASSOS_ASSISTENTE[e.passo] + '</p>';
+  let h = '';
+  if (e.passo === 0){
+    h = sub + '<h2>Bem-vindo ao Rasmar 👋</h2>' +
+      '<p class="asTexto">Vamos deixar tudo pronto em poucos passos. Primeiro, o nome da sua marcenaria — ele aparece no cabeçalho, nas etiquetas impressas e no dashboard.</p>' +
+      '<label class="asRot" for="asNome">nome da marcenaria *</label><input id="asNome" type="text" placeholder="ex: Marcenaria Silva" value="' + asEsc(e.nome) + '" />';
+  } else if (e.passo === 1){
+    const hz = e.horario;
+    h = sub + '<h2>Horário de trabalho</h2>' +
+      '<p class="asTexto">Serve pro dashboard separar o tempo em que a fábrica estava de fato trabalhando (tempo útil) do tempo em que estava parada à noite, no almoço ou no fim de semana.</p>' +
+      '<div class="asHorarios">' +
+      '<div><label class="asRot" for="asHIni">entrada *</label><input id="asHIni" type="time" value="' + asEsc(hz.inicio) + '" /></div>' +
+      '<div><label class="asRot" for="asHFim">saída *</label><input id="asHFim" type="time" value="' + asEsc(hz.fim) + '" /></div>' +
+      '<div><label class="asRot" for="asAIni">início do almoço *</label><input id="asAIni" type="time" value="' + asEsc(hz.almocoInicio) + '" /></div>' +
+      '<div><label class="asRot" for="asAFim">fim do almoço *</label><input id="asAFim" type="time" value="' + asEsc(hz.almocoFim) + '" /></div></div>';
+  } else if (e.passo === 2){
+    h = sub + '<h2>Etapas da produção</h2>' +
+      '<p class="asTexto">Aqui você monta o caminho que a peça faz na sua fábrica, <strong>na ordem real</strong>. Já vem preenchido com um modelo comum de marcenaria — renomeie, apague, reordene e acrescente o que precisar.</p>' +
+      htmlGrupoAssistente('peca', '1º · Etapas por peça', 'Máquinas onde você bipa <strong>peça por peça</strong> (ex: CNC, Coladeira, Limpeza). Precisa ter pelo menos uma. Ao lado, escolha como dividir o tempo de um lote entre as peças.', 'adicionar etapa por peça') +
+      htmlGrupoAssistente('modulo', '2º · Etapas por módulo', 'Depois que as peças se juntam: o <strong>módulo inteiro</strong> é concluído de uma vez (ex: Pré Montagem, Montagem Final). Precisa ter pelo menos uma.', 'adicionar etapa por módulo') +
+      htmlGrupoAssistente('projeto', '3º · Etapas do pedido inteiro (opcional)', 'Só começam quando <strong>todos os módulos</strong> do pedido terminam. Ex: Entrega, Instalação no cliente. Pode deixar vazio.', 'adicionar etapa do pedido inteiro');
+  } else if (e.passo === 3){
+    const pecas = e.grupos.peca;
+    const atual = pecas.some(s => s.id === e.inicialId && !s._novo) ? e.inicialId : (pecas[0] ? pecas[0].id : '');
+    h = sub + '<h2>Onde a peça nasce</h2>' +
+      '<p class="asTexto">Toda peça importada de um CSV (ou cadastrada à mão) começa numa etapa. Na maioria das marcenarias é a primeira — mas se o corte, por exemplo, é feito fora, escolha a etapa em que a peça realmente entra na sua fábrica.</p>' +
+      '<label class="asRot" for="asInicial">a peça começa em *</label><select id="asInicial">' + pecas.map(s => '<option value="' + asEsc(s.id) + '"' + (s.id === atual ? ' selected' : '') + '>' + asEsc(s.label) + '</option>').join('') + '</select>';
+  } else {
+    const link = montarLinkAcessoEquipe();
+    h = sub + '<h2>Primeiro projeto</h2>' +
+      '<p class="asTexto">Exporte o plano de corte do WPS (ou do seu otimizador) em <strong>CSV</strong> e importe aqui: as peças, os módulos e as medidas entram sozinhos, já prontas pra bipar. Dá pra fazer agora ou depois, pelo botão <em>Importar CSV</em> da tela principal.</p>' +
+      '<button id="asEscolherCsv" class="asPrimario" style="padding:10px 18px;">📂 Escolher o arquivo CSV agora</button>' +
+      (e.csvMsg ? '<p class="' + (e.csvMsg.erro ? 'asErro' : 'asOk') + '" style="margin-top:12px;">' + asEsc(e.csvMsg.texto) + '</p>' : '') +
+      '<div class="asGrupo" style="margin-top:16px;"><div class="asGrupoTit">Falta pouco: a equipe</div>' +
+      '<p class="asAjuda">Cadastre os usuários em <strong>☰ Menu → Administração</strong> e mande o link abaixo pra cada pessoa: abrindo por ele, o aparelho já fica conectado, sem digitar nada.</p>' +
+      '<div style="display:flex; gap:6px;"><input type="text" readonly id="asLink" value="' + asEsc(link) + '" style="flex:1; font-size:12px;" /><button id="asCopiar" style="padding:0 12px;">Copiar</button></div></div>';
+  }
+  corpo.innerHTML = h;
+  document.getElementById('asErro').style.display = e.erro ? 'block' : 'none';
+  document.getElementById('asErro').textContent = e.erro || '';
+  document.getElementById('asVoltar').style.visibility = e.passo === 0 ? 'hidden' : 'visible';
+  document.getElementById('asProximo').textContent = e.passo === PASSOS_ASSISTENTE.length - 1 ? '✔ Concluir e começar a usar' : 'Próximo →';
+}
+
+// lê o que a pessoa digitou no passo atual pra dentro do estado (sem validar)
+function assistenteLerCampos(){
+  const e = assistenteEstado; if (!e) return;
+  if (e.passo === 0){ const el = document.getElementById('asNome'); if (el) e.nome = el.value; }
+  if (e.passo === 1){
+    const g = id => (document.getElementById(id) || {}).value || '';
+    e.horario = { inicio: g('asHIni'), fim: g('asHFim'), almocoInicio: g('asAIni'), almocoFim: g('asAFim') };
+  }
+  if (e.passo === 2){
+    document.querySelectorAll('#asCorpo .asNomeEtapa').forEach(inp => { e.grupos[inp.dataset.tipo][+inp.dataset.i].label = inp.value; });
+    document.querySelectorAll('#asCorpo .asMetrica').forEach(sel => {
+      // o select de métrica só existe no grupo "peca", na mesma ordem das linhas
+      e.grupos.peca[+sel.dataset.i].metricaRateio = sel.value || null;
+    });
+  }
+  if (e.passo === 3){ const el = document.getElementById('asInicial'); if (el) e.inicialId = el.value; }
+}
+
+// valida o passo; devolve mensagem de erro ou ''
+function assistenteValidar(){
+  const e = assistenteEstado;
+  if (e.passo === 0){
+    if (!e.nome.trim()) return 'digite o nome da marcenaria pra continuar';
+  } else if (e.passo === 1){
+    const h = e.horario;
+    if (!h.inicio || !h.fim || !h.almocoInicio || !h.almocoFim) return 'preencha os 4 horários';
+    if (!(h.inicio < h.fim)) return 'a saída precisa ser depois da entrada';
+    if (!(h.almocoInicio < h.almocoFim)) return 'o fim do almoço precisa ser depois do início';
+    if (h.almocoInicio < h.inicio || h.almocoFim > h.fim) return 'o almoço precisa ficar dentro do horário de trabalho';
+  } else if (e.passo === 2){
+    const g = e.grupos; const todas = [...g.peca, ...g.modulo, ...g.projeto];
+    if (!g.peca.length) return 'precisa ter pelo menos uma etapa por peça (é onde as peças são bipadas)';
+    if (!g.modulo.length) return 'precisa ter pelo menos uma etapa por módulo (é ela que fecha o pedido no fim)';
+    if (todas.some(s => !s.label.trim())) return 'tem etapa sem nome — preencha ou remova';
+    const nomes = todas.map(s => s.label.trim().toLowerCase());
+    if (new Set(nomes).size !== nomes.length) return 'duas etapas com o mesmo nome — cada etapa precisa de um nome diferente';
+  }
+  return '';
+}
+
+// grava o passo no sistema (e sincroniza)
+function assistenteAplicarPasso(){
+  const e = assistenteEstado;
+  if (e.passo === 0){
+    nomeMarcenaria = e.nome.trim();
+    registrarLog('definiu o nome da marcenaria como "' + nomeMarcenaria + '" (assistente)');
+    aplicarNomeMarcenariaNaTela();
+  } else if (e.passo === 1){
+    configuracaoHorario = Object.assign({}, e.horario);
+    registrarLog('definiu o horário de trabalho (' + e.horario.inicio + '–' + e.horario.fim + ', almoço ' + e.horario.almocoInicio + '–' + e.horario.almocoFim + ') (assistente)');
+  } else if (e.passo === 2){
+    const g = e.grupos; const usados = new Set();
+    [...g.peca, ...g.modulo, ...g.projeto].forEach(s => { if (!s._novo) usados.add(s.id); });
+    const idNovo = label => {
+      const base = label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'etapa';
+      let c = base, n = 2; while (usados.has(c)){ c = base + '_' + n; n++; } usados.add(c); return c;
+    };
+    const finais = [];
+    ['peca','modulo','projeto'].forEach(tipo => g[tipo].forEach(s => {
+      const label = s.label.trim();
+      if (!s._novo){
+        const orig = stations.find(x => x.id === s.id) || s;
+        const obj = Object.assign({}, orig, { label });
+        if (tipo === 'peca') obj.metricaRateio = s.metricaRateio || null;
+        finais.push(obj);
+        return;
+      }
+      const id = idNovo(label); let obj;
+      if (tipo === 'peca'){
+        obj = { id, label, type: 'peca', field: 'campo_' + id + '_em', metricaRateio: s.metricaRateio || null, abasDashboard: ['kanban','oee'] };
+        projetos.forEach(pr => pr.modulos.forEach(mod => mod.pecas.forEach(p => { p[obj.field] = null; })));
+      } else if (tipo === 'projeto'){
+        obj = { id, label, type: 'projeto', completaField: 'completaProjeto_' + id, completaEmField: 'completaProjetoEm_' + id, abasDashboard: ['kanban','oee'] };
+        projetos.forEach(pr => { pr[obj.completaField] = false; pr[obj.completaEmField] = null; });
+      } else {
+        obj = { id, label, type: 'modulo', completaField: 'completa_' + id, completaEmField: 'completaEm_' + id, abasDashboard: ['kanban','oee'] };
+        projetos.forEach(pr => pr.modulos.forEach(mod => { mod[obj.completaField] = false; mod[obj.completaEmField] = null; }));
+      }
+      finais.push(obj);
+    }));
+    stations = finais;
+    if (!stations.some(x => x.id === currentStation)) currentStation = stations[0].id;
+    // o estado do assistente passa a refletir as etapas já gravadas (ids definitivos)
+    const copia = x => Object.assign({}, x, { _novo: false });
+    e.grupos = { peca: stations.filter(x => x.type === 'peca').map(copia), modulo: stations.filter(x => x.type === 'modulo').map(copia), projeto: stations.filter(x => x.type === 'projeto').map(copia) };
+    salvarEstacoes('configurou as etapas de produção (assistente): ' + stations.map(x => x.label).join(' → '));
+  } else if (e.passo === 3){
+    const primeira = estacoesPeca()[0] ? estacoesPeca()[0].id : null;
+    estacaoInicialId = (e.inicialId && e.inicialId !== primeira) ? e.inicialId : null;
+    registrarLog('definiu "' + (estacaoInicialPeca() ? estacaoInicialPeca().label : '—') + '" como a etapa onde peças novas nascem (assistente)');
+  }
+  agendarSincronizacaoRapida();
+}
+
+function assistenteAvancar(){
+  const e = assistenteEstado; if (!e) return;
+  assistenteLerCampos();
+  const erro = assistenteValidar();
+  if (erro){ e.erro = erro; renderAssistente(); return; }
+  e.erro = '';
+  assistenteAplicarPasso();
+  if (e.passo === PASSOS_ASSISTENTE.length - 1){
+    onboardingConcluido = true;
+    registrarLog('concluiu o assistente de primeira configuração');
+    agendarSincronizacaoRapida();
+    fecharAssistente();
+    renderTudo(); renderSeletor();
+    showFeedback('configuração inicial concluída — o Rasmar está pronto pra usar', false);
+    return;
+  }
+  e.passo++;
+  renderAssistente();
+  document.getElementById('modalAssistente').scrollTop = 0;
+}
+document.getElementById('asProximo').onclick = assistenteAvancar;
+document.getElementById('asVoltar').onclick = () => {
+  const e = assistenteEstado; if (!e || e.passo === 0) return;
+  assistenteLerCampos(); e.erro = ''; e.passo--; renderAssistente();
+};
+// ações dentro dos grupos de etapas (subir, descer, remover, adicionar) + botões do último passo
+document.getElementById('asCorpo').addEventListener('click', (ev) => {
+  const e = assistenteEstado; if (!e) return;
+  const alvo = ev.target.closest('button'); if (!alvo) return;
+  if (alvo.id === 'asEscolherCsv'){ document.getElementById('fileInput').click(); return; }
+  if (alvo.id === 'asCopiar'){
+    const c = document.getElementById('asLink'); c.select();
+    (navigator.clipboard ? navigator.clipboard.writeText(c.value) : Promise.reject()).catch(() => document.execCommand('copy'));
+    alvo.textContent = 'Copiado ✔'; return;
+  }
+  const acao = alvo.dataset.acao; if (!acao) return;
+  assistenteLerCampos();
+  const tipo = alvo.dataset.tipo; const lista = e.grupos[tipo]; const i = +alvo.dataset.i;
+  if (acao === 'adicionar') lista.push({ id: '', label: '', type: tipo, metricaRateio: tipo === 'peca' ? 'area' : null, _novo: true });
+  if (acao === 'remover') lista.splice(i, 1);
+  if (acao === 'cima' && i > 0) [lista[i-1], lista[i]] = [lista[i], lista[i-1]];
+  if (acao === 'baixo' && i < lista.length - 1) [lista[i+1], lista[i]] = [lista[i], lista[i+1]];
+  e.erro = '';
+  renderAssistente();
+  if (acao === 'adicionar'){ const campos = document.querySelectorAll('#asCorpo .asNomeEtapa[data-tipo="' + tipo + '"]'); if (campos.length) campos[campos.length - 1].focus(); }
+});
+// o importar CSV da tela principal avisa o assistente quando termina
+function assistenteAvisarCsv(texto, erro){
+  if (!assistenteEstado) return;
+  assistenteEstado.csvMsg = { texto, erro: !!erro };
+  if (!erro) assistenteEstado.csvOk++;
+  if (assistenteEstado.passo === PASSOS_ASSISTENTE.length - 1) renderAssistente();
+}
+document.getElementById('btnReabrirAssistente').onclick = () => abrirAssistente();
 function popularSelectEstacaoInicial(){
   const sel = document.getElementById('estacaoInicialSelect');
   sel.innerHTML = estacoesPeca().map(s => '<option value="' + s.id + '">' + s.label + '</option>').join('');
@@ -3440,16 +3875,25 @@ function algumaPecaOuModuloUsaEstacao(stationId){
 function renderListaEstacoesAdmin(){
   const el = document.getElementById('listaEstacoesAdmin');
   el.innerHTML = '';
+  el.className = 'listaEtapas';
+  const cab = document.createElement('div');
+  cab.className = 'cabEtapas';
+  cab.innerHTML = '<span></span><span>etapa</span><span>ratear o tempo do lote por</span><span class="c">Kanban</span><span class="c">OEE</span><span class="c">ordem</span><span></span>';
+  el.appendChild(cab);
+  const nomeTipo = t => t === 'peca' ? 'por peça' : (t === 'projeto' ? 'por pedido inteiro' : 'por módulo');
   stations.forEach((s, i) => {
     const linha = document.createElement('div');
-    linha.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-bottom:1px solid var(--border); font-size:13px; flex-wrap:wrap;';
-    const nome = document.createElement('span');
-    nome.innerHTML = (i+1) + '. <strong>' + s.label + '</strong> <span style="font-size:11px; color:var(--text-muted);">(' + (s.type === 'peca' ? 'por peça' : 'por módulo') + ')</span>';
-    const acoes = document.createElement('span');
-    acoes.style.cssText = 'display:flex; align-items:center; gap:4px; flex-wrap:wrap;';
+    linha.className = 'linhaEtapa';
+    const num = document.createElement('span'); num.className = 'colNum'; num.textContent = (i+1) + '.';
+    const nome = document.createElement('div'); nome.className = 'colNome';
+    nome.innerHTML = '<strong></strong><small>' + nomeTipo(s.type) + '</small>';
+    nome.querySelector('strong').textContent = s.label;
+    linha.appendChild(num); linha.appendChild(nome);
+
+    // coluna da métrica (só etapas por peça; nas outras fica o espaço vazio, pra não desalinhar)
+    const colMetrica = document.createElement('div'); colMetrica.className = 'colMetrica';
     if (s.type === 'peca'){
       const selMetrica = document.createElement('select');
-      selMetrica.style.cssText = 'font-size:11px; padding:3px 4px;';
       selMetrica.title = 'métrica usada pra ratear o tempo do lote entre as peças';
       [['area','área (m²)'], ['bordaLinear','metro linear de borda'], ['volume','volume (m³)'], ['comprimento','comprimento (m)'], ['largura','largura (m)'], ['espessura','espessura/altura (mm)'], ['','nenhuma (divide igual)']].forEach(([valor, texto]) => {
         const opt = document.createElement('option');
@@ -3461,12 +3905,13 @@ function renderListaEstacoesAdmin(){
         s.metricaRateio = selMetrica.value || null;
         salvarEstacoes('mudou a métrica de rateio de ' + s.label + ' para ' + (selMetrica.value || 'nenhuma'));
       };
-      acoes.appendChild(selMetrica);
+      colMetrica.appendChild(selMetrica);
     }
+    linha.appendChild(colMetrica);
+
     const abasAtuais = s.abasDashboard || ['kanban','oee']; // sem config salva ainda = como sempre foi, aparece em tudo
     [['kanban','Kanban'], ['oee','OEE']].forEach(([valorAba, textoAba]) => {
-      const label = document.createElement('label');
-      label.style.cssText = 'font-size:10.5px; color:var(--text-muted); display:flex; align-items:center; gap:2px;';
+      const label = document.createElement('label'); label.className = 'chkEtapa chk_' + valorAba; label.title = 'aparece na aba ' + textoAba + ' do dashboard';
       const chk = document.createElement('input');
       chk.type = 'checkbox'; chk.checked = abasAtuais.includes(valorAba);
       chk.onchange = () => {
@@ -3475,35 +3920,41 @@ function renderListaEstacoesAdmin(){
         s.abasDashboard = Array.from(atual);
         salvarEstacoes('mudou onde ' + s.label + ' aparece no dashboard (' + (s.abasDashboard.join(', ') || 'nenhuma aba') + ')');
       };
-      label.appendChild(chk); label.appendChild(document.createTextNode(textoAba));
-      acoes.appendChild(label);
+      const txt = document.createElement('span'); txt.className = 'txtChk'; txt.textContent = textoAba;
+      label.appendChild(chk); label.appendChild(txt);
+      linha.appendChild(label);
     });
+
+    const colOrdem = document.createElement('div'); colOrdem.className = 'colOrdem';
     const btnCima = document.createElement('button');
     btnCima.textContent = '↑'; btnCima.title = 'mover pra cima (só dentro do mesmo tipo)';
-    btnCima.style.cssText = 'font-size:12px; padding:3px 8px;';
     btnCima.disabled = i === 0 || stations[i-1].type !== s.type;
     btnCima.onclick = () => { [stations[i-1], stations[i]] = [stations[i], stations[i-1]]; salvarEstacoes('reordenou as etapas'); };
     const btnBaixo = document.createElement('button');
     btnBaixo.textContent = '↓'; btnBaixo.title = 'mover pra baixo (só dentro do mesmo tipo)';
-    btnBaixo.style.cssText = 'font-size:12px; padding:3px 8px;';
     btnBaixo.disabled = i === stations.length-1 || stations[i+1].type !== s.type;
     btnBaixo.onclick = () => { [stations[i+1], stations[i]] = [stations[i], stations[i+1]]; salvarEstacoes('reordenou as etapas'); };
-    acoes.appendChild(btnCima); acoes.appendChild(btnBaixo);
+    colOrdem.appendChild(btnCima); colOrdem.appendChild(btnBaixo);
+    linha.appendChild(colOrdem);
+
+    const colRemover = document.createElement('div'); colRemover.className = 'colRemover';
     if (stations.length > 1 && !algumaPecaOuModuloUsaEstacao(s.id)){
       const btnRemover = document.createElement('button');
-      btnRemover.textContent = 'remover'; btnRemover.style.cssText = 'font-size:12px; padding:3px 8px; color:var(--text-danger);';
+      btnRemover.textContent = 'remover';
       btnRemover.onclick = () => {
         if (!window.confirm('Remover a etapa "' + s.label + '"? Ela não tem peça/módulo usando ela agora, então é seguro.')) return;
         stations = stations.filter(x => x.id !== s.id);
         salvarEstacoes('removeu a etapa ' + s.label);
       };
-      acoes.appendChild(btnRemover);
+      colRemover.appendChild(btnRemover);
+    } else if (stations.length > 1){
+      colRemover.innerHTML = '<span style="font-size:10.5px; color:var(--text-muted);" title="tem peça, módulo ou pedido usando essa etapa agora">em uso</span>';
     }
-    linha.appendChild(nome); linha.appendChild(acoes);
+    linha.appendChild(colRemover);
     el.appendChild(linha);
   });
   const selDepois = document.getElementById('novaEstacaoDepoisDe');
-  selDepois.innerHTML = '<option value="">no início de tudo</option>' + stations.map(s => '<option value="' + s.id + '">' + s.label + '</option>').join('');
+  selDepois.innerHTML = '<option value="">no início de tudo</option>' + stations.map(s => '<option value="' + s.id + '">' + s.label.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</option>').join('');
   if (stations.length) selDepois.value = stations[stations.length-1].id;
 }
 
@@ -3519,7 +3970,7 @@ function salvarEstacoes(logMsg){
 }
 
 document.getElementById('novaEstacaoTipo').addEventListener('change', () => {
-  document.getElementById('wrapNovaEstacaoMetrica').style.display = document.getElementById('novaEstacaoTipo').value === 'peca' ? 'block' : 'none';
+  document.getElementById('wrapNovaEstacaoMetrica').style.visibility = document.getElementById('novaEstacaoTipo').value === 'peca' ? 'visible' : 'hidden';
 });
 
 document.getElementById('btnAdicionarEstacao').onclick = () => {
@@ -3599,13 +4050,14 @@ function cicloAtivoModulo(mod){
   });
   return ativo;
 }
+function atualizarTelaCiclos(){ renderProjetos(); renderBarraParadaSetup(); }
 function iniciarCicloModulo(mod, station){
   if (cicloAtivoModulo(mod)) return;
   const cicloId = gerarIdCiclo();
   const pr = projetoDoModulo(mod);
   registrarLog('iniciou o tempo de ciclo do módulo #' + mod.id + ' (' + mod.nome + ') em ' + station.label);
   registrarMovimento('ciclo_inicio', { moduloId: mod.id, moduloNome: mod.nome, pecaCodigo: cicloId, clienteCodigo: pr?pr.codigo:'', cliente: pr?pr.cliente:'', projeto: pr?pr.projeto:'', detalhe: station.label });
-  renderProjetos();
+  atualizarTelaCiclos();
 }
 function fecharCicloModuloSeAtivo(mod, station){
   const ativo = cicloAtivoModulo(mod);
@@ -3675,10 +4127,54 @@ function renderBotaoCicloPedidoEmEtapa(pr, station){
       if (cicloAtivoPedidoEmEtapa(pr, station)) return;
       registrarLog('iniciou o tempo de ciclo do pedido ' + pr.codigo + ' em ' + station.label);
       registrarMovimento('ciclo_inicio', { moduloId: '', moduloNome: '__pedido__', pecaCodigo: gerarIdCiclo(), clienteCodigo: pr.codigo, cliente: pr.cliente, projeto: pr.projeto, detalhe: station.label });
-      renderProjetos();
+      atualizarTelaCiclos();
     },
-    aoEncerrar: () => { registrarLog('fechou o tempo de ciclo do pedido ' + pr.codigo + ' em ' + station.label); fecharCicloPedidoEmEtapa(pr, station); renderProjetos(); }
+    aoEncerrar: () => { registrarLog('fechou o tempo de ciclo do pedido ' + pr.codigo + ' em ' + station.label); fecharCicloPedidoEmEtapa(pr, station); atualizarTelaCiclos(); }
   });
+}
+
+// ---------- controle de tempo de ciclo no TOPO das etapas por módulo ----------
+// nas etapas por peça o cronômetro do lote fica na barra de cima; aqui o
+// equivalente pras etapas por módulo (Pré Montagem, Montagem Final...):
+// lista os cronômetros que estão rodando e deixa iniciar um novo escolhendo
+// o módulo ou o pedido inteiro — sem precisar abrir o pedido pra achar o botão.
+function renderCiclosTopoModulo(station){
+  const wrap = document.createElement('span');
+  wrap.style.cssText = 'display:inline-flex; gap:8px; flex-wrap:wrap; align-items:center;';
+  const candidatos = [];
+  const emAndamento = [];
+  projetos.filter(pr => !pr.baixado).forEach(pr => {
+    const modsAqui = pr.modulos.filter(m => moduloTemPresencaEm(m, station) && !m[station.completaField]);
+    modsAqui.forEach(mod => {
+      const a = cicloAtivoModulo(mod);
+      if (a) emAndamento.push({ rotulo: 'módulo #' + mod.id + ' ' + (mod.nome||'') + ' (' + pr.codigo + ')', ativo: a, encerrar: () => { fecharCicloModuloSeAtivo(mod, station); atualizarTelaCiclos(); } });
+      else candidatos.push({ valor: 'modulo|' + pr.codigo + '|' + mod.id, rotulo: '#' + mod.id + ' ' + (mod.nome||'') + ' · ' + pr.codigo, grupo: 'Módulo', iniciar: () => iniciarCicloModulo(mod, station) });
+    });
+    if (modsAqui.length){
+      const ap = cicloAtivoPedidoEmEtapa(pr, station);
+      if (ap) emAndamento.push({ rotulo: 'pedido ' + pr.codigo + ' inteiro', ativo: ap, encerrar: () => { fecharCicloPedidoEmEtapa(pr, station); atualizarTelaCiclos(); } });
+      else candidatos.push({ valor: 'pedido|' + pr.codigo, rotulo: pr.codigo + ' · ' + pr.cliente + ' (pedido inteiro)', grupo: 'Pedido inteiro', iniciar: () => {
+        registrarLog('iniciou o tempo de ciclo do pedido ' + pr.codigo + ' em ' + station.label);
+        registrarMovimento('ciclo_inicio', { moduloId: '', moduloNome: '__pedido__', pecaCodigo: gerarIdCiclo(), clienteCodigo: pr.codigo, cliente: pr.cliente, projeto: pr.projeto, detalhe: station.label });
+        atualizarTelaCiclos();
+      } });
+    }
+  });
+  emAndamento.forEach(x => wrap.appendChild(renderControleCronometro({ rotulo: x.rotulo, ativo: x.ativo, tituloEncerrar: 'Encerra esse cronômetro agora.', aoEncerrar: x.encerrar })));
+  if (candidatos.length){
+    const sel = document.createElement('select');
+    sel.title = 'Escolha o módulo (ou o pedido inteiro) pra começar a medir o tempo de ciclo agora';
+    sel.style.cssText = 'font-size:13px; font-weight:700; padding:7px 14px; min-width:230px; border-radius:999px; background:var(--brand2); color:#fff; border:2px solid var(--brand2); box-shadow:0 1px 3px rgba(0,0,0,0.12); cursor:pointer;';
+    let html = '<option value="">▶ tempo de ciclo — escolha o módulo...</option>';
+    ['Módulo', 'Pedido inteiro'].forEach(g => {
+      const itens = candidatos.filter(c => c.grupo === g);
+      if (itens.length) html += '<optgroup label="' + g + '">' + itens.map(c => '<option value="' + c.valor + '" style="color:#000;background:#fff;">' + c.rotulo.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</option>').join('') + '</optgroup>';
+    });
+    sel.innerHTML = html;
+    sel.onchange = () => { const c = candidatos.find(x => x.valor === sel.value); sel.value = ''; if (c) c.iniciar(); };
+    wrap.appendChild(sel);
+  }
+  return wrap;
 }
 function renderBotaoCicloModulo(mod, station){
   const ativo = cicloAtivoModulo(mod);
@@ -3688,7 +4184,7 @@ function renderBotaoCicloModulo(mod, station){
     tituloIniciar: 'Mede o tempo de trabalho só deste módulo, do início ao fim — não divide com nada nem ninguém.',
     tituloEncerrar: 'Encerra o cronômetro agora, sem precisar concluir o módulo — útil se você iniciou por engano ou precisa parar antes de terminar.',
     aoIniciar: () => iniciarCicloModulo(mod, station),
-    aoEncerrar: () => { fecharCicloModuloSeAtivo(mod, station); renderProjetos(); }
+    aoEncerrar: () => { fecharCicloModuloSeAtivo(mod, station); atualizarTelaCiclos(); }
   });
 }
 
@@ -4005,7 +4501,7 @@ function montarSeletorParadaOuSetupUnificado(onEscolherParada, onEscolherSetup){
 // poka-yoke: detecta quando uma estação está parada (sem nenhuma
 // atividade) por um tempo, tem peça/módulo esperando, e ninguém marcou
 // parada — avisa na hora, sem travar nada, sem exigir clique nenhum.
-const LIMIAR_ESTACAO_PARADA_MIN = 20;
+const LIMIAR_ESTACAO_PARADA_MIN = 5;
 function ultimaAtividadeEstacao(station){
   const tipoEvento = station.type === 'peca' ? 'bipagem' : 'conclusao_modulo';
   const relevantes = movimentos.filter(m => m.tipo === tipoEvento && m.detalhe === station.label);
@@ -4087,6 +4583,12 @@ function renderBarraParadaSetup(){
   btnManual.style.cssText = 'font-size:11px; padding:4px 9px;';
   btnManual.onclick = () => abrirRegistroManualParada(station.id, station.label);
   el.appendChild(btnManual);
+  if (station.type === 'modulo'){
+    const sepM = document.createElement('span');
+    sepM.style.cssText = 'width:1px; height:18px; background:var(--border-strong);';
+    el.appendChild(sepM);
+    el.appendChild(renderCiclosTopoModulo(station));
+  }
   if (station.type === 'peca'){
     const separador = document.createElement('span');
     separador.style.cssText = 'width:1px; height:18px; background:var(--border-strong);';
@@ -4175,7 +4677,7 @@ document.getElementById('btnRegistrarParadaManual').onclick = () => {
 
 document.getElementById('btnAbrirDashboard').onclick = () => {
   document.getElementById('blocoMenuAdmin').style.display = 'none';
-  window.location.href = 'dashboard.html';
+  window.location.href = 'dashboard.html' + (syncUrl ? '?servidor=' + encodeURIComponent(syncUrl) : '');
 };
 
 document.getElementById('btnZerarTudo').onclick = () => {
@@ -4650,12 +5152,21 @@ document.getElementById('buscaHistorico').addEventListener('input', renderListaH
 document.getElementById('historicoPedidosDe').addEventListener('change', renderListaHistorico);
 document.getElementById('historicoPedidosAte').addEventListener('change', renderListaHistorico);
 
+document.getElementById('btnConectar').onclick = () => {
+  const url = normalizarUrlServidor(document.getElementById('conectarUrl').value);
+  const erro = document.getElementById('conectarErro');
+  if (!url){ erro.textContent = 'esse endereço não parece válido — cole o link completo (https://...)'; erro.style.display = 'block'; return; }
+  localStorage.setItem('rasmar_sync_url', url);
+  window.location.reload();
+};
+document.getElementById('conectarUrl').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnConectar').click(); });
+
 document.getElementById('btnCriarPrimeiroAdmin').onclick = () => {
   const usuario = document.getElementById('primeiroAdminUsuario').value.trim();
   const senha = document.getElementById('primeiroAdminSenha').value;
   const erro = document.getElementById('primeiroAdminErro');
   if (!usuario || !senha){ erro.textContent = 'preencha usuário e senha'; erro.style.display = 'block'; return; }
-  const urlEscolhida = document.getElementById('primeiroAdminServidorUrl').value.trim();
+  const urlEscolhida = syncUrl || normalizarUrlServidor(document.getElementById('primeiroAdminServidorUrl').value);
   if (!urlEscolhida){ erro.textContent = 'cole o link do servidor acima'; erro.style.display = 'block'; return; }
   erro.style.display = 'none';
   syncUrl = urlEscolhida;
@@ -4664,6 +5175,7 @@ document.getElementById('btnCriarPrimeiroAdmin').onclick = () => {
     usuario, senha, admin: true,
     permissoes: { excluir: true, cadastrarManual: true, concluirSemBipar: true, setores: stations.map(s=>s.id) }
   });
+  onboardingConcluido = false; // servidor novo: o assistente guia a configuração inicial
   usuarioLogadoNome = usuario;
   sessionStorage.setItem('rasmar_usuario', usuario);
   registrarLog('criou o primeiro administrador (' + usuario + ')');
