@@ -715,15 +715,25 @@ function ciclosPorModulo(){ return paresCiclo().filter(p => p.moduloId && p.minu
 // lotes detectados). Nasce dos outros dois, não precisa de nada a mais.
 function ciclosPorPedido(){
   const porPedido = {};
-  function somar(c){
-    if (!c.clienteCodigo) return;
+  function garantir(c){
     if (!porPedido[c.clienteCodigo]) porPedido[c.clienteCodigo] = { clienteCodigo: c.clienteCodigo, cliente: c.cliente, projeto: c.projeto, minutos: 0, fim: null };
-    porPedido[c.clienteCodigo].minutos += c.minutos;
-    const quando = c.fim || c.em;
-    if (quando && (!porPedido[c.clienteCodigo].fim || quando > porPedido[c.clienteCodigo].fim)) porPedido[c.clienteCodigo].fim = quando;
+    return porPedido[c.clienteCodigo];
   }
-  ciclosPorModulo().forEach(somar);
-  ciclosPorPeca().forEach(somar);
+  function somar(c, minutos){
+    if (!c.clienteCodigo) return;
+    const p = garantir(c);
+    p.minutos += minutos;
+    const quando = c.fim || c.em;
+    if (quando && (!p.fim || quando > p.fim)) p.fim = quando;
+  }
+  // cronômetro do PEDIDO inteiro numa etapa por módulo (moduloNome '__pedido__'):
+  // quando existe, ele SUBSTITUI a soma dos cronômetros dos módulos daquela
+  // mesma etapa — senão o mesmo trabalho seria contado duas vezes.
+  const diretos = paresCiclo().filter(p => p.moduloNome === '__pedido__' && p.minutos !== null);
+  const etapasComDireto = new Set(diretos.map(p => p.clienteCodigo + '|' + p.detalhe));
+  diretos.forEach(p => somar(p, p.minutos));
+  ciclosPorModulo().filter(c => c.moduloNome !== '__pedido__' && !etapasComDireto.has(c.clienteCodigo + '|' + c.detalhe)).forEach(c => somar(c, c.minutos));
+  ciclosPorPeca().forEach(c => somar(c, c.minutos));
   return Object.values(porPedido);
 }
 function ciclosPorPeca(){
@@ -2387,6 +2397,10 @@ document.getElementById('pontoAte').addEventListener('change', calcularComparaca
 document.getElementById('btnExportarPdf').onclick = () => window.print();
 
 document.getElementById('btnExportarExcel').onclick = () => {
+  if (typeof XLSX === 'undefined'){
+    alert('A biblioteca de exportar Excel não carregou (provavelmente sem internet, ou bloqueada). Confira a conexão, recarregue a página e tente de novo.');
+    return;
+  }
   const movimentos = movimentosTempos();
   const porModuloGeral = agruparPorModulo(movimentos);
   const moduloPorChave = {};
