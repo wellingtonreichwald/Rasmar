@@ -4647,7 +4647,7 @@ function checklistsDoPedido(codigo){
 }
 
 async function abrirTelaChecklist(){
-  document.getElementById('telaChecklist').style.display = 'flex';
+  document.getElementById('telaChecklist').style.display = 'block';
   document.getElementById('clNavegacao').style.display = 'none';
   document.getElementById('clConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-muted);">carregando...</p>';
   if (!clCarregado || true){ // sempre busca de novo ao abrir — é um documento importante, quer o dado mais fresco
@@ -4730,15 +4730,24 @@ function renderChecklistForm(){
 }
 function renderChecklistItens(){
   const r = clRascunho;
+  // texto num <input> (não <span>) — dá pra corrigir o nome do item aqui na
+  // hora, sem precisar ir na Administração mudar o modelo padrão pra todo
+  // mundo; essa correção vale só pra esse checklist específico.
   document.getElementById('clListaItens').innerHTML = r.itens.map((it, i) =>
-    '<div class="clItemPergunta"><span>' + escaparHtml(it.texto) + '</span>' +
+    '<div class="clItemPergunta"><input type="text" data-texto="' + i + '" value="' + escaparHtml(it.texto) + '" style="flex:1; border:none; background:transparent; font-size:13px; padding:2px 4px; font-family:inherit;" />' +
     '<span class="clRespostas">' +
       '<button data-i="' + i + '" data-v="sim" class="' + (it.resposta === 'sim' ? 'simAtivo' : '') + '">Sim</button>' +
       '<button data-i="' + i + '" data-v="nao" class="' + (it.resposta === 'nao' ? 'naoAtivo' : '') + '">Não</button>' +
+      '<button data-i="' + i + '" data-remover="1" style="color:var(--text-danger);" title="remover item">✕</button>' +
     '</span></div>'
   ).join('');
-  document.querySelectorAll('#clListaItens button').forEach(btn => btn.onclick = () => {
+  document.querySelectorAll('#clListaItens input[data-texto]').forEach(inp => inp.oninput = () => { r.itens[+inp.dataset.texto].texto = inp.value; });
+  document.querySelectorAll('#clListaItens button[data-v]').forEach(btn => btn.onclick = () => {
     r.itens[+btn.dataset.i].resposta = btn.dataset.v;
+    renderChecklistItens();
+  });
+  document.querySelectorAll('#clListaItens button[data-remover]').forEach(btn => btn.onclick = () => {
+    r.itens.splice(+btn.dataset.i, 1);
     renderChecklistItens();
   });
 }
@@ -4764,6 +4773,8 @@ function enviarChecklist(){
   const erroEl = document.getElementById('clErro');
   const nome = document.getElementById('clNomeAssinante').value.trim();
   const canvas = document.getElementById('clAssinaturaCanvas');
+  if (!r.itens.length){ erroEl.textContent = 'precisa ter pelo menos um item no checklist.'; erroEl.style.display = 'block'; return; }
+  if (r.itens.some(it => !it.texto.trim())){ erroEl.textContent = 'tem item sem pergunta — preencha ou remova.'; erroEl.style.display = 'block'; return; }
   if (r.itens.some(it => !it.resposta)){ erroEl.textContent = 'responda Sim ou Não em todos os itens antes de concluir.'; erroEl.style.display = 'block'; return; }
   if (!nome){ erroEl.textContent = 'o nome de quem está assinando é obrigatório.'; erroEl.style.display = 'block'; return; }
   if (canvas.dataset.vazio === 'sim'){ erroEl.textContent = 'falta a assinatura — desenhe no quadro acima.'; erroEl.style.display = 'block'; return; }
@@ -4771,7 +4782,7 @@ function enviarChecklist(){
   const u = getUsuarioLogado();
   const doc = {
     id: gerarId(), clienteCodigo: r.pr.codigo, cliente: r.pr.cliente, projeto: r.pr.projeto,
-    itens: r.itens.map(it => ({ texto: it.texto, resposta: it.resposta })),
+    itens: r.itens.map(it => ({ texto: it.texto.trim(), resposta: it.resposta })),
     assinadoPor: nome, usuario: u ? u.usuario : '—', em: formatarDataHora(new Date()),
     assinaturaDataUrl: canvas.toDataURL('image/png')
   };
