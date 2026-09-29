@@ -142,6 +142,10 @@ function buscarNoServidor(syncUrl, params){
   });
 }
 
+// escapa texto que veio do servidor (nome de cliente/pedido/módulo, etc.)
+// antes de jogar em innerHTML — esta página é PÚBLICA (sem login), então
+// blindar aqui é ainda mais importante que nas telas internas.
+function escaparHtml(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function formatarEm(em){ return (em || '').replace('T', ' '); }
 
 function nomeTipoEvento(t){
@@ -186,7 +190,7 @@ function renderStepper(estacoesOrdenadas, labelsAlcancados){
     const feito = i < idxAtual;
     const atual = i === idxAtual;
     const classe = feito ? 'feito' : (atual ? 'atual' : '');
-    html += '<div class="step ' + classe + '"><div class="bolha">' + (feito ? '✓' : (i+1)) + '</div><div class="rotulo">' + s.label + '</div></div>';
+    html += '<div class="step ' + classe + '"><div class="bolha">' + (feito ? '✓' : (i+1)) + '</div><div class="rotulo">' + escaparHtml(s.label) + '</div></div>';
     if (i < estacoesOrdenadas.length - 1) html += '<div class="linhaStep ' + (i < idxAtual ? 'feito' : '') + '"></div>';
   });
   html += '</div></div>';
@@ -250,8 +254,8 @@ async function iniciar(){
       el.innerHTML =
         '<div class="secao cartaoStatus">' +
           '<p class="rotuloTipo">Módulo</p>' +
-          '<p class="tituloItem">#' + mod.id + ' — ' + (mod.nome||'') + '</p>' +
-          '<p class="subInfo">Pedido ' + pr.codigo + ' · ' + (pr.cliente||'') + ' · ' + (pr.projeto||'') + '</p>' +
+          '<p class="tituloItem">#' + escaparHtml(mod.id) + ' — ' + escaparHtml(mod.nome||'') + '</p>' +
+          '<p class="subInfo">Pedido ' + escaparHtml(pr.codigo) + ' · ' + escaparHtml(pr.cliente||'') + ' · ' + escaparHtml(pr.projeto||'') + '</p>' +
           status +
         '</div>' +
         '<div class="secao">' + stepperHtml + '</div>' +
@@ -291,8 +295,8 @@ async function iniciar(){
       el.innerHTML =
         '<div class="secao cartaoStatus">' +
           '<p class="rotuloTipo">Pedido</p>' +
-          '<p class="tituloItem">' + pr.codigo + '</p>' +
-          '<p class="subInfo">' + (pr.cliente||'') + ' · ' + (pr.projeto||'') + (pr.baixado ? (' · entregue em ' + formatarEm(pr.baixadoEm)) : '') + '</p>' +
+          '<p class="tituloItem">' + escaparHtml(pr.codigo) + '</p>' +
+          '<p class="subInfo">' + escaparHtml(pr.cliente||'') + ' · ' + escaparHtml(pr.projeto||'') + (pr.baixado ? (' · entregue em ' + escaparHtml(formatarEm(pr.baixadoEm))) : '') + '</p>' +
           status +
         '</div>' +
         '<div class="secao">' + stepperHtml + '</div>' +
@@ -307,7 +311,7 @@ async function iniciar(){
 function renderEventos(eventos){
   if (!eventos.length) return '<p class="tagMuted">nenhum evento registrado ainda</p>';
   return eventos.slice().reverse().map(ev =>
-    '<div class="linhaEvento"><span class="quando">' + formatarEm(ev.em) + '</span><span><span class="tipo">' + nomeTipoEvento(ev.tipo) + '</span>' + (ev.detalhe ? ' — ' + ev.detalhe : '') + (ev.pecaCodigo ? ' (' + ev.pecaCodigo + ')' : '') + '</span></div>'
+    '<div class="linhaEvento"><span class="quando">' + escaparHtml(formatarEm(ev.em)) + '</span><span><span class="tipo">' + escaparHtml(nomeTipoEvento(ev.tipo)) + '</span>' + (ev.detalhe ? ' — ' + escaparHtml(ev.detalhe) : '') + (ev.pecaCodigo ? ' (' + escaparHtml(ev.pecaCodigo) + ')' : '') + '</span></div>'
   ).join('');
 }
 

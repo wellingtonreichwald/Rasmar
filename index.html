@@ -145,7 +145,7 @@
        (Dashboard, Trocar senha, Ajuda, Paradas/Setup) ficam dentro dele,
        senão o cabeçalho toma a tela toda e empurra o campo de bipar pra
        baixo, que é a ação mais importante no celular. */
-    #btnAbrirDashboard, #btnTrocarSenha, #btnAjuda, #btnAbrirParadas{ display:none !important; }
+    #btnAbrirDashboard, #btnTrocarSenha, #btnAjuda, #btnAbrirParadas, #btnAbrirChecklist{ display:none !important; }
     #btnMenuAdmin{ display:inline-block !important; }
     .itemMenuMobile.temAcaoMobile{ display:block !important; }
   }
@@ -257,6 +257,22 @@
     .asLinha button:first-of-type{ margin-left:0; }
     .asCard{ padding:18px 16px; }
   }
+
+  /* ---- checklist de inspeção ---- */
+  .clListaItem{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 14px; border:1px solid var(--border); border-radius:var(--radius); margin-bottom:8px; flex-wrap:wrap; }
+  .clBadgeOk{ display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px; background:#dcf3e7; color:var(--text-success); }
+  .clBadgePendente{ display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--surface-1); color:var(--text-muted); }
+  .clItemPergunta{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+  .clItemPergunta:last-child{ border-bottom:none; }
+  .clRespostas{ display:flex; gap:6px; flex-shrink:0; }
+  .clRespostas button{ font-size:12px; padding:6px 14px; border-radius:999px; border:1.5px solid var(--border-strong); background:#fff; font-weight:600; }
+  .clRespostas button.simAtivo{ background:var(--text-success); border-color:var(--text-success); color:#fff; }
+  .clRespostas button.naoAtivo{ background:var(--text-danger); border-color:var(--text-danger); color:#fff; }
+  #clAssinaturaCanvas{ border:1.5px dashed var(--border-strong); border-radius:var(--radius); width:100%; height:150px; touch-action:none; background:#fff; cursor:crosshair; }
+  .clRoView .clItemPergunta .clRespostas{ display:none; }
+  .clRoView .clRespostaTexto{ font-weight:700; }
+  .clRespostaTexto.sim{ color:var(--text-success); }
+  .clRespostaTexto.nao{ color:var(--text-danger); }
   @keyframes pulseAviso{ 0%,100%{ opacity:1; } 50%{ opacity:0.6; } }
   .etiqueta{
     width: 96mm; padding: 2.5mm; text-align: center; font-family: var(--font-body);
@@ -373,6 +389,9 @@
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5. Parou a máquina? Registre</h3>
     <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Embaixo do campo de bipar tem um seletor único pra registrar <strong>parada</strong> (quebra, falta de material, falta de energia, etc.) ou <strong>setup</strong> (troca de ferramenta, ajuste de máquina) — escolha o motivo numa lista pronta e clique em "Finalizar" quando a máquina voltar a rodar. Se esqueceu de registrar na hora, use o botão "📝 registro manual de setup/parada" pra lançar com a data e hora certas, retroativamente.</p>
+
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5.1. Checklist de inspeção (✅ no topo)</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Antes de um pedido sair pra montagem no cliente, confere tudo por ali: escolha o pedido na lista, responda Sim/Não em cada pergunta (dá pra acrescentar um item extra na hora), digite o nome de quem está assinando (obrigatório) e desenhe a assinatura na tela. Fica registrado quem estava logado e a data/hora. Depois de enviado, um admin pode corrigir as respostas (ou o texto das perguntas) desse checklist específico pelo botão "✏️ editar respostas (auditoria 5S)" — a assinatura e quem assinou originalmente nunca mudam, só fica registrado quem corrigiu e quando. Um admin também pode apagar o checklist inteiro. O admin edita as perguntas padrão (usadas nos checklists novos) em Administração.</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">6. Quando uma peça tem defeito</h3>
     <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Clique em "Defeito" na peça (ou "⚠ Defeito no módulo" se o problema for no módulo inteiro). Escolha a causa — método, máquina, mão de obra, material, medição ou meio ambiente — escreva uma observação se quiser, e escolha entre <strong>retrabalhar</strong> (a peça volta pra uma etapa escolhida por você) ou <strong>descartar</strong> (a peça é jogada fora e recriada do zero).</p>
@@ -528,6 +547,16 @@
     </div>
 
     <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Checklist de inspeção (pré-montagem externa)</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Essas são as perguntas Sim/Não que aparecem pro operador conferir antes de sair pra montagem no cliente. Ele também pode acrescentar um item extra na hora, se precisar — isso aqui é só o modelo padrão.</p>
+      <div id="listaTemplateChecklist" style="margin-bottom:10px;"></div>
+      <div style="display:flex; gap:8px;">
+        <input id="novoItemTemplateChecklist" type="text" placeholder="nova pergunta (ex: Cor confere com a amostra aprovada?)" style="flex:1;" />
+        <button id="btnAddItemTemplateChecklist" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Adicionar</button>
+      </div>
+    </div>
+
+    <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
       <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Onde a peça nasce</p>
       <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Toda peça importada de um CSV, ou cadastrada manualmente, começa nessa etapa. Por padrão é a primeira etapa por peça da lista, mas dá pra escolher outra se o fluxo real de vocês começar em outro lugar.</p>
       <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
@@ -633,6 +662,21 @@
       <p style="font-size:12px; color:var(--text-muted); margin:14px 0 8px;">Apaga TODOS os movimentos e logs guardados (o histórico que alimenta o Dashboard e o Histórico). Não mexe nos pedidos/peças em andamento nem nos usuários. Não pode ser desfeito.</p>
       <button id="btnZerarDashboard" style="font-size:13px; padding:8px 14px; color:var(--text-danger); border-color:var(--text-danger);">Zerar dashboard (movimentos e logs)</button>
     </div>
+  </div>
+</div>
+
+
+<div id="telaChecklist" style="display:none; position:fixed; inset:0; background:rgba(20,20,15,0.45); z-index:95; padding:20px; overflow-y:auto;">
+  <div style="background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:var(--shadow-md); padding:24px; max-width:760px; margin:0 auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <h1 style="font-size:16px;">✅ Checklist de inspeção — pré-montagem externa</h1>
+      <button id="btnFecharChecklist" style="font-size:13px; padding:6px 12px;">Fechar</button>
+    </div>
+    <p style="font-size:12px; color:var(--text-muted); margin:0 0 16px;">Confere o pedido inteiro antes de sair pra montagem/instalação no cliente — evita viagem em vão e retrabalho. Escolha o pedido na lista abaixo.</p>
+    <div id="clNavegacao" style="display:none; margin-bottom:14px;">
+      <button id="btnClVoltarLista" style="font-size:12px; padding:5px 10px;">← voltar pra lista</button>
+    </div>
+    <div id="clConteudo"></div>
   </div>
 </div>
 
@@ -752,6 +796,7 @@
       <button id="btnTrocarSenha" style="font-size:12px; padding:5px 10px; display:none;">Trocar senha</button>
       <button id="btnAjuda" style="font-size:12px; padding:5px 10px; display:none;">❓ Ajuda</button>
       <button id="btnAbrirParadas" style="font-size:12px; padding:5px 10px; display:none;">⏱ Paradas/Setup</button>
+      <button id="btnAbrirChecklist" style="font-size:12px; padding:5px 10px; display:none;">✅ Checklist</button>
       <button id="btnMenuAdmin" style="font-size:12px; padding:5px 10px; display:none;">☰ Menu</button>
 
       <div id="blocoMenuAdmin" style="display:none; position:absolute; top:100%; right:0; margin-top:8px; width:200px; background:var(--surface-2); border:1px solid var(--border-accent); border-radius:var(--radius); box-shadow:var(--shadow-md); padding:6px; z-index:20; text-align:left;">
@@ -759,6 +804,7 @@
         <button id="btnMenuTrocarSenha" class="itemMenuMobile" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:none;">Trocar senha</button>
         <button id="btnMenuAjuda" class="itemMenuMobile" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:none;">❓ Ajuda</button>
         <button id="btnMenuParadas" class="itemMenuMobile" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:none;">⏱ Paradas/Setup</button>
+        <button id="btnMenuChecklist" class="itemMenuMobile" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:none;">✅ Checklist</button>
         <button id="btnAbrirAdmin" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:block;">Administração</button>
         <button id="btnAbrirHistorico" style="font-size:13px; padding:8px 10px; width:100%; text-align:left; background:transparent; border:none; box-shadow:none; display:block;">Histórico</button>
       </div>
@@ -906,6 +952,11 @@ if ('serviceWorker' in navigator){
 // Nenhuma credencial fica guardada no código-fonte — os usuários só existem
 // de verdade na planilha sincronizada (Google Sheets). O array começa vazio
 // e só é preenchido buscando o estado do servidor antes de mostrar o login.
+// escapa texto que o usuário digitou antes de jogar em innerHTML — usado em
+// toda lista que mostra código/descrição/nome digitado por alguém (CSV,
+// cadastro manual, observação de defeito etc.), pra um <img onerror=...>
+// ou aspas quebrando o HTML nunca virar código de verdade.
+function escaparHtml(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 let usuarios = [];
 // sugestão de horário comercial — editável na Administração; usada só pra
 // calcular "tempo útil" no dashboard, nunca trava bipagem fora dela.
@@ -929,6 +980,15 @@ let logs = [];
 let movimentos = [];
 let logsEnviadosCount = 0;
 let movimentosEnviadosCount = 0;
+let checklists = []; // documentos de inspeção já assinados (carregados sob demanda, ao abrir a tela)
+let checklistsEnviadosCount = 0;
+let checklistTemplate = [
+  'Todas as peças e ferragens conferidas?',
+  'Portas e gavetas alinhadas e funcionando?',
+  'Acabamento sem riscos, manchas ou defeitos visíveis?',
+  'Medidas conferem com o projeto?',
+  'Kit de instalação completo (parafusos, buchas, ferramentas)?'
+];
 
 function gerarId(){
   return Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
@@ -1313,7 +1373,7 @@ function renderSeletor(){
   // como registro salvo, não fazem mais sentido pra escolher e trabalhar.
   const ativos = projetos.filter(pr => !pedidoCompleto(pr));
   sel.innerHTML = '<option value="todos">todos os clientes</option>' +
-    ativos.map(pr => '<option value="' + pr.cliente + '">' + pr.codigo + ' · ' + pr.cliente + ' · ' + pr.projeto + '</option>').join('');
+    ativos.map(pr => '<option value="' + escaparHtml(pr.cliente) + '">' + escaparHtml(pr.codigo) + ' · ' + escaparHtml(pr.cliente) + ' · ' + escaparHtml(pr.projeto) + '</option>').join('');
   sel.value = ativos.some(p=>p.cliente===clienteFocado) ? clienteFocado : 'todos';
   clienteFocado = sel.value;
   sel.onchange = () => { clienteFocado = sel.value; renderProjetos(); };
@@ -1754,7 +1814,13 @@ function renderListaPecas(mod, station, comBorda){
     const span = document.createElement('span');
     span.style.flex = '1'; span.style.cursor = 'pointer';
     span.style.color = p[field] ? 'var(--text-secondary)' : 'var(--text-primary)';
-    span.innerHTML = p.descricao + ' <span style="color:var(--text-muted); font-size:12px;">' + p.codigo + '</span>';
+    // texto puro (não innerHTML) — código/descrição vêm do CSV ou de
+    // cadastro manual, então podem ter qualquer caractere digitado
+    span.appendChild(document.createTextNode(p.descricao + ' '));
+    const spanCodigo = document.createElement('span');
+    spanCodigo.style.cssText = 'color:var(--text-muted); font-size:12px;';
+    spanCodigo.textContent = p.codigo;
+    span.appendChild(spanCodigo);
     span.onclick = () => { chk.checked = !chk.checked; chk.onchange(); };
     const dataSpan = document.createElement('span');
     dataSpan.style.fontSize = '12px'; dataSpan.style.color = 'var(--text-muted)'; dataSpan.style.whiteSpace = 'nowrap';
@@ -1793,7 +1859,7 @@ function renderListaPecasLeitura(mod){
   pecasAtivas(mod).forEach(p => {
     const row = document.createElement('div');
     row.style.fontSize = '13px'; row.style.padding = '4px 14px'; row.style.color = 'var(--text-secondary)';
-    row.innerHTML = p.descricao + ' <span style="color:var(--text-muted); font-size:12px;">' + p.codigo + '</span>';
+    row.innerHTML = escaparHtml(p.descricao) + ' <span style="color:var(--text-muted); font-size:12px;">' + escaparHtml(p.codigo) + '</span>';
     wrap.appendChild(row);
   });
   return wrap;
@@ -2079,7 +2145,7 @@ function renderPainelDescartadasProjeto(pr){
     const spanD = document.createElement('span');
     spanD.style.flex = '1'; spanD.style.color = 'var(--text-muted)';
     const ultimoDefeito = p.historicoDefeitos && p.historicoDefeitos.length ? p.historicoDefeitos[p.historicoDefeitos.length-1] : null;
-    spanD.innerHTML = p.descricao + ' <span style="font-size:12px;">' + p.codigo + '</span> — módulo #' + mod.id + ' · descartada em ' + p.descartadaEm + (ultimoDefeito ? ' · ' + ultimoDefeito.categoria : '');
+    spanD.innerHTML = escaparHtml(p.descricao) + ' <span style="font-size:12px;">' + escaparHtml(p.codigo) + '</span> — módulo #' + escaparHtml(mod.id) + ' · descartada em ' + escaparHtml(p.descartadaEm) + (ultimoDefeito ? ' · ' + escaparHtml(ultimoDefeito.categoria) : '');
     const btnRecriar = document.createElement('button');
     btnRecriar.textContent = 'Recriar no CNC';
     btnRecriar.style.fontSize = '12px'; btnRecriar.style.padding = '3px 8px';
@@ -2576,11 +2642,11 @@ let todosModulosCache = [];
 function popularModulos(){
   const sel = document.getElementById('fModulo');
   todosModulosCache = projetos.flatMap(pr => pr.modulos.map(m => ({m, pr})));
-  sel.innerHTML = todosModulosCache.map((x,i) => '<option value="' + i + '">' + x.pr.codigo + ' · ' + x.pr.cliente + ' · ' + x.m.nome + ' #' + x.m.id + '</option>').join('');
+  sel.innerHTML = todosModulosCache.map((x,i) => '<option value="' + i + '">' + escaparHtml(x.pr.codigo) + ' · ' + escaparHtml(x.pr.cliente) + ' · ' + escaparHtml(x.m.nome) + ' #' + escaparHtml(x.m.id) + '</option>').join('');
 }
 function popularClientesParaNovoModulo(){
   const sel = document.getElementById('fNovoModuloCliente');
-  sel.innerHTML = projetos.map((pr,i) => '<option value="' + i + '">' + pr.codigo + ' · ' + pr.cliente + ' · ' + pr.projeto + '</option>').join('');
+  sel.innerHTML = projetos.map((pr,i) => '<option value="' + i + '">' + escaparHtml(pr.codigo) + ' · ' + escaparHtml(pr.cliente) + ' · ' + escaparHtml(pr.projeto) + '</option>').join('');
 }
 function atualizarPainelDestino(){
   const tipo = document.getElementById('fDestinoTipo').value;
@@ -2991,9 +3057,9 @@ function buscarEstadoServidor(){
 // Manda só os logs/movimentos NOVOS (ainda não confirmados) — eles são
 // anexados na planilha (nunca sobrescritos); projetos/usuarios continuam
 // sendo o retrato completo de cada vez.
-function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios){
+function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos, checklistsNovos, confirmarZerarTudo, confirmarZerarUsuarios){
   return new Promise((resolve, reject) => {
-    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, configuracaoHorario, estacoes: stations, nomeMarcenaria, estacaoInicialId };
+    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, checklistsNovos, configuracaoHorario, estacoes: stations, nomeMarcenaria, estacaoInicialId, checklistTemplate };
     if (typeof onboardingConcluido === 'boolean') corpo.onboardingConcluido = onboardingConcluido;
     if (confirmarZerarTudo) corpo.confirmarZerarTudo = true;
     if (confirmarZerarUsuarios) corpo.confirmarZerarUsuarios = true;
@@ -3051,6 +3117,7 @@ async function carregarDoServidorAgora_lancaErro(){
   if (typeof dados.nomeMarcenaria === 'string') nomeMarcenaria = dados.nomeMarcenaria;
   if (typeof dados.estacaoInicialId === 'string' || dados.estacaoInicialId === null) estacaoInicialId = dados.estacaoInicialId;
   if (typeof dados.onboardingConcluido === 'boolean') onboardingConcluido = dados.onboardingConcluido;
+  if (Array.isArray(dados.checklistTemplate) && dados.checklistTemplate.length) checklistTemplate = dados.checklistTemplate;
   aplicarNomeMarcenariaNaTela();
   if (usuarioLogadoNome && !getUsuarioLogado()){
     usuarioLogadoNome = null;
@@ -3220,7 +3287,8 @@ async function salvarNoServidorComSeguranca(silencioso, tentativa, confirmarZera
     const assinaturaAntesDeEnviar = assinaturaEstadoAtual();
     const logsNovos = logs.slice(logsEnviadosCount);
     const movimentosNovos = movimentos.slice(movimentosEnviadosCount);
-    const resultado = await enviarEstadoServidor(atual.salvoEm, logsNovos, movimentosNovos, confirmarZerarTudo, confirmarZerarUsuarios);
+    const checklistsNovos = checklists.slice(checklistsEnviadosCount);
+    const resultado = await enviarEstadoServidor(atual.salvoEm, logsNovos, movimentosNovos, checklistsNovos, confirmarZerarTudo, confirmarZerarUsuarios);
     if (resultado.ok){
       backoffReconexao = 5000;
       registrarSucessoSync();
@@ -3228,6 +3296,7 @@ async function salvarNoServidorComSeguranca(silencioso, tentativa, confirmarZera
       ultimoConteudoSincronizado = assinaturaAntesDeEnviar;
       logsEnviadosCount += logsNovos.length;
       movimentosEnviadosCount += movimentosNovos.length;
+      checklistsEnviadosCount += checklistsNovos.length;
       atualizarStatusSync('sincronizado — última atualização: ' + formatarCarimbo(ultimoSalvoConhecido), null);
     } else {
       atualizarStatusSync('não consegui salvar: ' + (resultado.erro || 'erro desconhecido') + ' — reconectando automaticamente em breve', 'erro');
@@ -3388,6 +3457,7 @@ function mostrarApp(){
   document.getElementById('btnAbrirAdmin').style.display = (u && u.admin) ? 'block' : 'none';
   document.getElementById('btnAbrirHistorico').style.display = (u && u.admin) ? 'block' : 'none';
   document.getElementById('btnAbrirParadas').style.display = u ? 'inline-block' : 'none';
+  document.getElementById('btnAbrirChecklist').style.display = u ? 'inline-block' : 'none';
   document.getElementById('btnAbrirDashboard').style.display = u ? 'inline-block' : 'none';
   // duplicatas dentro do menu (☰), usadas só no celular — mesmas condições
   // de visibilidade dos botões originais, só que escondidas em telas
@@ -3395,6 +3465,7 @@ function mostrarApp(){
   document.getElementById('btnMenuTrocarSenha').classList.add('temAcaoMobile');
   document.getElementById('btnMenuAjuda').classList.add('temAcaoMobile');
   document.getElementById('btnMenuParadas').classList.toggle('temAcaoMobile', !!u);
+  document.getElementById('btnMenuChecklist').classList.toggle('temAcaoMobile', !!u);
   document.getElementById('btnMenuDashboard').classList.toggle('temAcaoMobile', !!u);
   document.getElementById('btnImportar').style.display = (u && u.admin) ? 'inline-block' : 'none';
   document.getElementById('btnCadastroManual').style.display = temPermissao('cadastrarManual') ? 'inline-block' : 'none';
@@ -3542,6 +3613,7 @@ document.getElementById('btnAbrirAdmin').onclick = () => {
   renderListaEstacoesAdmin();
   popularSelectEstacaoInicial();
   popularLinkAcessoEquipe();
+  renderListaTemplateChecklist();
 };
 document.getElementById('btnFecharAdmin').onclick = () => { document.getElementById('telaAdmin').style.display = 'none'; };
 
@@ -3581,6 +3653,38 @@ function montarLinkAcessoEquipe(){
   u.searchParams.set('servidor', syncUrl);
   return u.href;
 }
+
+function renderListaTemplateChecklist(){
+  const el = document.getElementById('listaTemplateChecklist');
+  if (!el) return;
+  el.innerHTML = checklistTemplate.map((texto, i) =>
+    '<div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--border);">' +
+      '<span style="flex:1; font-size:13px;">' + (i+1) + '. ' + texto.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>' +
+      '<button data-i="' + i + '" data-a="cima" style="font-size:11px; padding:4px 8px;"' + (i===0?' disabled':'') + '>↑</button>' +
+      '<button data-i="' + i + '" data-a="baixo" style="font-size:11px; padding:4px 8px;"' + (i===checklistTemplate.length-1?' disabled':'') + '>↓</button>' +
+      '<button data-i="' + i + '" data-a="remover" style="font-size:11px; padding:4px 8px; color:var(--text-danger);">remover</button>' +
+    '</div>'
+  ).join('');
+  el.querySelectorAll('button').forEach(btn => btn.onclick = () => {
+    const i = +btn.dataset.i;
+    if (btn.dataset.a === 'remover') checklistTemplate.splice(i,1);
+    if (btn.dataset.a === 'cima' && i>0) [checklistTemplate[i-1],checklistTemplate[i]] = [checklistTemplate[i],checklistTemplate[i-1]];
+    if (btn.dataset.a === 'baixo' && i<checklistTemplate.length-1) [checklistTemplate[i+1],checklistTemplate[i]] = [checklistTemplate[i],checklistTemplate[i+1]];
+    registrarLog('alterou o modelo do checklist de inspeção');
+    agendarSincronizacaoRapida();
+    renderListaTemplateChecklist();
+  });
+}
+document.getElementById('btnAddItemTemplateChecklist').onclick = () => {
+  const campo = document.getElementById('novoItemTemplateChecklist');
+  const texto = campo.value.trim();
+  if (!texto) return;
+  checklistTemplate.push(texto);
+  campo.value = '';
+  registrarLog('adicionou uma pergunta no modelo do checklist de inspeção');
+  agendarSincronizacaoRapida();
+  renderListaTemplateChecklist();
+};
 function popularLinkAcessoEquipe(){ document.getElementById('linkAcessoEquipe').value = montarLinkAcessoEquipe(); }
 document.getElementById('btnCopiarLinkAcesso').onclick = async () => {
   const campo = document.getElementById('linkAcessoEquipe'); const st = document.getElementById('statusLinkAcesso');
@@ -4522,6 +4626,257 @@ function contagemWipEstacao(station){
   });
   return n;
 }
+
+// ============================================================================
+// CHECKLIST DE INSPEÇÃO — pré-montagem externa
+// Documento assinado por pedido: perguntas Sim/Não (editáveis pelo admin,
+// mais itens extras que o operador pode acrescentar na hora), nome de quem
+// assina (obrigatório, digitado — pode ser diferente de quem está logado),
+// usuário logado + data/hora automáticos, e uma assinatura desenhada na
+// tela. Uma vez enviado, o documento não é editável — só visualizado (ou
+// apagado pelo admin, se foi feito por engano).
+// ============================================================================
+let clCarregado = false;
+let clRascunho = null; // { pr, itens:[{texto,resposta}], assinaturaVazia }
+
+function pedidosParaChecklist(){
+  return projetos.filter(pr => !pr.baixado);
+}
+function checklistsDoPedido(codigo){
+  return checklists.filter(c => c.clienteCodigo === codigo).sort((a,b) => b.em.localeCompare(a.em));
+}
+
+async function abrirTelaChecklist(){
+  document.getElementById('telaChecklist').style.display = 'flex';
+  document.getElementById('clNavegacao').style.display = 'none';
+  document.getElementById('clConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-muted);">carregando...</p>';
+  if (!clCarregado || true){ // sempre busca de novo ao abrir — é um documento importante, quer o dado mais fresco
+    try {
+      const dados = await buscarNoServidor({ acao: 'checklists' });
+      checklists = Array.isArray(dados.checklists) ? dados.checklists : [];
+      checklistsEnviadosCount = checklists.length; // o que veio do servidor já está "enviado"
+      clCarregado = true;
+    } catch (e) {
+      document.getElementById('clConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-danger);">não consegui buscar os checklists agora (' + e.message + '). Tente de novo.</p>';
+      return;
+    }
+  }
+  renderChecklistLista();
+}
+function fecharTelaChecklist(){
+  document.getElementById('telaChecklist').style.display = 'none';
+  clRascunho = null;
+}
+document.getElementById('btnFecharChecklist').onclick = fecharTelaChecklist;
+document.getElementById('btnClVoltarLista').onclick = () => { clRascunho = null; renderChecklistLista(); };
+
+function renderChecklistLista(){
+  document.getElementById('clNavegacao').style.display = 'none';
+  const lista = pedidosParaChecklist();
+  const el = document.getElementById('clConteudo');
+  if (!lista.length){ el.innerHTML = '<p style="font-size:13px; color:var(--text-muted);">nenhum pedido em aberto agora.</p>'; return; }
+  el.innerHTML = lista.map(pr => {
+    const feitos = checklistsDoPedido(pr.codigo);
+    const badge = feitos.length ? '<span class="clBadgeOk">✅ inspecionado</span>' : '<span class="clBadgePendente">⭕ sem inspeção</span>';
+    const sub = feitos.length ? ('por ' + escaparHtml(feitos[0].assinadoPor) + ' · ' + feitos[0].em) : 'ainda não foi feito';
+    return '<div class="clListaItem">' +
+      '<div><strong>' + escaparHtml(pr.codigo) + ' · ' + escaparHtml(pr.cliente) + '</strong><br><span style="font-size:12px; color:var(--text-muted);">' + escaparHtml(pr.projeto||'') + ' — ' + sub + '</span></div>' +
+      '<div style="display:flex; gap:8px; align-items:center;">' + badge +
+      (feitos.length ? '<button data-ver="' + escaparHtml(pr.codigo) + '" style="font-size:12px; padding:5px 10px;">ver</button>' : '') +
+      '<button data-novo="' + escaparHtml(pr.codigo) + '" style="font-size:12px; padding:5px 10px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">' + (feitos.length ? '+ nova inspeção' : 'fazer checklist') + '</button>' +
+      '</div></div>';
+  }).join('');
+  el.querySelectorAll('[data-novo]').forEach(btn => btn.onclick = () => {
+    const pr = projetos.find(p => p.codigo === btn.dataset.novo);
+    if (pr) abrirChecklistForm(pr);
+  });
+  el.querySelectorAll('[data-ver]').forEach(btn => btn.onclick = () => {
+    const feitos = checklistsDoPedido(btn.dataset.ver);
+    if (feitos.length) abrirChecklistView(feitos[0], feitos);
+  });
+}
+
+function abrirChecklistForm(pr){
+  clRascunho = { pr, itens: checklistTemplate.map(texto => ({ texto, resposta: null })) };
+  document.getElementById('clNavegacao').style.display = 'block';
+  renderChecklistForm();
+}
+function renderChecklistForm(){
+  const r = clRascunho; if (!r) return;
+  const u = getUsuarioLogado();
+  const el = document.getElementById('clConteudo');
+  el.innerHTML =
+    '<p style="font-weight:700; font-size:14px; margin:0 0 2px;">' + r.pr.codigo + ' · ' + escaparHtml(r.pr.cliente) + '</p>' +
+    '<p style="font-size:12px; color:var(--text-muted); margin:0 0 14px;">' + escaparHtml(r.pr.projeto||'') + '</p>' +
+    '<div id="clListaItens"></div>' +
+    '<button id="btnClAddItem" style="font-size:12px; padding:6px 12px; margin-top:6px;">+ acrescentar item pra conferir</button>' +
+    '<div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">' +
+      '<label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">nome de quem está assinando *</label>' +
+      '<input id="clNomeAssinante" type="text" placeholder="digite o nome completo" style="width:100%; margin-bottom:10px;" />' +
+      '<p style="font-size:11.5px; color:var(--text-muted); margin:0 0 6px;">assinatura (desenhe com o dedo ou o mouse) *</p>' +
+      '<canvas id="clAssinaturaCanvas"></canvas>' +
+      '<button id="btnClLimparAssinatura" style="font-size:11.5px; padding:4px 10px; margin-top:6px;">limpar assinatura</button>' +
+      '<p style="font-size:11px; color:var(--text-muted); margin:10px 0 0;">registrado por <strong>' + (u?u.usuario:'—') + '</strong> em <strong>' + formatarDataHora(new Date()) + '</strong></p>' +
+    '</div>' +
+    '<p id="clErro" style="font-size:12px; color:var(--text-danger); margin:12px 0 0; display:none;"></p>' +
+    '<button id="btnClEnviar" style="width:100%; margin-top:14px; padding:11px; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700;">Concluir e assinar o checklist</button>';
+  renderChecklistItens();
+  document.getElementById('btnClAddItem').onclick = () => {
+    const texto = window.prompt('O que precisa ser conferido?');
+    if (texto && texto.trim()){ r.itens.push({ texto: texto.trim(), resposta: null }); renderChecklistItens(); }
+  };
+  document.getElementById('btnClEnviar').onclick = enviarChecklist;
+  configurarCanvasAssinatura();
+}
+function renderChecklistItens(){
+  const r = clRascunho;
+  document.getElementById('clListaItens').innerHTML = r.itens.map((it, i) =>
+    '<div class="clItemPergunta"><span>' + escaparHtml(it.texto) + '</span>' +
+    '<span class="clRespostas">' +
+      '<button data-i="' + i + '" data-v="sim" class="' + (it.resposta === 'sim' ? 'simAtivo' : '') + '">Sim</button>' +
+      '<button data-i="' + i + '" data-v="nao" class="' + (it.resposta === 'nao' ? 'naoAtivo' : '') + '">Não</button>' +
+    '</span></div>'
+  ).join('');
+  document.querySelectorAll('#clListaItens button').forEach(btn => btn.onclick = () => {
+    r.itens[+btn.dataset.i].resposta = btn.dataset.v;
+    renderChecklistItens();
+  });
+}
+function configurarCanvasAssinatura(){
+  const canvas = document.getElementById('clAssinaturaCanvas');
+  const ctx = canvas.getContext('2d');
+  const ajustarTamanho = () => {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * 2; canvas.height = rect.height * 2;
+    ctx.scale(2, 2); ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#141b17';
+  };
+  ajustarTamanho();
+  let desenhando = false, vazio = true;
+  const pos = ev => { const r = canvas.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+  canvas.onpointerdown = ev => { desenhando = true; vazio = false; canvas.dataset.vazio = 'nao'; const p = pos(ev); ctx.beginPath(); ctx.moveTo(p.x, p.y); ev.preventDefault(); };
+  canvas.onpointermove = ev => { if (!desenhando) return; const p = pos(ev); ctx.lineTo(p.x, p.y); ctx.stroke(); ev.preventDefault(); };
+  window.addEventListener('pointerup', () => { desenhando = false; });
+  document.getElementById('btnClLimparAssinatura').onclick = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); vazio = true; canvas.dataset.vazio = 'sim'; };
+  canvas.dataset.vazio = 'sim';
+}
+function enviarChecklist(){
+  const r = clRascunho; if (!r) return;
+  const erroEl = document.getElementById('clErro');
+  const nome = document.getElementById('clNomeAssinante').value.trim();
+  const canvas = document.getElementById('clAssinaturaCanvas');
+  if (r.itens.some(it => !it.resposta)){ erroEl.textContent = 'responda Sim ou Não em todos os itens antes de concluir.'; erroEl.style.display = 'block'; return; }
+  if (!nome){ erroEl.textContent = 'o nome de quem está assinando é obrigatório.'; erroEl.style.display = 'block'; return; }
+  if (canvas.dataset.vazio === 'sim'){ erroEl.textContent = 'falta a assinatura — desenhe no quadro acima.'; erroEl.style.display = 'block'; return; }
+  erroEl.style.display = 'none';
+  const u = getUsuarioLogado();
+  const doc = {
+    id: gerarId(), clienteCodigo: r.pr.codigo, cliente: r.pr.cliente, projeto: r.pr.projeto,
+    itens: r.itens.map(it => ({ texto: it.texto, resposta: it.resposta })),
+    assinadoPor: nome, usuario: u ? u.usuario : '—', em: formatarDataHora(new Date()),
+    assinaturaDataUrl: canvas.toDataURL('image/png')
+  };
+  checklists.push(doc);
+  registrarLog('preencheu o checklist de inspeção do pedido ' + r.pr.codigo + ' (assinado por ' + nome + ')');
+  agendarSincronizacaoRapida();
+  showFeedback('checklist do pedido ' + r.pr.codigo + ' concluído e assinado', false);
+  clRascunho = null;
+  renderChecklistLista();
+}
+
+function abrirChecklistView(doc, outrosDoMesmoPedido){
+  document.getElementById('clNavegacao').style.display = 'block';
+  const el = document.getElementById('clConteudo');
+  el.className = 'clRoView';
+  const admin = getUsuarioLogado() && getUsuarioLogado().admin;
+  el.innerHTML =
+    '<p style="font-weight:700; font-size:14px; margin:0 0 2px;">' + escaparHtml(doc.clienteCodigo) + ' · ' + escaparHtml(doc.cliente) + '</p>' +
+    '<p style="font-size:12px; color:var(--text-muted); margin:0 0 14px;">' + escaparHtml(doc.projeto||'') + '</p>' +
+    (outrosDoMesmoPedido && outrosDoMesmoPedido.length > 1 ? '<p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px;">' + outrosDoMesmoPedido.length + ' inspeção(ões) já feitas nesse pedido — mostrando a mais recente.</p>' : '') +
+    '<div>' + doc.itens.map(it => '<div class="clItemPergunta"><span>' + escaparHtml(it.texto) + '</span><span class="clRespostaTexto ' + it.resposta + '">' + (it.resposta === 'sim' ? 'Sim' : 'Não') + '</span></div>').join('') + '</div>' +
+    '<div style="margin-top:18px; padding-top:14px; border-top:1px solid var(--border);">' +
+      '<p style="font-size:12px; margin:0 0 8px;">assinado por <strong>' + escaparHtml(doc.assinadoPor) + '</strong> · registrado por <strong>' + escaparHtml(doc.usuario) + '</strong> em <strong>' + escaparHtml(doc.em) + '</strong></p>' +
+      (doc.editadoPor ? '<p style="font-size:11.5px; color:var(--text-accent); margin:0 0 8px;">✏️ corrigido por <strong>' + escaparHtml(doc.editadoPor) + '</strong> em <strong>' + escaparHtml(doc.editadoEm) + '</strong></p>' : '') +
+      '<img src="' + doc.assinaturaDataUrl + '" alt="assinatura" style="width:100%; max-width:340px; border:1px solid var(--border); border-radius:var(--radius); background:#fff;" />' +
+    '</div>' +
+    (admin ? '<div style="display:flex; gap:8px; margin-top:16px;"><button id="btnClEditar" style="font-size:12px; padding:6px 12px;">✏️ editar respostas (auditoria 5S)</button><button id="btnClApagar" style="font-size:12px; padding:6px 12px; color:var(--text-danger);">🗑 excluir</button></div>' : '');
+  if (admin){
+    document.getElementById('btnClApagar').onclick = async () => {
+      if (!window.confirm('Excluir esse checklist assinado? Não pode ser desfeito.')) return;
+      await enviarAcaoServidor({ acao: 'apagarChecklistPorId', id: doc.id });
+      checklists = checklists.filter(c => c.id !== doc.id);
+      registrarLog('excluiu o checklist de inspeção do pedido ' + doc.clienteCodigo + ' (assinado por ' + doc.assinadoPor + ')');
+      renderChecklistLista();
+    };
+    document.getElementById('btnClEditar').onclick = () => abrirChecklistEdicao(doc);
+  }
+}
+
+// ---------- edição de um checklist já assinado (admin) ----------
+// pensado como revisão de auditoria 5S: o admin pode corrigir uma resposta
+// errada, ajustar o texto de uma pergunta, ou adicionar/remover item — sem
+// perder quem assinou originalmente (isso nunca muda). Fica registrado
+// quem editou e quando, separado da assinatura original.
+function abrirChecklistEdicao(docOriginal){
+  clRascunho = { pr: null, itens: docOriginal.itens.map(it => Object.assign({}, it)), editando: docOriginal };
+  document.getElementById('clNavegacao').style.display = 'block';
+  const el = document.getElementById('clConteudo');
+  el.className = '';
+  el.innerHTML =
+    '<p style="font-weight:700; font-size:14px; margin:0 0 2px;">' + escaparHtml(docOriginal.clienteCodigo) + ' · ' + escaparHtml(docOriginal.cliente) + '</p>' +
+    '<p style="font-size:12px; color:var(--text-muted); margin:0 0 4px;">' + escaparHtml(docOriginal.projeto||'') + '</p>' +
+    '<p style="font-size:11.5px; color:var(--text-accent); margin:0 0 14px;">✏️ editando — assinatura e assinante originais (' + escaparHtml(docOriginal.assinadoPor) + ') não mudam, só as respostas/perguntas abaixo.</p>' +
+    '<div id="clListaItens"></div>' +
+    '<button id="btnClAddItem" style="font-size:12px; padding:6px 12px; margin-top:6px;">+ acrescentar item</button>' +
+    '<p id="clErro" style="font-size:12px; color:var(--text-danger); margin:12px 0 0; display:none;"></p>' +
+    '<div style="display:flex; gap:8px; margin-top:14px;">' +
+      '<button id="btnClCancelarEdicao" style="flex:1; padding:11px;">Cancelar</button>' +
+      '<button id="btnClSalvarEdicao" style="flex:2; padding:11px; background:linear-gradient(135deg, var(--brand2), var(--brand-dark)); color:var(--on-brand); border:none; font-weight:700;">Salvar correção</button>' +
+    '</div>';
+  renderChecklistItensEditaveis();
+  document.getElementById('btnClAddItem').onclick = () => {
+    const texto = window.prompt('O que precisa ser conferido?');
+    if (texto && texto.trim()){ clRascunho.itens.push({ texto: texto.trim(), resposta: null }); renderChecklistItensEditaveis(); }
+  };
+  document.getElementById('btnClCancelarEdicao').onclick = () => { clRascunho = null; abrirChecklistView(docOriginal); };
+  document.getElementById('btnClSalvarEdicao').onclick = salvarEdicaoChecklist;
+}
+function renderChecklistItensEditaveis(){
+  const r = clRascunho;
+  document.getElementById('clListaItens').innerHTML = r.itens.map((it, i) =>
+    '<div class="clItemPergunta"><input type="text" data-texto="' + i + '" value="' + escaparHtml(it.texto) + '" style="flex:1; border:none; background:transparent; font-size:13px; padding:2px 4px;" />' +
+    '<span class="clRespostas">' +
+      '<button data-i="' + i + '" data-v="sim" class="' + (it.resposta === 'sim' ? 'simAtivo' : '') + '">Sim</button>' +
+      '<button data-i="' + i + '" data-v="nao" class="' + (it.resposta === 'nao' ? 'naoAtivo' : '') + '">Não</button>' +
+      '<button data-i="' + i + '" data-remover="1" style="color:var(--text-danger);" title="remover item">✕</button>' +
+    '</span></div>'
+  ).join('');
+  document.querySelectorAll('#clListaItens input[data-texto]').forEach(inp => inp.oninput = () => { r.itens[+inp.dataset.texto].texto = inp.value; });
+  document.querySelectorAll('#clListaItens button[data-v]').forEach(btn => btn.onclick = () => { r.itens[+btn.dataset.i].resposta = btn.dataset.v; renderChecklistItensEditaveis(); });
+  document.querySelectorAll('#clListaItens button[data-remover]').forEach(btn => btn.onclick = () => { r.itens.splice(+btn.dataset.i, 1); renderChecklistItensEditaveis(); });
+}
+function salvarEdicaoChecklist(){
+  const r = clRascunho; if (!r || !r.editando) return;
+  const erroEl = document.getElementById('clErro');
+  if (!r.itens.length){ erroEl.textContent = 'precisa ter pelo menos um item no checklist.'; erroEl.style.display = 'block'; return; }
+  if (r.itens.some(it => !it.texto.trim())){ erroEl.textContent = 'tem item sem pergunta — preencha ou remova.'; erroEl.style.display = 'block'; return; }
+  if (r.itens.some(it => !it.resposta)){ erroEl.textContent = 'responda Sim ou Não em todos os itens.'; erroEl.style.display = 'block'; return; }
+  erroEl.style.display = 'none';
+  const u = getUsuarioLogado();
+  const atualizado = Object.assign({}, r.editando, {
+    itens: r.itens.map(it => ({ texto: it.texto.trim(), resposta: it.resposta })),
+    editadoPor: u ? u.usuario : '—', editadoEm: formatarDataHora(new Date())
+  });
+  const idx = checklists.findIndex(c => c.id === atualizado.id);
+  if (idx !== -1) checklists[idx] = atualizado;
+  enviarAcaoServidor({ acao: 'atualizarChecklist', checklist: atualizado });
+  registrarLog('corrigiu o checklist de inspeção do pedido ' + atualizado.clienteCodigo + ' (assinado por ' + atualizado.assinadoPor + ')');
+  showFeedback('checklist corrigido', false);
+  clRascunho = null;
+  abrirChecklistView(atualizado);
+}
+document.getElementById('btnAbrirChecklist').onclick = abrirTelaChecklist;
+document.getElementById('btnMenuChecklist').onclick = () => { document.getElementById('blocoMenuAdmin').style.display = 'none'; abrirTelaChecklist(); };
+
 function renderBarraParadaSetup(){
   const el = document.getElementById('barraParadaSetup');
   if (!el) return;
@@ -4728,6 +5083,8 @@ document.getElementById('btnZerarDashboard').onclick = async () => {
     movimentos = [];
     logsEnviadosCount = 0;
     movimentosEnviadosCount = 0;
+    checklistsEnviadosCount = 0;
+    checklists = [];
     registrarLog('zerou o dashboard (todos os movimentos e logs)');
     showFeedback('dashboard zerado — todo o histórico foi apagado', true);
   } else {
@@ -4998,7 +5355,7 @@ function renderListaLogs(){
   }
   el.innerHTML = filtrados.map(l =>
     '<div style="padding:4px 0; border-bottom:1px solid var(--border);"><span style="color:var(--text-muted);">' +
-    formatarDataHora(parsearComoBrasilia(l.em)) + '</span> · <strong>' + l.usuario + '</strong> — ' + l.acao + '</div>'
+    formatarDataHora(parsearComoBrasilia(l.em)) + '</span> · <strong>' + escaparHtml(l.usuario) + '</strong> — ' + escaparHtml(l.acao) + '</div>'
   ).join('');
 }
 document.getElementById('buscaLogTexto').addEventListener('input', renderListaLogs);
@@ -5071,7 +5428,7 @@ document.getElementById('btnBuscarPeriodo').onclick = async () => {
     } else {
       resultadoEl.innerHTML = items.map(l =>
         '<div style="padding:4px 0; border-bottom:1px solid var(--border);"><span style="color:var(--text-muted);">' +
-        formatarDataHora(parsearComoBrasilia(l.em)) + '</span> · <strong>' + l.usuario + '</strong> — ' + l.acao + '</div>'
+        formatarDataHora(parsearComoBrasilia(l.em)) + '</span> · <strong>' + escaparHtml(l.usuario) + '</strong> — ' + escaparHtml(l.acao) + '</div>'
       ).join('');
     }
     mostrarStatusPeriodo(items.length + ' log(s) encontrado(s)' + (de || ate ? ' no período' : ''), null);
@@ -5134,14 +5491,14 @@ function renderListaHistorico(){
     bloco.style.marginBottom = '8px'; bloco.style.borderBottom = '1px solid var(--border)'; bloco.style.paddingBottom = '6px';
     const resumo = document.createElement('summary');
     resumo.style.cursor = 'pointer'; resumo.style.fontSize = '13px';
-    resumo.innerHTML = '<strong>' + pr.codigo + '</strong> · ' + pr.cliente + ' · ' + pr.projeto +
-      ' <span style="color:var(--text-muted);">— baixado em ' + pr.baixadoEm + ' · ' + pr.modulos.length + ' módulo(s), ' + totalPecas + ' peça(s)</span>';
+    resumo.innerHTML = '<strong>' + escaparHtml(pr.codigo) + '</strong> · ' + escaparHtml(pr.cliente) + ' · ' + escaparHtml(pr.projeto) +
+      ' <span style="color:var(--text-muted);">— baixado em ' + escaparHtml(pr.baixadoEm) + ' · ' + pr.modulos.length + ' módulo(s), ' + totalPecas + ' peça(s)</span>';
     bloco.appendChild(resumo);
     const detalhe = document.createElement('div');
     detalhe.style.padding = '8px 4px 4px 16px'; detalhe.style.fontSize = '12px'; detalhe.style.color = 'var(--text-secondary)';
     const ultimaMod = ultimaEstacaoModulo();
     detalhe.innerHTML = pr.modulos.map(mod =>
-      '<div style="margin-bottom:4px;"><strong>#' + mod.id + ' ' + mod.nome + '</strong> — concluído em ' + ((ultimaMod && mod[ultimaMod.completaEmField]) || '—') +
+      '<div style="margin-bottom:4px;"><strong>#' + escaparHtml(mod.id) + ' ' + escaparHtml(mod.nome) + '</strong> — concluído em ' + escaparHtml((ultimaMod && mod[ultimaMod.completaEmField]) || '—') +
       ' (' + mod.pecas.length + ' peça(s))</div>'
     ).join('');
     bloco.appendChild(detalhe);

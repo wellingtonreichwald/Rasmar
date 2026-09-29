@@ -30,6 +30,16 @@ const DIAS_PARA_MANTER_BACKUP = 30;
 function estadoPadrao(){
   return {
     projetos: [], proximoNumeroPedido: 1, salvoEm: null, usuarios: [], logs: [], movimentos: [],
+    checklists: [],
+    // perguntas padrão do checklist de inspeção pré-montagem externa —
+    // o admin edita isso na tela de Administração (nomes e adicionar/remover).
+    checklistTemplate: [
+      'Todas as peças e ferragens conferidas?',
+      'Portas e gavetas alinhadas e funcionando?',
+      'Acabamento sem riscos, manchas ou defeitos visíveis?',
+      'Medidas conferem com o projeto?',
+      'Kit de instalação completo (parafusos, buchas, ferramentas)?'
+    ],
     // sugestão de horário comercial — o admin pode mudar isso a qualquer
     // hora pela tela de Administração; usado só pra calcular "tempo útil"
     // no dashboard (não trava nem impede bipar fora desse horário).
@@ -187,7 +197,14 @@ function anexarNovosPorId(lista, novos){
 
 function tratarGet(url, res){
   const acao = url.searchParams.get('acao');
-  const callback = url.searchParams.get('callback');
+  // o "callback" vira código JavaScript de verdade na resposta (é assim que
+  // JSONP funciona), então só aceita se for um nome de função válido — nunca
+  // um valor arbitrário. Sem isso, uma página maliciosa poderia carregar
+  // ?callback=<código qualquer> como <script src="...">, rodando esse
+  // código com acesso ao mesmo servidor. O app sempre manda algo como
+  // "rasmarCb_123_456", então essa checagem nunca atrapalha o uso real.
+  const callbackBruto = url.searchParams.get('callback');
+  const callback = (callbackBruto && /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(callbackBruto)) ? callbackBruto : null;
   const de = url.searchParams.get('de');
   const ate = url.searchParams.get('ate');
   const db = lerDB();
@@ -203,13 +220,15 @@ function tratarGet(url, res){
     resultado = {
       projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido,
       usuarios: db.usuarios, logs: db.logs, movimentos: db.movimentos,
-      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido,
+      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido, checklistTemplate: db.checklistTemplate, checklists: db.checklists,
       geradoEm: timestampLocal()
     };
+  } else if (acao === 'checklists'){
+    resultado = { checklists: db.checklists || [] };
   } else if (acao === 'listarBackups'){
     resultado = { backups: listarArquivosBackup() };
   } else {
-    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido };
+    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido, checklistTemplate: db.checklistTemplate };
   }
   resultado.chamadasHoje = chamadasHoje;
   const json = JSON.stringify(resultado);
@@ -255,6 +274,24 @@ function aplicarPost(corpo){
     salvarDB(db);
     return { ok: true, chamadasHoje };
   }
+  if (corpo.acao === 'atualizarChecklist'){
+    // corrige um checklist já assinado (tipo revisão de auditoria 5S) — só
+    // troca o registro se o id já existir; não cria um novo por engano.
+    const atualizado = corpo.checklist;
+    if (!atualizado || !atualizado.id) return { ok: false, erro: 'checklist inválido', chamadasHoje };
+    const idx = (db.checklists || []).findIndex(c => c.id === atualizado.id);
+    if (idx === -1) return { ok: false, erro: 'checklist não encontrado', chamadasHoje };
+    db.checklists[idx] = atualizado;
+    salvarDB(db);
+    return { ok: true, chamadasHoje };
+  }
+  if (corpo.acao === 'apagarChecklistPorId'){
+    const id = corpo.id;
+    if (!id) return { ok: false, erro: 'nenhum id informado', chamadasHoje };
+    db.checklists = (db.checklists || []).filter(c => c.id !== id);
+    salvarDB(db);
+    return { ok: true, chamadasHoje };
+  }
   if (corpo.acao === 'criarBackupManual'){
     const nomeArquivo = criarArquivoBackup('manual');
     return { ok: true, nomeArquivo, chamadasHoje };
@@ -280,6 +317,8 @@ function aplicarPost(corpo){
       nomeMarcenaria: (typeof b.nomeMarcenaria === 'string') ? b.nomeMarcenaria : '',
       estacaoInicialId: (typeof b.estacaoInicialId === 'string') ? b.estacaoInicialId : null,
       onboardingConcluido: (typeof b.onboardingConcluido === 'boolean') ? b.onboardingConcluido : undefined,
+      checklists: Array.isArray(b.checklists) ? b.checklists : [],
+      checklistTemplate: Array.isArray(b.checklistTemplate) ? b.checklistTemplate : estadoPadrao().checklistTemplate,
       salvoEm: timestampLocal()
     };
     salvarDB(novoDb);
@@ -288,10 +327,15 @@ function aplicarPost(corpo){
 
   // mesma proteção que o Code.gs tem: nunca aceita "projetos" vazio sem
   // confirmação explícita (evita apagar tudo por uma corrida/erro local).
-  const projetosVazioSuspeito = Array.isArray(corpo.projetos) && corpo.projetos.length === 0 && (db.projetos || []).length > 0 && !corpo.confirmarZerarTudo;
-  if (!projetosVazioSuspeito){
-    db.projetos = corpo.projetos || [];
-    db.proximoNumeroPedido = corpo.proximoNumeroPedido || db.proximoNumeroPedido || 1;
+  // Também nunca mexe em db.projetos se o campo nem vier no pedido (ex: uma
+  // chamada que só manda logs/movimentos/checklists) — só um array de
+  // verdade no corpo autoriza substituir o que já está salvo.
+  if (Array.isArray(corpo.projetos)){
+    const projetosVazioSuspeito = corpo.projetos.length === 0 && (db.projetos || []).length > 0 && !corpo.confirmarZerarTudo;
+    if (!projetosVazioSuspeito){
+      db.projetos = corpo.projetos;
+      db.proximoNumeroPedido = corpo.proximoNumeroPedido || db.proximoNumeroPedido || 1;
+    }
   }
   db.salvoEm = timestampLocal();
 
@@ -317,9 +361,13 @@ function aplicarPost(corpo){
   if (typeof corpo.onboardingConcluido === 'boolean'){
     db.onboardingConcluido = corpo.onboardingConcluido;
   }
+  if (Array.isArray(corpo.checklistTemplate)){
+    db.checklistTemplate = corpo.checklistTemplate;
+  }
 
   db.logs = anexarNovosPorId(db.logs, corpo.logsNovos);
   db.movimentos = anexarNovosPorId(db.movimentos, corpo.movimentosNovos);
+  db.checklists = anexarNovosPorId(db.checklists, corpo.checklistsNovos);
 
   salvarDB(db);
   return { ok: true, salvoEm: db.salvoEm, chamadasHoje };
