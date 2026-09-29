@@ -390,8 +390,11 @@
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5. Parou a máquina? Registre</h3>
     <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Embaixo do campo de bipar tem um seletor único pra registrar <strong>parada</strong> (quebra, falta de material, falta de energia, etc.) ou <strong>setup</strong> (troca de ferramenta, ajuste de máquina) — escolha o motivo numa lista pronta e clique em "Finalizar" quando a máquina voltar a rodar. Se esqueceu de registrar na hora, use o botão "📝 registro manual de setup/parada" pra lançar com a data e hora certas, retroativamente.</p>
 
-    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5.1. Checklist de inspeção (✅ no topo)</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Antes de um pedido sair pra montagem no cliente, confere tudo por ali: escolha o pedido na lista, responda Sim/Não em cada pergunta (dá pra acrescentar um item extra na hora), digite o nome de quem está assinando (obrigatório) e desenhe a assinatura na tela. Fica registrado quem estava logado e a data/hora. Depois de enviado, um admin pode corrigir as respostas (ou o texto das perguntas) desse checklist específico pelo botão "✏️ editar respostas (auditoria 5S)" — a assinatura e quem assinou originalmente nunca mudam, só fica registrado quem corrigiu e quando. Um admin também pode apagar o checklist inteiro. O admin edita as perguntas padrão (usadas nos checklists novos) em Administração.</p>
+    <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">5.1. Checklist de inspeção (✅ no topo, e dentro do card do pedido em Pré Montagem/Montagem Final)</h3>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Antes de um pedido sair pra montagem no cliente, confere tudo: escolha o pedido na lista (ou clique direto no botão ⭕/✅ Checklist dentro do card do pedido, em Pré Montagem ou Montagem Final), responda Sim/Não em cada pergunta, digite o nome de quem está assinando (obrigatório) e desenhe a assinatura na tela. Fica registrado quem estava logado e a data/hora.</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Tem dois jeitos de acrescentar um item na hora de preencher: <strong>"+ acrescentar item pra conferir"</strong> vale só pra esse checklist; <strong>"+ pergunta padrão (todos os checklists)"</strong> vira parte do modelo de todo mundo daí pra frente (o mesmo modelo que o admin edita em Administração).</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;"><strong>⚠ O checklist é obrigatório antes de dar baixa no pedido</strong> (pelo botão "Gerar baixa" ou bipando a etiqueta do pedido) — sem ele, o sistema bloqueia. Só um admin pode pular essa exigência, com uma confirmação extra na tela.</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Depois de enviado, um admin pode corrigir as respostas (ou o texto das perguntas) desse checklist específico pelo botão "✏️ editar respostas (auditoria 5S)" — a assinatura e quem assinou originalmente nunca mudam, só fica registrado quem corrigiu e quando. Um admin também pode apagar o checklist inteiro.</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">6. Quando uma peça tem defeito</h3>
     <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Clique em "Defeito" na peça (ou "⚠ Defeito no módulo" se o problema for no módulo inteiro). Escolha a causa — método, máquina, mão de obra, material, medição ou meio ambiente — escreva uma observação se quiser, e escolha entre <strong>retrabalhar</strong> (a peça volta pra uma etapa escolhida por você) ou <strong>descartar</strong> (a peça é jogada fora e recriada do zero).</p>
@@ -1396,9 +1399,9 @@ function renderBaixaPedido(pr){
   btn.style.background = 'var(--fill-success)';
   btn.style.color = 'var(--on-success)';
   btn.style.border = 'none';
-  btn.onclick = (e) => {
+  btn.onclick = async (e) => {
     e.stopPropagation();
-    darBaixaPedido(pr, false);
+    await darBaixaPedido(pr, false);
   };
   return btn;
 }
@@ -2441,7 +2444,16 @@ function renderBlocoProjeto(pr, station, dinamico){
   // etapas por módulo (Pré Montagem, Montagem Final...): dá pra cronometrar o
   // pedido inteiro direto, além dos módulos. No dashboard, esse tempo
   // substitui a soma dos módulos daquela etapa (não soma em dobro).
-  if (station.type === 'modulo' && modulosVisiveis.length > 0) right.appendChild(renderBotaoCicloPedidoEmEtapa(pr, station));
+  if (station.type === 'modulo' && modulosVisiveis.length > 0){
+    right.appendChild(renderBotaoCicloPedidoEmEtapa(pr, station));
+    const btnChecklistPedido = document.createElement('button');
+    const jaInspecionado = checklists.some(c => c.clienteCodigo === pr.codigo);
+    btnChecklistPedido.textContent = (jaInspecionado ? '✅' : '⭕') + ' Checklist';
+    btnChecklistPedido.title = jaInspecionado ? 'Esse pedido já tem checklist de inspeção — clique pra ver' : 'Esse pedido AINDA NÃO tem o checklist de inspeção pré-montagem externa — obrigatório antes da baixa';
+    btnChecklistPedido.style.cssText = 'font-size:12px; padding:4px 10px;' + (jaInspecionado ? '' : ' color:var(--text-accent); border-color:var(--text-accent);');
+    btnChecklistPedido.onclick = (e) => { e.stopPropagation(); abrirChecklistParaPedido(pr); };
+    right.appendChild(btnChecklistPedido);
+  }
   right.appendChild(renderBotaoDataEntrega(pr, () => { agendarSincronizacaoRapida(); renderProjetos(); }));
   const btnEtiquetaPedido = document.createElement('button');
   btnEtiquetaPedido.textContent = '🖨️ Etiqueta';
@@ -2738,7 +2750,7 @@ function extrairCodigoDeEntrada(valorBruto){
   }
 }
 
-document.getElementById('scanInput').addEventListener('keydown', e => {
+document.getElementById('scanInput').addEventListener('keydown', async e => {
   if (e.key !== 'Enter') return;
   const codigo = extrairCodigoDeEntrada(e.target.value.trim());
   if (!codigo){ showFeedback('digite um código antes de escanear', true); return; }
@@ -2819,7 +2831,7 @@ document.getElementById('scanInput').addEventListener('keydown', e => {
     } else if (!pedidoCompleto(prAlvo)){
       showFeedback('pedido ' + prAlvo.codigo + ' · ' + prAlvo.cliente + ' ainda não está completo em todas as etapas — não é possível dar baixa', true);
     } else {
-      darBaixaPedido(prAlvo, true);
+      await darBaixaPedido(prAlvo, true);
     }
     e.target.value = '';
     return;
@@ -3679,10 +3691,8 @@ document.getElementById('btnAddItemTemplateChecklist').onclick = () => {
   const campo = document.getElementById('novoItemTemplateChecklist');
   const texto = campo.value.trim();
   if (!texto) return;
-  checklistTemplate.push(texto);
+  adicionarPerguntaPadraoAoModelo(texto);
   campo.value = '';
-  registrarLog('adicionou uma pergunta no modelo do checklist de inspeção');
-  agendarSincronizacaoRapida();
   renderListaTemplateChecklist();
 };
 function popularLinkAcessoEquipe(){ document.getElementById('linkAcessoEquipe').value = montarLinkAcessoEquipe(); }
@@ -4440,7 +4450,25 @@ function renderBotaoDataEntrega(pr, salvarCallback){
 // (renderBotaoLinkDesenho removido por enquanto — o campo linkDesenho
 // continua nos objetos, então nada se perde se voltar depois)
 
-function darBaixaPedido(pr, viaEtiqueta){
+async function darBaixaPedido(pr, viaEtiqueta){
+  // checklist de inspeção obrigatório antes da baixa (exceto pra admin, que
+  // pode pular em caso de urgência) — busca fresco do servidor, porque a
+  // lista local só teria isso se a tela de Checklist já tivesse sido
+  // aberta nesta sessão.
+  let temChecklist = checklists.some(c => c.clienteCodigo === pr.codigo);
+  if (!temChecklist){
+    try { await carregarChecklistsDoServidor(); temChecklist = checklists.some(c => c.clienteCodigo === pr.codigo); }
+    catch (e) { /* sem internet agora — segue com o que já tinha localmente */ }
+  }
+  if (!temChecklist){
+    const admin = getUsuarioLogado() && getUsuarioLogado().admin;
+    if (!admin){
+      showFeedback('pedido ' + pr.codigo + ' ainda não tem o checklist de inspeção pré-montagem externa — é obrigatório antes da baixa (só um admin pode pular isso)', true);
+      return;
+    }
+    if (!window.confirm('Esse pedido não tem o checklist de inspeção feito ainda. Como admin, você pode dar baixa mesmo assim — mas não é recomendado. Quer continuar sem o checklist?')) return;
+    registrarLog('deu baixa no pedido ' + pr.codigo + ' SEM o checklist de inspeção (admin pulou a exigência)');
+  }
   fecharTodosCiclosPedido(pr); // não deixa cronômetro do pedido rodando pra sempre
   pr.baixado = true;
   pr.baixadoEm = formatarDataHora(new Date());
@@ -4638,6 +4666,16 @@ function contagemWipEstacao(station){
 // ============================================================================
 let clCarregado = false;
 let clRascunho = null; // { pr, itens:[{texto,resposta}], assinaturaVazia }
+// adiciona uma pergunta no MODELO padrão (checklistTemplate) — diferente de
+// "+ acrescentar item", que vale só pro checklist que está sendo preenchido
+// agora. Chamada tanto da tela de Administração quanto direto da tela de
+// preenchimento/edição (botão "+ pergunta padrão").
+function adicionarPerguntaPadraoAoModelo(texto){
+  if (checklistTemplate.some(t => t.trim().toLowerCase() === texto.trim().toLowerCase())) return; // já existe, não duplica
+  checklistTemplate.push(texto);
+  registrarLog('adicionou "' + texto + '" como pergunta padrão do checklist de inspeção');
+  agendarSincronizacaoRapida();
+}
 
 function pedidosParaChecklist(){
   return projetos.filter(pr => !pr.baixado);
@@ -4646,26 +4684,48 @@ function checklistsDoPedido(codigo){
   return checklists.filter(c => c.clienteCodigo === codigo).sort((a,b) => b.em.localeCompare(a.em));
 }
 
+// busca os checklists mais recentes do servidor — usada sempre que algo
+// precisa saber com certeza se um pedido já foi inspecionado ou não (a
+// variável local "checklists" só reflete a última vez que isso rodou).
+async function carregarChecklistsDoServidor(){
+  const dados = await buscarNoServidor({ acao: 'checklists' });
+  checklists = Array.isArray(dados.checklists) ? dados.checklists : [];
+  checklistsEnviadosCount = checklists.length; // o que veio do servidor já está "enviado"
+  clCarregado = true;
+}
 async function abrirTelaChecklist(){
   document.getElementById('telaChecklist').style.display = 'block';
   document.getElementById('clNavegacao').style.display = 'none';
   document.getElementById('clConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-muted);">carregando...</p>';
-  if (!clCarregado || true){ // sempre busca de novo ao abrir — é um documento importante, quer o dado mais fresco
-    try {
-      const dados = await buscarNoServidor({ acao: 'checklists' });
-      checklists = Array.isArray(dados.checklists) ? dados.checklists : [];
-      checklistsEnviadosCount = checklists.length; // o que veio do servidor já está "enviado"
-      clCarregado = true;
-    } catch (e) {
-      document.getElementById('clConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-danger);">não consegui buscar os checklists agora (' + e.message + '). Tente de novo.</p>';
-      return;
-    }
+  try {
+    await carregarChecklistsDoServidor();
+  } catch (e) {
+    document.getElementById('clConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-danger);">não consegui buscar os checklists agora (' + e.message + '). Tente de novo.</p>';
+    return;
   }
   renderChecklistLista();
+}
+// atalho: abre o checklist já direto num pedido específico (usado pelo
+// botão dentro do card do pedido, nas etapas de Pré Montagem/Montagem
+// Final) — sem precisar passar pela lista de escolha.
+async function abrirChecklistParaPedido(pr){
+  document.getElementById('telaChecklist').style.display = 'block';
+  document.getElementById('clNavegacao').style.display = 'block';
+  document.getElementById('clConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-muted);">carregando...</p>';
+  try {
+    await carregarChecklistsDoServidor();
+  } catch (e) {
+    document.getElementById('clConteudo').innerHTML = '<p style="font-size:13px; color:var(--text-danger);">não consegui buscar os checklists agora (' + e.message + '). Tente de novo.</p>';
+    return;
+  }
+  const feitos = checklistsDoPedido(pr.codigo);
+  if (feitos.length) abrirChecklistView(feitos[0], feitos);
+  else abrirChecklistForm(pr);
 }
 function fecharTelaChecklist(){
   document.getElementById('telaChecklist').style.display = 'none';
   clRascunho = null;
+  renderProjetos(); // atualiza o selo ✅/⭕ no card do pedido, se mudou
 }
 document.getElementById('btnFecharChecklist').onclick = fecharTelaChecklist;
 document.getElementById('btnClVoltarLista').onclick = () => { clRascunho = null; renderChecklistLista(); };
@@ -4710,6 +4770,7 @@ function renderChecklistForm(){
     '<p style="font-size:12px; color:var(--text-muted); margin:0 0 14px;">' + escaparHtml(r.pr.projeto||'') + '</p>' +
     '<div id="clListaItens"></div>' +
     '<button id="btnClAddItem" style="font-size:12px; padding:6px 12px; margin-top:6px;">+ acrescentar item pra conferir</button>' +
+    '<button id="btnClAddItemPadrao" title="Vira pergunta padrão de TODOS os checklists daqui pra frente" style="font-size:12px; padding:6px 12px; margin-top:6px; margin-left:6px; color:var(--text-accent); border-color:var(--text-accent);">+ pergunta padrão (todos os checklists)</button>' +
     '<div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">' +
       '<label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">nome de quem está assinando *</label>' +
       '<input id="clNomeAssinante" type="text" placeholder="digite o nome completo" style="width:100%; margin-bottom:10px;" />' +
@@ -4724,6 +4785,14 @@ function renderChecklistForm(){
   document.getElementById('btnClAddItem').onclick = () => {
     const texto = window.prompt('O que precisa ser conferido?');
     if (texto && texto.trim()){ r.itens.push({ texto: texto.trim(), resposta: null }); renderChecklistItens(); }
+  };
+  document.getElementById('btnClAddItemPadrao').onclick = () => {
+    const texto = window.prompt('Essa pergunta vai valer pra TODOS os checklists a partir de agora (não só esse). O que precisa ser conferido sempre?');
+    if (texto && texto.trim()){
+      adicionarPerguntaPadraoAoModelo(texto.trim());
+      r.itens.push({ texto: texto.trim(), resposta: null });
+      renderChecklistItens();
+    }
   };
   document.getElementById('btnClEnviar').onclick = enviarChecklist;
   configurarCanvasAssinatura();
@@ -4838,6 +4907,7 @@ function abrirChecklistEdicao(docOriginal){
     '<p style="font-size:11.5px; color:var(--text-accent); margin:0 0 14px;">✏️ editando — assinatura e assinante originais (' + escaparHtml(docOriginal.assinadoPor) + ') não mudam, só as respostas/perguntas abaixo.</p>' +
     '<div id="clListaItens"></div>' +
     '<button id="btnClAddItem" style="font-size:12px; padding:6px 12px; margin-top:6px;">+ acrescentar item</button>' +
+    '<button id="btnClAddItemPadrao" title="Vira pergunta padrão de TODOS os checklists daqui pra frente" style="font-size:12px; padding:6px 12px; margin-top:6px; margin-left:6px; color:var(--text-accent); border-color:var(--text-accent);">+ pergunta padrão (todos os checklists)</button>' +
     '<p id="clErro" style="font-size:12px; color:var(--text-danger); margin:12px 0 0; display:none;"></p>' +
     '<div style="display:flex; gap:8px; margin-top:14px;">' +
       '<button id="btnClCancelarEdicao" style="flex:1; padding:11px;">Cancelar</button>' +
@@ -4847,6 +4917,14 @@ function abrirChecklistEdicao(docOriginal){
   document.getElementById('btnClAddItem').onclick = () => {
     const texto = window.prompt('O que precisa ser conferido?');
     if (texto && texto.trim()){ clRascunho.itens.push({ texto: texto.trim(), resposta: null }); renderChecklistItensEditaveis(); }
+  };
+  document.getElementById('btnClAddItemPadrao').onclick = () => {
+    const texto = window.prompt('Essa pergunta vai valer pra TODOS os checklists a partir de agora (não só esse). O que precisa ser conferido sempre?');
+    if (texto && texto.trim()){
+      adicionarPerguntaPadraoAoModelo(texto.trim());
+      clRascunho.itens.push({ texto: texto.trim(), resposta: null });
+      renderChecklistItensEditaveis();
+    }
   };
   document.getElementById('btnClCancelarEdicao').onclick = () => { clRascunho = null; abrirChecklistView(docOriginal); };
   document.getElementById('btnClSalvarEdicao').onclick = salvarEdicaoChecklist;
