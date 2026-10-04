@@ -400,7 +400,7 @@
     <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Clique em "Defeito" na peça (ou "⚠ Defeito no módulo" se o problema for no módulo inteiro). Escolha a causa — método, máquina, mão de obra, material, medição ou meio ambiente — escreva uma observação se quiser, e escolha entre <strong>retrabalhar</strong> (a peça volta pra uma etapa escolhida por você) ou <strong>descartar</strong> (a peça é jogada fora e recriada do zero).</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">7. Administração (só pra quem é admin)</h3>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Na primeira vez num servidor novo, um <strong>assistente de configuração</strong> abre sozinho e guia tudo (nome, horário, etapas, onde a peça nasce e o primeiro CSV) — dá pra refazer depois pelo botão 🧭 no topo da Administração. Aqui também: o <strong>link de acesso da equipe</strong> (mande no WhatsApp: quem abre por ele já fica conectado ao servidor certo, sem digitar nada), e criar/editar usuários (login, senha, e-mail, se pode excluir/cadastrar/concluir sem bipar/acessar o dashboard, e quais etapas cada um pode ver), configurar o <strong>nome da marcenaria</strong>, o <strong>horário de trabalho</strong>, <strong>onde uma peça nova nasce</strong> ao importar CSV ou cadastrar manualmente, e as <strong>etapas de produção</strong> — adicionar, remover, reordenar, escolher o tipo (peça/módulo/pedido inteiro), a métrica de rateio, e em quais abas do dashboard (Kanban, OEE) cada uma aparece. Também tem backup manual e a "Zona de risco" pra apagar tudo, se precisar.</p>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">Na primeira vez num servidor novo, um <strong>assistente de configuração</strong> abre sozinho e guia tudo (nome, horário, etapas, onde a peça nasce e o primeiro CSV) — dá pra refazer depois pelo botão 🧭 no topo da Administração. Aqui também: o <strong>link de acesso da equipe</strong> (mande no WhatsApp: quem abre por ele já fica conectado ao servidor certo, sem digitar nada), e criar/editar usuários (login, senha, e-mail, se pode excluir/cadastrar/concluir sem bipar/acessar o dashboard, e quais etapas cada um pode ver), configurar o <strong>nome da marcenaria</strong>, o <strong>horário de trabalho</strong>, <strong>onde uma peça nova nasce</strong> ao importar CSV ou cadastrar manualmente, e as <strong>etapas de produção</strong> — adicionar, remover, reordenar, escolher o tipo (peça/módulo/pedido inteiro), a métrica de rateio, e em quais abas do dashboard (Kanban, OEE) cada uma aparece. Tem também as <strong>colunas do CSV de importação</strong> — os 13 campos que o WPS/otimizador exporta (ID e nome do módulo, comprimento, largura, material, descrição, as 4 bordas, cliente, projeto e o código da peça/nesting), cada um configurável separadamente usando a letra de planilha (a mesma do Excel/Sheets: A, B, C... Z, AA...) caso o layout do seu arquivo seja diferente do padrão; isso também aparece no assistente de configuração, no passo do primeiro CSV. Também tem backup manual e a "Zona de risco" pra apagar tudo, se precisar.</p>
 
     <h3 style="font-size:14px; margin:16px 0 6px; color:var(--brand-dark);">8. O Dashboard — o que cada aba mostra</h3>
     <p style="font-size:13px; line-height:1.6; margin:0 0 6px;">O Dashboard é onde dá pra ver como a produção está indo. Só quem tem a permissão "ver dashboard" (ou é admin) consegue entrar. No topo tem o botão <strong>🔄 Sincronizar</strong> e o estado da conexão (🟢 sincronizado / 🔴 sem conexão) — qualquer usuário pode usar, não precisa passar pela Administração. Tem várias abas:</p>
@@ -445,6 +445,36 @@
     <p id="loginStatusSync" style="text-align:center; font-size:12px; color:var(--text-muted); margin:0 0 16px;">
       <span id="loginStatusIcone">🔄</span> <span id="loginStatusTexto">conectando...</span>
     </p>
+
+    <!-- Trocar de empresa = trocar de servidor. Cada empresa tem a própria VM
+         (e o próprio cadastro de usuários), então a lista fica guardada no
+         navegador deste aparelho — não é dado que vem do servidor. -->
+    <div id="loginEmpresas" style="display:none; background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; margin:0 0 16px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="min-width:0; flex:1;">
+          <p style="font-size:11px; color:var(--text-muted); margin:0;">empresa</p>
+          <p id="empresaAtualNome" style="font-size:14px; font-weight:700; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">—</p>
+          <p id="empresaAtualUrl" style="font-size:11px; color:var(--text-secondary); margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">—</p>
+        </div>
+        <button id="btnTrocarEmpresa" style="font-size:12px; padding:7px 11px; flex-shrink:0;">Trocar ▾</button>
+      </div>
+
+      <div id="painelEmpresas" style="display:none; margin-top:10px; border-top:1px solid var(--border); padding-top:10px;">
+        <div id="listaEmpresas" style="display:flex; flex-direction:column; gap:6px;"></div>
+        <button id="btnNovaEmpresa" style="width:100%; font-size:13px; padding:8px; margin-top:8px;">＋ Adicionar empresa</button>
+
+        <div id="formEmpresa" style="display:none; flex-direction:column; gap:8px; margin-top:10px; background:var(--surface-2); border:1px solid var(--border-accent); border-radius:var(--radius); padding:10px;">
+          <p id="formEmpresaTitulo" style="font-size:12px; font-weight:700; color:var(--brand-dark); margin:0;">Adicionar empresa</p>
+          <input id="empresaNomeInput" type="text" placeholder="nome da empresa (ex: Cireneu)" style="width:100%; font-size:13px;" />
+          <input id="empresaUrlInput" type="text" placeholder="https://...nip.io/" style="width:100%; font-size:13px;" />
+          <p id="empresaFormErro" style="font-size:12px; color:var(--text-danger); margin:0; display:none;"></p>
+          <div style="display:flex; gap:8px;">
+            <button id="btnSalvarEmpresa" style="flex:1; font-size:13px; padding:8px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Salvar</button>
+            <button id="btnCancelarEmpresa" style="font-size:13px; padding:8px 12px;">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div id="loginCarregando" style="text-align:center; padding:16px 0; font-size:13px; color:var(--text-muted);">
       carregando...
@@ -547,6 +577,13 @@
         <button id="btnCopiarLinkAcesso" style="font-size:13px; padding:8px 14px; background:var(--brand); color:var(--on-brand); border:none; font-weight:600;">Copiar link</button>
       </div>
       <p id="statusLinkAcesso" style="font-size:12px; margin:8px 0 0; display:none; color:var(--text-success);"></p>
+    </div>
+
+    <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 6px; color:var(--brand-dark);">Colunas do CSV de importação (nesting file do WPS)</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Se o arquivo que você exporta do WPS tiver um layout diferente do padrão, ajuste aqui em qual coluna fica cada informação — use a letra de planilha (a mesma letra que aparece se você abrir o CSV no Excel/Sheets: A, B, C... Z, AA, AB...).</p>
+      <div id="gradeColunasCsv" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:12px;"></div>
+      <p id="statusColunasCsv" style="font-size:12px; margin:10px 0 0; display:none;"></p>
     </div>
 
     <div style="margin-top:20px; border:1px solid var(--border-accent); border-radius:var(--radius); padding:12px 14px;">
@@ -1178,7 +1215,38 @@ function atualizarSemiCabecalho(){
 }
 setInterval(atualizarSemiCabecalho, 1000);
 
-const COL_ID = 0, COL_PRODUTO = 1, COL_COMPRIMENTO = 3, COL_LARGURA = 5, COL_MATERIAL = 7, COL_DESCRICAO = 10, COL_BORDA_FRONTAL = 12, COL_BORDA_TRASEIRA = 13, COL_BORDA_ESQUERDA = 14, COL_BORDA_DIREITA = 15, COL_CLIENTE = 18, COL_PROJETO = 19, COL_NESTING = 22;
+// mapa das colunas do CSV de importação (nesting file do WPS/otimizador)
+// — TODAS configuráveis por letra de planilha (a mesma letra que aparece
+// se abrir o CSV no Excel/Sheets), porque o layout exportado varia de
+// marcenaria pra marcenaria. Essa lista também GERA a interface (em
+// Administração e no assistente) — acrescentar um campo aqui já cria o
+// campo na tela sozinho, sem precisar repetir HTML.
+const CAMPOS_CSV_CONFIGURAVEIS = [
+  { chave: 'id', label: 'ID do módulo', padrao: 'A' },
+  { chave: 'produto', label: 'nome do módulo (produto)', padrao: 'B' },
+  { chave: 'comprimento', label: 'comprimento da peça', padrao: 'D' },
+  { chave: 'largura', label: 'largura da peça', padrao: 'F' },
+  { chave: 'material', label: 'material (com a espessura embutida, ex: MDF_18_BRANCO)', padrao: 'H' },
+  { chave: 'descricao', label: 'descrição da peça', padrao: 'K' },
+  { chave: 'bordaFrontal', label: 'fita de borda — frontal', padrao: 'M' },
+  { chave: 'bordaTraseira', label: 'fita de borda — traseira', padrao: 'N' },
+  { chave: 'bordaEsquerda', label: 'fita de borda — esquerda', padrao: 'O' },
+  { chave: 'bordaDireita', label: 'fita de borda — direita', padrao: 'P' },
+  { chave: 'cliente', label: 'cliente', padrao: 'S' },
+  { chave: 'projeto', label: 'projeto', padrao: 'T' },
+  { chave: 'nesting', label: 'código da peça (nesting)', padrao: 'W' },
+];
+let colunasCsv = {};
+CAMPOS_CSV_CONFIGURAVEIS.forEach(c => { colunasCsv[c.chave] = c.padrao; });
+// converte uma letra de coluna (A, B, ..., Z, AA, AB, ...) pro índice
+// numérico que o parseCSV usa (A=0, B=1, ..., Z=25, AA=26...).
+function letraParaIndiceColuna(letra){
+  const l = String(letra || '').trim().toUpperCase();
+  if (!/^[A-Z]+$/.test(l)) return null;
+  let n = 0;
+  for (let i = 0; i < l.length; i++) n = n * 26 + (l.charCodeAt(i) - 64);
+  return n - 1;
+}
 
 function novaPeca(codigo, descricao, extras){
   extras = extras || {};
@@ -2843,6 +2911,17 @@ document.getElementById('scanInput').addEventListener('keydown', async e => {
 
 // ---------- importador de CSV ----------
 function parseCSV(texto){
+  // resolve TODAS as colunas configuráveis agora (com um valor de reserva
+  // pro padrão de fábrica de cada uma, caso a letra guardada não seja
+  // válida por algum motivo — nunca trava a importação por isso).
+  const idx = {};
+  CAMPOS_CSV_CONFIGURAVEIS.forEach(c => {
+    idx[c.chave] = letraParaIndiceColuna(colunasCsv[c.chave]) ?? letraParaIndiceColuna(c.padrao);
+  });
+  const COL_ID = idx.id, COL_PRODUTO = idx.produto, COL_COMPRIMENTO = idx.comprimento, COL_LARGURA = idx.largura,
+    COL_MATERIAL = idx.material, COL_DESCRICAO = idx.descricao, COL_BORDA_FRONTAL = idx.bordaFrontal,
+    COL_BORDA_TRASEIRA = idx.bordaTraseira, COL_BORDA_ESQUERDA = idx.bordaEsquerda, COL_BORDA_DIREITA = idx.bordaDireita,
+    COL_CLIENTE = idx.cliente, COL_PROJETO = idx.projeto, COL_NESTING = idx.nesting;
   const linhas = texto.split(/\r?\n/).filter(l => l.trim().length > 0);
   const dados = linhas.slice(1).map(l => l.split(';')).filter(c => c[COL_ID] && c[COL_ID].trim());
   if (dados.length === 0) return null;
@@ -2957,7 +3036,9 @@ function resolverUrlServidorInicial(){
       history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash);
     }
   } catch (e) {}
-  const guardada = localStorage.getItem('rasmar_sync_url');
+  // normaliza na leitura: um endereço guardado sem a barra final não pode
+  // acabar virando uma "empresa" diferente da mesma da lista (lá embaixo)
+  const guardada = normalizarUrlServidor(localStorage.getItem('rasmar_sync_url'));
   if (guardada) return guardada;
   const config = normalizarUrlServidor(window.RASMAR_SERVIDOR_PADRAO);
   if (config) return config;
@@ -2971,6 +3052,168 @@ let syncEmAndamento = false;
 let modoConflitoSync = false;
 let cargaInicialCompleta = false; // só libera escrever no servidor depois que a carga inicial (via login) realmente terminar
 let sincronizacaoRapidaAgendada = null;
+
+// ---------- empresas: escolher o servidor na tela de login ----------
+// Cada empresa tem a própria VM (o plano grátis é 1 por conta Google), então
+// "trocar de empresa" aqui é trocar o endereço do servidor. A lista mora só
+// no localStorage deste aparelho: é cadastro de acesso, não vem do servidor
+// (e não pode vir — o cadastro é de uma empresa, não da outra).
+const CHAVE_EMPRESAS = 'rasmar_empresas';
+function carregarEmpresas(){
+  try {
+    const bruto = JSON.parse(localStorage.getItem(CHAVE_EMPRESAS) || '[]');
+    if (!Array.isArray(bruto)) return [];
+    return bruto
+      .filter(e => e && typeof e.url === 'string' && e.url.trim())
+      .map(e => ({ nome: String(e.nome || '').trim(), url: e.url, auto: !!e.auto }));
+  } catch (e) { return []; }
+}
+function salvarEmpresas(lista){ localStorage.setItem(CHAVE_EMPRESAS, JSON.stringify(lista)); }
+function nomePadraoDaUrl(url){
+  try { return new URL(url).hostname; } catch (e) { return String(url || '').replace(/^https?:\/\//, ''); }
+}
+// quem já estava conectado não pode ficar "sem empresa" depois desta versão —
+// se o servidor atual não estiver na lista, entra como primeira empresa.
+function garantirEmpresaAtual(){
+  const lista = carregarEmpresas();
+  if (syncUrl && !lista.some(e => e.url === syncUrl)){
+    lista.push({ nome: nomeMarcenaria || nomePadraoDaUrl(syncUrl), url: syncUrl, auto: !nomeMarcenaria });
+    salvarEmpresas(lista);
+  }
+  // assim que o nome da marcenaria chega do servidor, ele vira o nome da
+  // empresa que está em uso (o nome automático era só o hostname).
+  if (nomeMarcenaria){
+    let mudou = false;
+    lista.forEach(e => {
+      if (e.url === syncUrl && e.auto){ e.nome = nomeMarcenaria; e.auto = false; mudou = true; }
+    });
+    if (mudou) salvarEmpresas(lista);
+  }
+  return lista;
+}
+function renderBlocoEmpresas(){
+  const raiz = document.getElementById('loginEmpresas');
+  if (!raiz) return;
+  const lista = garantirEmpresaAtual();
+  const atual = lista.find(e => e.url === syncUrl) ||
+    (syncUrl ? { nome: nomeMarcenaria || nomePadraoDaUrl(syncUrl), url: syncUrl } : null);
+  document.getElementById('empresaAtualNome').textContent = atual ? (atual.nome || 'sem nome') : 'nenhuma empresa';
+  document.getElementById('empresaAtualUrl').textContent = atual ? atual.url : 'adicione o endereço do servidor';
+  raiz.style.display = 'block';
+
+  const alvo = document.getElementById('listaEmpresas');
+  alvo.innerHTML = '';
+  if (!lista.length){
+    const vazio = document.createElement('p');
+    vazio.style.cssText = 'font-size:12px; color:var(--text-muted); margin:0;';
+    vazio.textContent = 'nenhuma empresa cadastrada neste aparelho';
+    alvo.appendChild(vazio);
+  }
+  lista.forEach(empresa => {
+    const linha = document.createElement('div');
+    linha.style.cssText = 'display:flex; align-items:center; gap:6px;';
+    const ehAtual = empresa.url === syncUrl;
+
+    const principal = document.createElement('button');
+    principal.type = 'button';
+    principal.style.cssText = 'flex:1; min-width:0; text-align:left; font-size:12px; padding:7px 9px;' +
+      (ehAtual ? 'border:1px solid var(--brand); background:var(--brand-soft); font-weight:700;' : '');
+    const nm = document.createElement('span');
+    nm.style.cssText = 'display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+    nm.textContent = (empresa.nome || 'sem nome') + (ehAtual ? '  ✓' : '');
+    const ur = document.createElement('span');
+    ur.style.cssText = 'display:block; font-size:10px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+    ur.textContent = empresa.url;
+    principal.appendChild(nm); principal.appendChild(ur);
+    principal.title = ehAtual ? 'empresa em uso' : 'usar essa empresa';
+    if (!ehAtual) principal.onclick = () => trocarEmpresa(empresa.url);
+    linha.appendChild(principal);
+
+    const btnEditar = document.createElement('button');
+    btnEditar.type = 'button';
+    btnEditar.textContent = '✎';
+    btnEditar.title = 'editar essa empresa';
+    btnEditar.style.cssText = 'font-size:13px; padding:7px 9px; flex-shrink:0;';
+    btnEditar.onclick = () => abrirFormEmpresa(empresa);
+    linha.appendChild(btnEditar);
+
+    if (!ehAtual){
+      const btnExcluir = document.createElement('button');
+      btnExcluir.type = 'button';
+      btnExcluir.textContent = '🗑';
+      btnExcluir.title = 'remover essa empresa deste aparelho';
+      btnExcluir.style.cssText = 'font-size:13px; padding:7px 9px; flex-shrink:0; color:var(--text-danger);';
+      btnExcluir.onclick = () => {
+        if (!confirm('Remover "' + (empresa.nome || empresa.url) + '" desta lista?\n\nIsso só apaga o atalho neste aparelho — os dados dela continuam no servidor dela.')) return;
+        salvarEmpresas(carregarEmpresas().filter(e => e.url !== empresa.url));
+        renderBlocoEmpresas();
+      };
+      linha.appendChild(btnExcluir);
+    }
+    alvo.appendChild(linha);
+  });
+}
+function abrirFormEmpresa(empresa){
+  document.getElementById('formEmpresa').style.display = 'flex';
+  document.getElementById('formEmpresaTitulo').textContent = empresa ? 'Editar empresa' : 'Adicionar empresa';
+  document.getElementById('empresaNomeInput').value = empresa ? (empresa.nome || '') : '';
+  document.getElementById('empresaUrlInput').value = empresa ? empresa.url : (syncUrl || '');
+  document.getElementById('empresaFormErro').style.display = 'none';
+  document.getElementById('formEmpresa').dataset.editando = empresa ? empresa.url : '';
+  document.getElementById('empresaNomeInput').focus();
+}
+function fecharFormEmpresa(){ document.getElementById('formEmpresa').style.display = 'none'; }
+function trocarEmpresa(url){
+  const alvo = normalizarUrlServidor(url);
+  if (!alvo || alvo === syncUrl) return;
+  // a sessão é daquela empresa (outro cadastro de usuários) — não pode atravessar
+  sessionStorage.removeItem('rasmar_usuario');
+  localStorage.setItem('rasmar_sync_url', alvo);
+  // As telas podem estar sendo servidas pelo próprio servidor (uma cópia por
+  // empresa) ou num lugar único (GitHub Pages / arquivo aberto direto). No
+  // primeiro caso trocar é navegar pro site da outra empresa; no segundo o
+  // mesmo index serve todas, então basta recarregar com o endereço novo.
+  let appNoServidor = false;
+  try { appNoServidor = !!syncUrl && new URL(syncUrl).origin === location.origin; } catch (e) {}
+  if (appNoServidor && /^https?:$/.test(location.protocol)) location.href = alvo;
+  else location.reload();
+}
+document.getElementById('btnTrocarEmpresa').onclick = () => {
+  const painel = document.getElementById('painelEmpresas');
+  const abrindo = painel.style.display === 'none';
+  painel.style.display = abrindo ? 'block' : 'none';
+  if (abrindo){ fecharFormEmpresa(); renderBlocoEmpresas(); }
+};
+document.getElementById('btnNovaEmpresa').onclick = () => abrirFormEmpresa(null);
+document.getElementById('btnCancelarEmpresa').onclick = () => fecharFormEmpresa();
+document.getElementById('btnSalvarEmpresa').onclick = () => {
+  const erro = document.getElementById('empresaFormErro');
+  const url = normalizarUrlServidor(document.getElementById('empresaUrlInput').value);
+  const nome = document.getElementById('empresaNomeInput').value.trim() || nomePadraoDaUrl(url);
+  if (!url){ erro.textContent = 'esse endereço não parece válido — cole o link completo (https://...)'; erro.style.display = 'block'; return; }
+  const editando = document.getElementById('formEmpresa').dataset.editando || '';
+  const lista = carregarEmpresas();
+  if (editando){
+    const idx = lista.findIndex(e => e.url === editando);
+    if (idx >= 0) lista[idx] = { nome, url, auto: false };
+    // o endereço mudou: quem estiver usando o antigo continua usando ele,
+    // mas a lista já aponta pro novo cadastro
+    salvarEmpresas(lista);
+    if (editando === syncUrl) trocarEmpresa(url); else renderBlocoEmpresas();
+  } else {
+    const existente = lista.find(e => e.url === url);
+    if (existente){ existente.nome = nome; existente.auto = false; }
+    else lista.push({ nome, url, auto: false });
+    salvarEmpresas(lista);
+    // empresa nova na tela de login é pra usar agora mesmo
+    fecharFormEmpresa();
+    trocarEmpresa(url);
+    return;
+  }
+  fecharFormEmpresa();
+};
+document.getElementById('empresaUrlInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnSalvarEmpresa').click(); });
+document.getElementById('empresaNomeInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnSalvarEmpresa').click(); });
 
 // chamada no fim de renderProjetos() — qualquer mudança (bipar, enviar,
 // defeito, importar CSV, cadastro manual, etc.) já dispara uma tentativa de
@@ -3071,7 +3314,7 @@ function buscarEstadoServidor(){
 // sendo o retrato completo de cada vez.
 function enviarEstadoServidor(salvoEmAnterior, logsNovos, movimentosNovos, checklistsNovos, confirmarZerarTudo, confirmarZerarUsuarios){
   return new Promise((resolve, reject) => {
-    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, checklistsNovos, configuracaoHorario, estacoes: stations, nomeMarcenaria, estacaoInicialId, checklistTemplate };
+    const corpo = { projetos, proximoNumeroPedido, usuarios, logsNovos, movimentosNovos, checklistsNovos, configuracaoHorario, estacoes: stations, nomeMarcenaria, estacaoInicialId, checklistTemplate, colunasCsv };
     if (typeof onboardingConcluido === 'boolean') corpo.onboardingConcluido = onboardingConcluido;
     if (confirmarZerarTudo) corpo.confirmarZerarTudo = true;
     if (confirmarZerarUsuarios) corpo.confirmarZerarUsuarios = true;
@@ -3130,6 +3373,7 @@ async function carregarDoServidorAgora_lancaErro(){
   if (typeof dados.estacaoInicialId === 'string' || dados.estacaoInicialId === null) estacaoInicialId = dados.estacaoInicialId;
   if (typeof dados.onboardingConcluido === 'boolean') onboardingConcluido = dados.onboardingConcluido;
   if (Array.isArray(dados.checklistTemplate) && dados.checklistTemplate.length) checklistTemplate = dados.checklistTemplate;
+  if (dados.colunasCsv && typeof dados.colunasCsv === 'object') Object.assign(colunasCsv, dados.colunasCsv);
   aplicarNomeMarcenariaNaTela();
   if (usuarioLogadoNome && !getUsuarioLogado()){
     usuarioLogadoNome = null;
@@ -3435,11 +3679,13 @@ async function iniciarApp(){
     document.getElementById('loginStatusIcone').textContent = '⚪';
     document.getElementById('loginStatusTexto').textContent = 'servidor não configurado neste aparelho';
     document.getElementById('loginCarregando').style.display = 'none';
+    renderBlocoEmpresas();
     document.getElementById('loginConectar').style.display = 'flex';
     return; // nada mais a fazer até conectar (o botão recarrega a página)
   }
   cargaInicialCompleta = true; // a partir daqui, escrever no servidor é seguro
   document.getElementById('loginCarregando').style.display = 'none'; // sempre esconde, não importa o caminho que seguiu daqui pra baixo
+  renderBlocoEmpresas(); // já com o nome da marcenaria vindo do servidor
   // sessão já ativa (mesma aba) e o usuário ainda existe depois de carregar
   if (usuarioLogadoNome && getUsuarioLogado()){
     mostrarApp();
@@ -3626,6 +3872,7 @@ document.getElementById('btnAbrirAdmin').onclick = () => {
   popularSelectEstacaoInicial();
   popularLinkAcessoEquipe();
   renderListaTemplateChecklist();
+  renderGradeColunasCsv();
 };
 document.getElementById('btnFecharAdmin').onclick = () => { document.getElementById('telaAdmin').style.display = 'none'; };
 
@@ -3664,6 +3911,43 @@ function montarLinkAcessoEquipe(){
   u.search = ''; u.hash = '';
   u.searchParams.set('servidor', syncUrl);
   return u.href;
+}
+
+// ---------- colunas do CSV (nesting file) configuráveis ----------
+// valida e grava a coluna de UM campo (chave em colunasCsv); statusElId
+// deixa reaproveitar essa mesma função tanto em Administração quanto no
+// assistente, cada um com seu próprio elemento de aviso.
+function validarESalvarColunaCsv(inputEl, chave, label, statusElId){
+  const statusEl = document.getElementById(statusElId || 'statusColunasCsv');
+  const letra = inputEl.value.trim().toUpperCase();
+  inputEl.value = letra;
+  if (letraParaIndiceColuna(letra) === null){
+    statusEl.textContent = '⚠ "' + letra + '" não é uma letra de coluna válida (use A, B, C... Z, AA, AB...) — não salvei essa mudança.';
+    statusEl.style.color = 'var(--text-danger)';
+    statusEl.style.display = 'block';
+    return;
+  }
+  colunasCsv[chave] = letra;
+  registrarLog('mudou a coluna do CSV de "' + label + '" pra "' + letra + '"');
+  agendarSincronizacaoRapida();
+  statusEl.textContent = '✅ coluna de "' + label + '" salva: "' + letra + '" (índice ' + letraParaIndiceColuna(letra) + ')';
+  statusEl.style.color = 'var(--text-success)';
+  statusEl.style.display = 'block';
+}
+// monta a grade de campos em Administração a partir de CAMPOS_CSV_CONFIGURAVEIS
+function renderGradeColunasCsv(){
+  const el = document.getElementById('gradeColunasCsv');
+  if (!el) return;
+  el.innerHTML = CAMPOS_CSV_CONFIGURAVEIS.map(c =>
+    '<div><label class="rot" for="colCsv_' + c.chave + '" style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">' + escaparHtml(c.label) + '</label>' +
+    '<input id="colCsv_' + c.chave + '" data-chave="' + c.chave + '" type="text" maxlength="3" value="' + escaparHtml(colunasCsv[c.chave]) + '" style="width:70px; text-align:center; text-transform:uppercase;" /></div>'
+  ).join('');
+  el.querySelectorAll('input[data-chave]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const campo = CAMPOS_CSV_CONFIGURAVEIS.find(c => c.chave === inp.dataset.chave);
+      validarESalvarColunaCsv(inp, campo.chave, campo.label);
+    });
+  });
 }
 
 function renderListaTemplateChecklist(){
@@ -3788,6 +4072,13 @@ function renderAssistente(){
     const link = montarLinkAcessoEquipe();
     h = sub + '<h2>Primeiro projeto</h2>' +
       '<p class="asTexto">Exporte o plano de corte do WPS (ou do seu otimizador) em <strong>CSV</strong> e importe aqui: as peças, os módulos e as medidas entram sozinhos, já prontas pra bipar. Dá pra fazer agora ou depois, pelo botão <em>Importar CSV</em> da tela principal.</p>' +
+      '<div class="asGrupo"><div class="asGrupoTit">Confira as colunas do seu CSV</div>' +
+      '<p class="asAjuda">Se o seu arquivo exportado do WPS tiver um layout diferente do padrão, ajuste aqui — use a letra de coluna de planilha (a mesma se abrisse o CSV no Excel/Sheets). Se não souber, deixe como está; dá pra mudar depois em Administração.</p>' +
+      '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:10px;">' +
+        CAMPOS_CSV_CONFIGURAVEIS.map(c => '<div><label class="asRot" for="asCsv_' + c.chave + '">' + asEsc(c.label) + '</label><input id="asCsv_' + c.chave + '" data-chave="' + c.chave + '" type="text" maxlength="3" value="' + asEsc(colunasCsv[c.chave]) + '" style="width:70px; text-align:center; text-transform:uppercase;" /></div>').join('') +
+      '</div>' +
+      '<p id="statusColunasCsvAssistente" style="font-size:12px; margin:8px 0 0; display:none;"></p>' +
+      '</div>' +
       '<button id="asEscolherCsv" class="asPrimario" style="padding:10px 18px;">📂 Escolher o arquivo CSV agora</button>' +
       (e.csvMsg ? '<p class="' + (e.csvMsg.erro ? 'asErro' : 'asOk') + '" style="margin-top:12px;">' + asEsc(e.csvMsg.texto) + '</p>' : '') +
       '<div class="asGrupo" style="margin-top:16px;"><div class="asGrupoTit">Falta pouco: a equipe</div>' +
@@ -3920,6 +4211,13 @@ document.getElementById('asVoltar').onclick = () => {
   const e = assistenteEstado; if (!e || e.passo === 0) return;
   assistenteLerCampos(); e.erro = ''; e.passo--; renderAssistente();
 };
+// colunas do CSV configuráveis, direto no último passo do assistente —
+// reaproveita a mesma validação/gravação da tela de Administração.
+document.getElementById('asCorpo').addEventListener('change', (ev) => {
+  if (!ev.target.dataset || !ev.target.dataset.chave) return;
+  const campo = CAMPOS_CSV_CONFIGURAVEIS.find(c => c.chave === ev.target.dataset.chave);
+  if (campo) validarESalvarColunaCsv(ev.target, campo.chave, campo.label, 'statusColunasCsvAssistente');
+});
 // ações dentro dos grupos de etapas (subir, descer, remover, adicionar) + botões do último passo
 document.getElementById('asCorpo').addEventListener('click', (ev) => {
   const e = assistenteEstado; if (!e) return;
@@ -5602,6 +5900,11 @@ document.getElementById('btnConectar').onclick = () => {
   const url = normalizarUrlServidor(document.getElementById('conectarUrl').value);
   const erro = document.getElementById('conectarErro');
   if (!url){ erro.textContent = 'esse endereço não parece válido — cole o link completo (https://...)'; erro.style.display = 'block'; return; }
+  // o endereço colado vira uma empresa na lista — assim ele já aparece como
+  // opção pra trocar depois, sem ter que digitar de novo
+  const empresas = carregarEmpresas();
+  if (!empresas.some(e => e.url === url)) empresas.push({ nome: nomePadraoDaUrl(url), url, auto: true });
+  salvarEmpresas(empresas);
   localStorage.setItem('rasmar_sync_url', url);
   window.location.reload();
 };
@@ -5636,6 +5939,7 @@ document.getElementById('btnCriarPrimeiroAdmin').onclick = () => {
 renderTudo();
 renderSeletor();
 atualizarSemiCabecalho();
+renderBlocoEmpresas(); // seletor de empresa aparece já na primeira pintura do login
 </script>
 </body>
 </html>

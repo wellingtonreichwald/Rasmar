@@ -40,6 +40,17 @@ function estadoPadrao(){
       'Medidas conferem com o projeto?',
       'Kit de instalação completo (parafusos, buchas, ferramentas)?'
     ],
+    // colunas do CSV do WPS (nesting file) onde ficam o código da peça
+    // (nesting) e a descrição — configurável porque o layout exportado
+    // pode variar de marcenaria pra marcenaria.
+    // colunas do CSV de importação (nesting file do WPS/otimizador) —
+    // cada uma configurável por letra de planilha, porque o layout
+    // exportado varia de marcenaria pra marcenaria.
+    colunasCsv: {
+      id: 'A', produto: 'B', comprimento: 'D', largura: 'F', material: 'H',
+      descricao: 'K', bordaFrontal: 'M', bordaTraseira: 'N', bordaEsquerda: 'O',
+      bordaDireita: 'P', cliente: 'S', projeto: 'T', nesting: 'W'
+    },
     // sugestão de horário comercial — o admin pode mudar isso a qualquer
     // hora pela tela de Administração; usado só pra calcular "tempo útil"
     // no dashboard (não trava nem impede bipar fora desse horário).
@@ -220,7 +231,7 @@ function tratarGet(url, res){
     resultado = {
       projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido,
       usuarios: db.usuarios, logs: db.logs, movimentos: db.movimentos,
-      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido, checklistTemplate: db.checklistTemplate, checklists: db.checklists,
+      configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido, checklistTemplate: db.checklistTemplate, checklists: db.checklists, colunasCsv: db.colunasCsv,
       geradoEm: timestampLocal()
     };
   } else if (acao === 'checklists'){
@@ -228,7 +239,7 @@ function tratarGet(url, res){
   } else if (acao === 'listarBackups'){
     resultado = { backups: listarArquivosBackup() };
   } else {
-    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido, checklistTemplate: db.checklistTemplate };
+    resultado = { projetos: db.projetos, proximoNumeroPedido: db.proximoNumeroPedido, usuarios: db.usuarios, salvoEm: db.salvoEm, configuracaoHorario: db.configuracaoHorario, estacoes: db.estacoes, nomeMarcenaria: db.nomeMarcenaria, estacaoInicialId: db.estacaoInicialId, onboardingConcluido: db.onboardingConcluido, checklistTemplate: db.checklistTemplate, colunasCsv: db.colunasCsv };
   }
   resultado.chamadasHoje = chamadasHoje;
   const json = JSON.stringify(resultado);
@@ -319,6 +330,7 @@ function aplicarPost(corpo){
       onboardingConcluido: (typeof b.onboardingConcluido === 'boolean') ? b.onboardingConcluido : undefined,
       checklists: Array.isArray(b.checklists) ? b.checklists : [],
       checklistTemplate: Array.isArray(b.checklistTemplate) ? b.checklistTemplate : estadoPadrao().checklistTemplate,
+      colunasCsv: (b.colunasCsv && typeof b.colunasCsv === 'object') ? Object.assign({}, estadoPadrao().colunasCsv, b.colunasCsv) : estadoPadrao().colunasCsv,
       salvoEm: timestampLocal()
     };
     salvarDB(novoDb);
@@ -363,6 +375,11 @@ function aplicarPost(corpo){
   }
   if (Array.isArray(corpo.checklistTemplate)){
     db.checklistTemplate = corpo.checklistTemplate;
+  }
+  if (corpo.colunasCsv && typeof corpo.colunasCsv === 'object'){
+    // faz merge (não substitui o objeto inteiro) — assim um cliente
+    // antigo, que só manda 2 dos 13 campos, não apaga os outros 11.
+    db.colunasCsv = Object.assign({}, db.colunasCsv || estadoPadrao().colunasCsv, corpo.colunasCsv);
   }
 
   db.logs = anexarNovosPorId(db.logs, corpo.logsNovos);

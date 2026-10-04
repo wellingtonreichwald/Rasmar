@@ -18,6 +18,9 @@
 # ============================================================================
 
 set -e  # para tudo se algum passo der errado, em vez de continuar quebrado
+set -o pipefail  # sem isso, um "curl ... | bash -" com o curl falhando passava
+                 # despercebido (só o bash do fim do cano contava) — exatamente
+                 # o tipo de falha silenciosa que já pegou gente nessa instalação
 
 URL_SERVER_JS="$1"
 
@@ -67,17 +70,55 @@ else
 fi
 
 # ---------- 3) instala o Caddy, se ainda não tiver (deixa https:// automático) ----------
+# Em instalação real a chave de assinatura do repositório do Caddy apareceu
+# VENCIDA (erro "EXPKEYSIG 531A6B20FA058A70"). Aqui tem "set -e" e toda a
+# saída foi mandada pra /dev/null, então essa falha matava o script logo depois
+# de "Instalando o Caddy..." sem mostrar absolutamente nada — e o serviço
+# rasmar nem chegava a ser criado (é daí que vem o "rasmar.service could not
+# be found"). Por isso: tenta do jeito certo, depois aceitando a assinatura,
+# e se nenhum der certo AVISA e segue em frente, sem derrubar o resto.
+CADDY_OK=0
 if command -v caddy >/dev/null 2>&1; then
+  CADDY_OK=1
   echo "✅ Caddy já está instalado"
 else
   echo "📦 Instalando o Caddy (é o que deixa o endereço com cadeado https, de graça)..."
-  sudo apt-get update -y >/dev/null 2>&1
-  sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl >/dev/null 2>&1
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg >/dev/null 2>&1
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
-  sudo apt-get update -y >/dev/null 2>&1
-  sudo apt-get install -y caddy >/dev/null 2>&1
-  echo "✅ Caddy instalado"
+  sudo apt-get update -y >/dev/null 2>&1 || true
+  sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl gnupg >/dev/null 2>&1 || true
+
+  # jeito 1: o oficial mesmo, com a chave assinando o repositório.
+  # --yes --batch: nunca pergunta "sobrescrever?" — numa máquina que já
+  # passou por uma tentativa de instalação anterior (interrompida, por
+  # exemplo), esse arquivo de chave pode já existir; sem esses dois
+  # parâmetros, o gpg para esperando uma resposta (y/N) que nunca vem
+  # quando o script roda sem ninguém olhando, e trava tudo no meio.
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --yes --batch --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg >/dev/null 2>&1 || true
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null || true
+  if sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y caddy >/dev/null 2>&1; then
+    CADDY_OK=1
+  fi
+
+  # jeito 2: mesmo repositório oficial, só pedindo pro apt não travar na
+  # assinatura. É o que resolve quando só a CHAVE expirou: o pacote continua
+  # descendo por HTTPS do endereço oficial do Caddy, muda só a checagem.
+  if [ "$CADDY_OK" != "1" ]; then
+    echo "   a assinatura do repositório não passou — tentando sem exigir assinatura..."
+    echo "deb [trusted=yes] https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main" | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null || true
+    if sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y caddy >/dev/null 2>&1; then
+      CADDY_OK=1
+    fi
+  fi
+
+  if [ "$CADDY_OK" = "1" ]; then
+    echo "✅ Caddy instalado"
+  else
+    echo "⚠️  NÃO consegui instalar o Caddy — o repositório deles está com a chave vencida."
+    echo "   Sigo em frente mesmo assim: o servidor do Rasmar vai subir e responder."
+    echo "   Só vai faltar o cadeado https:// (as telas hospedadas no GitHub Pages"
+    echo "   não conseguem falar com um servidor que só tem http://)."
+    echo "   Depois de resolver, é só rodar de novo:"
+    echo '   bash instalar-rasmar.sh "link do seu server.js"'
+  fi
 fi
 
 # ---------- 4) baixa a versão mais recente do server.js do GitHub ----------
@@ -122,14 +163,21 @@ sudo systemctl restart rasmar
 echo "✅ Servidor rodando"
 
 # ---------- 7) configura o Caddy pra dar https:// automático ----------
-echo "🔒 Configurando o https:// automático..."
-sudo tee /etc/caddy/Caddyfile > /dev/null << CADDY_EOF
+# só tenta se o Caddy realmente instalou — sem ele, "systemctl restart caddy"
+# falharia e o "set -e" derrubaria o script no último passo, escondendo que
+# o resto (servidor incluso) já tinha dado certo.
+if [ "$CADDY_OK" = "1" ]; then
+  echo "🔒 Configurando o https:// automático..."
+  sudo tee /etc/caddy/Caddyfile > /dev/null << CADDY_EOF
 $ENDERECO_NIP {
     reverse_proxy localhost:3000
 }
 CADDY_EOF
-sudo systemctl restart caddy
-echo "✅ https:// configurado"
+  sudo systemctl restart caddy
+  echo "✅ https:// configurado"
+else
+  echo "⏭️  Pulando o https:// (o Caddy não foi instalado)"
+fi
 
 # ---------- 8) confere se está tudo funcionando ----------
 sleep 2
@@ -143,11 +191,28 @@ fi
 
 echo ""
 echo "=================================================================="
-echo "🎉 PRONTO! Esse é o endereço que você vai colar no Rasmar:"
-echo ""
-echo "   https://$ENDERECO_NIP/"
-echo ""
-echo "Cole esse endereço na primeira tela do Rasmar, em 'endereço do"
-echo "servidor', quando for criar o primeiro usuário administrador."
+if [ "$CADDY_OK" = "1" ]; then
+  echo "🎉 PRONTO! Esse é o endereço que você vai colar no Rasmar:"
+  echo ""
+  echo "   https://$ENDERECO_NIP/"
+  echo ""
+  echo "Cole esse endereço na primeira tela do Rasmar, em 'endereço do"
+  echo "servidor', quando for criar o primeiro usuário administrador."
+else
+  echo "🎉 Servidor instalado e rodando — mas o endereço com cadeado não saiu,"
+  echo " porque a instalação do Caddy falhou (chave do repositório deles vencida)."
+  echo ""
+  echo "   O servidor está em: http://$IP_PUBLICO:3000/"
+  echo ""
+  echo "   Ele responde, MAS as telas do Rasmar (que ficam no GitHub Pages, em"
+  echo "   https://) não vão conseguir conversar com um endereço http:// — o"
+  echo "   navegador bloqueia. Então pra usar de verdade é preciso resolver o"
+  echo "   Caddy e rodar de novo:"
+  echo '   bash instalar-rasmar.sh "link do seu server.js"'
+  echo ""
+  echo "   Um jeito rápido de destravar AGORA, se a chave só estiver vencida:"
+  echo "     echo \"deb [trusted=yes] https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main\" | sudo tee /etc/apt/sources.list.d/caddy-stable.list"
+  echo "     sudo apt-get update -y && sudo apt-get install -y caddy"
+fi
 echo "=================================================================="
 echo ""
